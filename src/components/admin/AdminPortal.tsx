@@ -293,6 +293,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   {staff.isMaster && <span className="px-1.5 py-0.2 rounded bg-slate-950/30 text-[9px] font-black uppercase">Master</span>}
                 </button>
               ))}
+          {ADMIN_STAFF_MEMBERS.find(s=>s.email.toLowerCase()===selectedStaffEmail.toLowerCase())?.isMaster && ADMIN_STAFF_MEMBERS.filter(s=>!s.isMaster).map(s=>(
+<button key={'del-'+s.id} type="button" onClick={async()=>{
+if(confirm('Delete admin '+s.email+'?')){
+const {error}=await supabase.from('profiles').delete().eq('email',s.email);
+if(error) alert(error.message);
+else { setAdminStaff(prev=>prev.filter(x=>x.email!==s.email)); alert('Deleted '+s.email); }
+}
+}} className="px-2 py-1 rounded bg-red-600 text-white text-[10px] font-bold ml-1 hover:bg-red-700">Delete {s.name.split(' ')[0]} X</button>
+))}
             </div>
           </div>
 
