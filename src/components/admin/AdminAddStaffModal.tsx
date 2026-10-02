@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../../lib/supabaseClient';
 import { AdminPayrollRecord, AdminStaffRole } from '../../types';
 import { getKingstonNow } from '../../utils/adminPayrollUtils';
 import { soundFX } from '../../utils/soundEffects';
@@ -27,29 +28,37 @@ export const AdminAddStaffModal: React.FC<AdminAddStaffModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim()) return;
-
     soundFX.playToggleClick();
-    const id = `admin-${Date.now().toString().slice(-6)}`;
-    const newAdmin: AdminPayrollRecord = {
-      id,
-      fullName: fullName.trim(),
-      email: email.trim().toLowerCase(),
-      role,
-      weeklySalaryJMD: Number(weeklySalaryJMD) || 4000,
-      startDate,
-      status: 'Active',
-      totalPaid: 0,
-      totalEarned: 0,
-      balanceDue: 0,
-      lynkOrBankInfo: lynkOrBankInfo.trim() || 'Lynk / Bank pending',
-      phone: phone.trim()
-    };
-
-    onAddAdmin(newAdmin);
-    onClose();
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password: 'WeCareJa123!',
+        options: { data: { full_name: fullName.trim() } }
+      });
+      if (error) { alert("Error: " + error.message); return; }
+      const userId = data.user?.id;
+      if (!userId) { alert("Created but no ID"); return; }
+      const { error: pError } = await supabase.from('profiles').insert({
+        id: userId,
+        full_name: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        role: 'admin',
+        phone: phone.trim()
+      });
+      if (pError) { alert("Profile error: " + pError.message); return; }
+      const newAdmin = {
+        id: userId, fullName: fullName.trim(), email: email.trim().toLowerCase(),
+        role, weeklySalaryJMD: Number(weeklySalaryJMD) || 4000, startDate,
+        status: 'Active', totalPaid: 0, totalEarned: 0, balanceDue: 0,
+        lynkOrBankInfo: lynkOrBankInfo.trim() || 'Lynk / Bank pending', phone: phone.trim()
+      };
+      onAddAdmin(newAdmin as any);
+      onClose();
+      alert(`Admin created! Email: ${email} Temp pass: WeCareJa123!`);
+    } catch (err: any) { alert(err.message); }
   };
 
   return (
