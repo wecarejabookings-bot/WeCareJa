@@ -139,14 +139,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const [selectedStaffEmail, setSelectedStaffEmail] = useState<string>('wecareja.bookings@gmail.com');
 
-    useEffect(() => {
+     useEffect(() => {
     const load = async () => {
       const { data } = await supabase.from('profiles').select('*').eq('role', 'admin');
       if (data) {
         const mapped = data.map((p: any) => ({
-          id: p.id, name: p.full_name || p.email, email: p.email, role: 'Manager' as const, isMaster: p.email === 'wecareja.bookings@gmail.com', phone: p.phone || '', title: 'Admin Staff'
+          id: p.id,
+          name: p.full_name || p.email,
+          email: p.email,
+          role: 'Manager' as const,
+          isMaster: false,
+          phone: p.phone || '',
+          title: 'Admin Staff'
         }));
-        setAdminStaff([ADMIN_STAFF_MEMBERS[0],...mapped.filter(m => m.email!== 'wecareja.bookings@gmail.com')]);
+        const master = { id: 'admin-sydney', name: 'Sydney Mattis', email: 'wecareja.bookings@gmail.com', role: 'Manager' as const, isMaster: true, phone: '(876) 582-7613', title: 'Lead Operations Director & Master Administrator' };
+        const others = mapped.filter((m: any) => m.email.toLowerCase() !== 'wecareja.bookings@gmail.com');
+        setAdminStaff([master, ...others]);
       }
     };
     load();
