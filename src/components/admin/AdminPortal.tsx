@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { NurseProfile, Booking, PayoutRecord, LogoVariation, VideoMeeting, NursingSchool, UserAccount } from '../../types';
+import { supabase } from '../../lib/supabaseClient';
 import { KINGSTON_ZONES, PORTMORE_ZONES, SPANISH_TOWN_ZONES, INITIAL_PAYOUTS, ADMIN_PROFILE, INITIAL_NURSING_SCHOOLS, INITIAL_VIDEO_MEETINGS } from '../../data/mockData';
 import { InvoiceReceiptModal } from '../common/InvoiceReceiptModal';
 import { MedicalSummaryModal } from '../common/MedicalSummaryModal';
@@ -132,11 +133,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onRegisterNewClient
 }) => {
   // Master Admin Staff Account in We Care Jamaica (Kingston & St Catherine)
-  const ADMIN_STAFF_MEMBERS = [
+  const [ADMIN_STAFF_MEMBERS, setAdminStaff] = useState([
     { id: 'admin-sydney', name: 'Sydney Mattis', email: 'wecareja.bookings@gmail.com', role: 'Manager' as const, isMaster: true, phone: '(876) 582-7613', title: 'Lead Operations Director & Master Administrator' }
   ];
 
   const [selectedStaffEmail, setSelectedStaffEmail] = useState<string>('wecareja.bookings@gmail.com');
+
+    useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase.from('profiles').select('*').eq('role', 'admin');
+      if (data) {
+        const mapped = data.map((p: any) => ({
+          id: p.id, name: p.full_name || p.email, email: p.email, role: 'Manager' as const, isMaster: p.email === 'wecareja.bookings@gmail.com', phone: p.phone || '', title: 'Admin Staff'
+        }));
+        setAdminStaff([ADMIN_STAFF_MEMBERS[0],...mapped.filter(m => m.email!== 'wecareja.bookings@gmail.com')]);
+      }
+    };
+    load();
+  }, []);
 
   const currentStaff = ADMIN_STAFF_MEMBERS.find(s => s.email.toLowerCase() === selectedStaffEmail.toLowerCase()) || ADMIN_STAFF_MEMBERS[0];
   const effectiveMasterAdmin = isMasterAdmin && currentStaff.isMaster;
