@@ -552,15 +552,7 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleSimulateMondayRun}
-                className="px-3.5 py-2 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 hover:text-white border border-purple-400/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-                title="Simulate automated Monday 12:00 AM Kingston payroll accrual"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-purple-300" />
-                <span>Simulate Monday Accrual</span>
-              </button>
+       
 
               <button
                 type="button"
