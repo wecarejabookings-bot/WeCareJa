@@ -141,6 +141,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   ];
 
   const [selectedStaffEmail, setSelectedStaffEmail] = useState<string>('wecareja.bookings@gmail.com');
+  const currentStaff = ADMIN_STAFF_MEMBERS.find(s => s.email === selectedStaffEmail) || ADMIN_STAFF_MEMBERS[0] || null;
 
   const isMasterAdminEmail = (email?: string | null) => {
     if (!email) return false;
@@ -359,27 +360,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
 
         {/* Administrator Profile Banner: Sydney Mattis or Regular Admin Staff */}
-        <div className="relative z-10 mt-6 p-4 rounded-2xl bg-gradient-to-r from-purple-950/70 via-slate-900/80 to-purple-950/60 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1E1B4B] to-[#F59E0B] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-950/50 shrink-0 border border-white/20">
-              {currentStaff.name.split(' ').map(n => n[0]).join('')}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-white text-base tracking-tight">{currentStaff.name}</h3>
-                <span className="px-2 py-0.5 rounded-full bg-purple-500/30 text-[#C77DFF] border border-purple-500/40 text-[10px] font-bold">
-                  {currentStaff.title}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{effectiveMasterAdmin ? 'Master Executive Active' : 'Staff Operations Active'}</span>
-                </span>
+        {currentStaff && (
+          <div className="relative z-10 mt-6 p-4 rounded-2xl bg-gradient-to-r from-purple-950/70 via-slate-900/80 to-purple-950/60 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1E1B4B] to-[#F59E0B] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-950/50 shrink-0 border border-white/20">
+                {currentStaff?.name ? currentStaff.name.split(' ').map(n => n[0]).join('') : 'AD'}
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                {currentStaff.role} • 4 Claudete Drive, St. Catherine, Jamaica
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-white text-base tracking-tight">{currentStaff?.name || 'Administrator'}</h3>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-500/30 text-[#C77DFF] border border-purple-500/40 text-[10px] font-bold">
+                    {currentStaff?.title || 'Operations Staff'}
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{effectiveMasterAdmin ? 'Master Executive Active' : 'Staff Operations Active'}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  {currentStaff?.role || 'Admin'} • 4 Claudete Drive, St. Catherine, Jamaica
+                </p>
+              </div>
             </div>
-          </div>
 
           <div className="flex flex-wrap items-center gap-2.5 text-xs">
             <a
@@ -415,8 +417,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             )}
           </div>
         </div>
+      )}
 
-        {/* High-Level Metric Tiles (Regular admin hides all financial cards) */}
+      {/* High-Level Metric Tiles (Regular admin hides all financial cards) */}
         <div className="relative z-10 mt-6 pt-5 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           {effectiveMasterAdmin ? (
             <>
