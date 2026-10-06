@@ -78,7 +78,7 @@ export default function App() {
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
   const [logoVariation, setLogoVariation] = useState<LogoVariation>('heart-cross');
   
-  // Navigation View: 'portal' | 'store' | 'admin_orders' (Requirement 3 & 4)
+  // Navigation View & Route Handling with Fallback Route
   const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
@@ -90,29 +90,43 @@ export default function App() {
         return 'admin_orders';
       }
     }
+    // Fallback route defaults to main portal
     return 'portal';
   });
 
-  // Keep browser URL path/hash and currentView synchronized
+  // Keep browser URL path/hash, modals, and fallback routes synchronized
   useEffect(() => {
-    const handlePopState = () => {
+    const syncRoutesFromUrl = () => {
       if (typeof window === 'undefined') return;
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
+
       if (path.includes('/store') || hash.includes('/store') || hash.includes('store')) {
         setCurrentView('store');
       } else if (path.includes('/admin/orders') || hash.includes('/admin/orders') || hash.includes('admin_orders')) {
         setCurrentView('admin_orders');
       } else {
+        // Fallback route: any unmapped route safely renders portal
         setCurrentView('portal');
+      }
+
+      // Deep-link route triggers for sign-in / registration
+      if (path.includes('/signin') || path.includes('/login') || path.includes('/auth') || hash.includes('signin') || hash.includes('login')) {
+        setIsAuthModalOpen(true);
+        setAuthModalTab('signin');
+      } else if (path.includes('/signup') || path.includes('/register') || hash.includes('signup')) {
+        setIsPatientSignUpOpen(true);
+      } else if (path.includes('/nurse-signup') || hash.includes('nurse-signup')) {
+        setIsNurseSignUpOpen(true);
       }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('hashchange', handlePopState);
+    syncRoutesFromUrl();
+    window.addEventListener('popstate', syncRoutesFromUrl);
+    window.addEventListener('hashchange', syncRoutesFromUrl);
     return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('hashchange', handlePopState);
+      window.removeEventListener('popstate', syncRoutesFromUrl);
+      window.removeEventListener('hashchange', syncRoutesFromUrl);
     };
   }, []);
 
@@ -526,7 +540,7 @@ export default function App() {
       return;
     }
 
-    if (currentUser.role !== newRole) {
+    if (currentUser && currentUser.role !== newRole) {
       handleTriggerNotification(
         'system_alert',
         'Sign Out Required',
@@ -539,6 +553,10 @@ export default function App() {
 
   // User Auth Handlers
   const handleSelectUser = (user: UserAccount) => {
+    setUserAccounts(prev => {
+      const exists = prev.some(u => u.id === user.id);
+      return exists ? prev.map(u => u.id === user.id ? user : u) : [user, ...prev];
+    });
     setCurrentUserId(user.id);
     try {
       sessionStorage.setItem('wecare_session_user_id', user.id);

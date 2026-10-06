@@ -20,9 +20,18 @@ function sanitizeSupabaseKey(raw?: string): string {
   return clean;
 }
 
-// Read Supabase credentials with fallback to user's live project
-const SUPABASE_URL = sanitizeSupabaseUrl((import.meta as any).env?.VITE_SUPABASE_URL);
-const SUPABASE_ANON_KEY = sanitizeSupabaseKey((import.meta as any).env?.VITE_SUPABASE_ANON_KEY);
+// Read Supabase credentials with fallback error message if missing
+const rawEnvUrl = import.meta.env.VITE_SUPABASE_URL;
+const rawEnvKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!rawEnvUrl || !rawEnvKey) {
+  console.warn(
+    '[WeCare Supabase Alert] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is not configured in environment variables. Falling back to default project credentials to prevent blank/blue screen.'
+  );
+}
+
+const SUPABASE_URL = sanitizeSupabaseUrl(rawEnvUrl);
+const SUPABASE_ANON_KEY = sanitizeSupabaseKey(rawEnvKey);
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -31,6 +40,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     detectSessionInUrl: true
   }
 });
+export const supabaseClient = supabase;
 
 // Default Medical Supplies catalog in JMD for home healthcare in Kingston & St Andrew
 export const DEFAULT_MEDICAL_SUPPLIES: MedicalSupplyItem[] = [
