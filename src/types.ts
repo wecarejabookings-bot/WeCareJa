@@ -976,11 +976,13 @@ export type AdminPayStatus = 'paid' | 'due' | 'overdue';
 
 export interface AdminPayrollRecord {
   id: string;
+  userId?: string;
   fullName: string;
   email: string;
   role: AdminStaffRole;
   weeklySalaryJMD: number; // default 4000
   startDate: string; // YYYY-MM-DD
+  weeksWorked?: number;
   status: 'Active' | 'Inactive';
   totalPaid: number;
   totalEarned: number;

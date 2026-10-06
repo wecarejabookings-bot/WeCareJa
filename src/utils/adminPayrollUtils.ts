@@ -13,15 +13,16 @@ export const INITIAL_ADMIN_PAYROLL: AdminPayrollRecord[] = [
     email: 'wecareja.bookings@gmail.com',
     role: 'Manager',
     weeklySalaryJMD: 8500,
-    startDate: '2025-01-06',
+    startDate: '2026-10-06',
+    weeksWorked: 0,
     status: 'Active',
     totalPaid: 0,
     totalEarned: 0,
     balanceDue: 0,
-    lastPayDate: '2026-09-22',
+    lastPayDate: '2026-10-06',
     lynkOrBankInfo: 'Lynk @sydneymattis / NCB 214892019',
     phone: '1876-582-7613',
-    lastAccrualMonday: '2026-09-28'
+    lastAccrualMonday: '2026-10-05'
   }
 ];
 
@@ -162,15 +163,30 @@ export function loadAdminPayroll(): AdminPayrollRecord[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Purge any legacy demo staff (kevin, dwayne, tanesha, althea)
-      const cleaned = parsed.filter(
-        (a: AdminPayrollRecord) =>
-          a.id === 'admin-sydney' ||
-          (!a.id.includes('kevin') &&
-            !a.id.includes('dwayne') &&
-            !a.id.includes('tanesha') &&
-            !a.id.includes('althea'))
-      );
+      // Purge any legacy demo staff (kevin, dwayne, tanesha, althea) and sanitize 91-week bug
+      const cleaned = parsed
+        .filter(
+          (a: AdminPayrollRecord) =>
+            a.id === 'admin-sydney' ||
+            (!a.id.includes('kevin') &&
+              !a.id.includes('dwayne') &&
+              !a.id.includes('tanesha') &&
+              !a.id.includes('althea'))
+        )
+        .map((a: AdminPayrollRecord) => {
+          if (a.balanceDue >= 110000 || a.totalEarned >= 110000 || (a.startDate && a.startDate.startsWith('2025-01'))) {
+            return {
+              ...a,
+              startDate: '2026-10-06',
+              weeksWorked: 0,
+              totalEarned: 0,
+              totalPaid: 0,
+              balanceDue: 0
+            };
+          }
+          return a;
+        });
+
       if (cleaned.length === 0) {
         localStorage.setItem(ADMIN_PAYROLL_STORAGE_KEY, JSON.stringify(INITIAL_ADMIN_PAYROLL));
         return INITIAL_ADMIN_PAYROLL;

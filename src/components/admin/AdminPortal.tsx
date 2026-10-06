@@ -698,7 +698,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {activeTab === 'payroll' && effectiveMasterAdmin && (
         <AdminPayrollAccountabilitySystem
           bookings={bookings}
-          currentUser={currentUser}
+          currentUser={currentUser || { id: 'admin-sydney', email: 'wecareja.bookings@gmail.com', name: 'Sydney Mattis', role: 'admin' }}
           isMasterAdmin={true}
           selectedStaffEmail="wecareja.bookings@gmail.com"
         />

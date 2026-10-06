@@ -22,6 +22,7 @@ import { AdminPayNowModal } from './AdminPayNowModal';
 import { AdminEditSalaryModal } from './AdminEditSalaryModal';
 import { AdminAddStaffModal } from './AdminAddStaffModal';
 import { soundFX } from '../../utils/soundEffects';
+import { supabase } from '../../lib/supabase';
 import confetti from 'canvas-confetti';
 import {
   DollarSign,
@@ -122,13 +123,45 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
     soundFX.playSuccessPing();
   };
 
-  // Automated Weekly Logic check on mount & when Kingston Monday arrives
+  // Automated Weekly Logic check on mount & sync with Supabase admin_staff table
   useEffect(() => {
-    const { updatedRecords, accruedCount } = checkAndRunAutomatedWeeklyLogic(admins, false);
-    if (accruedCount > 0) {
-      setAdmins(updatedRecords);
-      showToast(`Automated Monday Run: Accrued weekly stipend for ${accruedCount} active admin(s)`, 'info');
-    }
+    const fetchSupabaseStaff = async () => {
+      try {
+        const { data, error } = await supabase.from('admin_staff').select('*');
+        if (!error && Array.isArray(data) && data.length > 0) {
+          const mapped: AdminPayrollRecord[] = data.map((row: any) => ({
+            id: row.id || row.user_id || `admin-${row.email}`,
+            userId: row.user_id,
+            fullName: row.full_name || row.name || 'Admin Staff',
+            email: row.email,
+            role: row.role || 'Support',
+            weeklySalaryJMD: Number(row.weekly_salary) || 4000,
+            startDate: row.employment_start_date ? row.employment_start_date.split('T')[0] : (row.start_date || getKingstonNow().toISOString().split('T')[0]),
+            weeksWorked: Number(row.weeks_worked) || 0,
+            status: row.status || 'Active',
+            totalPaid: Number(row.total_paid) || 0,
+            totalEarned: Number(row.total_earned) || 0,
+            balanceDue: Number(row.balance_due) || 0,
+            lynkOrBankInfo: row.lynk_or_bank_info || 'Lynk / Bank pending',
+            phone: row.phone || '(876) 582-7613'
+          }));
+          setAdmins(mapped);
+          saveAdminPayroll(mapped);
+          return;
+        }
+      } catch (err) {
+        console.warn('Note fetching admin_staff from Supabase:', err);
+      }
+
+      // Fallback: Run weekly logic on local records
+      const { updatedRecords, accruedCount } = checkAndRunAutomatedWeeklyLogic(admins, false);
+      if (accruedCount > 0) {
+        setAdmins(updatedRecords);
+        showToast(`Automated Monday Run: Accrued weekly stipend for ${accruedCount} active admin(s)`, 'info');
+      }
+    };
+
+    fetchSupabaseStaff();
   }, []);
 
   const showToast = (msg: string, type: 'success' | 'info' | 'warning' = 'success') => {
@@ -136,7 +169,7 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
     setTimeout(() => setNotificationToast(null), 4000);
   };
 
-  // Determine current active viewing permissions: Master admin (wecarejabookings@gmail.com) always has full owner clearance
+  // Determine current active viewing permissions: Master admin (wecareja.bookings@gmail.com) always has full owner clearance
   const isMasterAdminEmail = (currentUser?.email || '').toLowerCase().replace(/\./g, '') === 'wecarejabookings@gmail.com' ||
     (selectedStaffEmail || '').toLowerCase().replace(/\./g, '') === 'wecarejabookings@gmail.com' ||
     activePersona.toLowerCase().replace(/\./g, '') === 'wecarejabookings@gmail.com' ||
@@ -145,23 +178,99 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
 
   const isViewingAsOwner = Boolean(isMasterAdmin || isMasterAdminEmail);
 
-  // Permanently delete admin staff from payroll registry (Master Admin only)
-  const handleDeleteAdminStaff = (adminToDelete: AdminPayrollRecord) => {
+  // Zero Out button: ONLY for Owner wecareja.bookings@gmail.com.
+  // On click confirm: "Zero out {name}? Fixes -110,500 profit bug."
+  // Then: supabase.from('admin_staff').update({weeks_worked:0, total_earned:0, balance_due:0, employment_start_date: new Date().toISOString()}).eq('id', staff.id)
+  const handleZeroOutStaff = async (staff: AdminPayrollRecord) => {
+    const isOwner = isViewingAsOwner || (currentUser?.email || '').toLowerCase().replace(/\./g, '') === 'wecarejabookings@gmail.com';
+    if (!isOwner) {
+      showToast('Zero Out action is strictly restricted to Owner wecareja.bookings@gmail.com', 'warning');
+      soundFX.playWarningSound();
+      return;
+    }
+
+    const confirmed = window.confirm(`Zero out ${staff.fullName}? Fixes -110,500 profit bug.`);
+    if (!confirmed) return;
+
+    soundFX.playToggleClick();
+
+    // 1. Update Supabase
+    try {
+      await supabase.from('admin_staff').update({
+        weeks_worked: 0,
+        total_earned: 0,
+        balance_due: 0,
+        employment_start_date: new Date().toISOString()
+      }).eq('id', staff.id);
+    } catch (err) {
+      console.warn('Supabase zero out note:', err);
+    }
+
+    // 2. Update local state & localStorage
+    const updated = admins.map(a => {
+      if (a.id === staff.id) {
+        return {
+          ...a,
+          weeksWorked: 0,
+          totalEarned: 0,
+          totalPaid: 0,
+          balanceDue: 0,
+          startDate: new Date().toISOString().split('T')[0]
+        };
+      }
+      return a;
+    });
+
+    setAdmins(updated);
+    saveAdminPayroll(updated);
+    soundFX.playSuccessPing();
+    confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+    showToast(`Zeroed out ${staff.fullName}. Profit calculation reset!`, 'success');
+  };
+
+  // Permanently delete admin staff from payroll registry with double confirm
+  const handleDeleteAdminStaff = async (adminToDelete: AdminPayrollRecord) => {
     const isMasterTarget = adminToDelete.email.toLowerCase().replace(/\./g, '') === 'wecarejabookings@gmail.com' || adminToDelete.id === 'admin-sydney';
     if (isMasterTarget) {
       showToast('Cannot delete the Master Administrator / Owner account.', 'warning');
       soundFX.playWarningSound();
       return;
     }
-    const confirmed = window.confirm(
-      `Are you sure you want to permanently delete ${adminToDelete.fullName} (${adminToDelete.role}) from the staff payroll registry?`
+
+    // Double confirm
+    const confirmed1 = window.confirm(
+      `Are you sure you want to delete ${adminToDelete.fullName} from Admin Staff?`
     );
-    if (!confirmed) return;
+    if (!confirmed1) return;
+
+    const confirmed2 = window.confirm(
+      `This will permanently remove ${adminToDelete.fullName} from payroll and revoke admin access. Proceed?`
+    );
+    if (!confirmed2) return;
+
+    // Delete from Supabase
+    try {
+      await supabase.from('admin_staff').delete().eq('id', adminToDelete.id);
+      await supabase.from('staff').delete().eq('id', adminToDelete.id);
+    } catch (err) {
+      console.warn('Supabase delete staff note:', err);
+    }
 
     const updated = admins.filter(a => a.id !== adminToDelete.id);
     setAdmins(updated);
     saveAdminPayroll(updated);
-    showToast(`Removed ${adminToDelete.fullName} from staff registry.`, 'success');
+
+    // Also remove from local user accounts if exists
+    try {
+      const rawAccounts = localStorage.getItem('wecare_user_accounts');
+      if (rawAccounts) {
+        const accounts: UserAccount[] = JSON.parse(rawAccounts);
+        const filteredAccs = accounts.filter(a => a.id !== adminToDelete.id && a.email?.toLowerCase() !== adminToDelete.email.toLowerCase());
+        localStorage.setItem('wecare_user_accounts', JSON.stringify(filteredAccs));
+      }
+    } catch {}
+
+    showToast(`Permanently deleted ${adminToDelete.fullName} from staff registry.`, 'success');
     soundFX.playToggleClick();
   };
   
@@ -781,31 +890,32 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            {/* 1. Edit Button */}
                             <button
                               type="button"
                               onClick={() => setSelectedAdminForEdit(admin)}
-                              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition cursor-pointer"
-                              title="Edit Weekly Salary & Role"
+                              className="px-2.5 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-500/30 transition cursor-pointer flex items-center gap-1"
+                              title={`Edit ${admin.fullName} salary, weeks worked & role`}
                             >
-                              <Edit className="w-3.5 h-3.5" />
+                              <Edit className="w-3.5 h-3.5 text-purple-300" />
+                              <span className="text-[11px] font-bold">Edit</span>
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={() => setSelectedAdminForPay(admin)}
-                              disabled={!isDue}
-                              className={`px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1 shadow-md cursor-pointer ${
-                                isDue
-                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-950/40'
-                                  : 'bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed opacity-60'
-                              }`}
-                            >
-                              <DollarSign className="w-3.5 h-3.5" />
-                              <span>Pay Now</span>
-                            </button>
+                            {/* 2. Zero Out ($0 icon) - ONLY for Owner wecareja.bookings@gmail.com */}
+                            {isViewingAsOwner && (
+                              <button
+                                type="button"
+                                onClick={() => handleZeroOutStaff(admin)}
+                                className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition cursor-pointer flex items-center gap-1 shadow-sm"
+                                title={`Zero out ${admin.fullName}? Fixes -110,500 profit bug`}
+                              >
+                                <span className="font-mono font-black text-xs leading-none text-amber-400">$0</span>
+                                <span className="text-[11px] font-black">Zero Out</span>
+                              </button>
+                            )}
 
-                            {/* Delete Button (visible to all admins with confirm) */}
+                            {/* 3. Delete (trash) - double confirm */}
                             <button
                               type="button"
                               onClick={() => handleDeleteAdminStaff(admin)}
@@ -822,6 +932,22 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
                               }
                             >
                               <Trash2 className="w-3.5 h-3.5 text-white" />
+                            </button>
+
+                            {/* 4. Pay Now Button */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAdminForPay(admin)}
+                              disabled={!isDue}
+                              className={`px-3 py-1.5 rounded-xl font-black text-xs transition flex items-center gap-1 shadow-md cursor-pointer ${
+                                isDue
+                                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-emerald-950/40'
+                                  : 'bg-white/5 text-slate-500 border border-white/5 cursor-not-allowed opacity-60'
+                              }`}
+                              title={isDue ? `Disburse weekly stipend of ${formatJMD(admin.balanceDue)}` : 'No outstanding balance due'}
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                              <span>Pay Now</span>
                             </button>
                           </div>
                         </td>
