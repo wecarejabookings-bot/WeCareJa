@@ -1024,6 +1024,17 @@ export interface MedicalSupplyItem {
   created_at?: string;
 }
 
+export interface StoreProduct {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  price_jmd: number;
+  stock_qty: number;
+  image_url: string;
+  is_active: boolean;
+}
+
 export interface SupplyOrderItem {
   supply_id: string;
   name: string;

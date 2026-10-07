@@ -60,6 +60,7 @@ import { AppStoreLaunchPackModal } from './components/brand/AppStoreLaunchPackMo
 import { SplashOnboardingModal } from './components/common/SplashOnboardingModal';
 import { MedicalStorePage } from './components/store/MedicalStorePage';
 import { AdminSupplyOrdersManager } from './components/admin/AdminSupplyOrdersManager';
+import { AdminStoreInventoryManager } from './components/admin/AdminStoreInventoryManager';
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -79,10 +80,13 @@ export default function App() {
   const [logoVariation, setLogoVariation] = useState<LogoVariation>('heart-cross');
   
   // Navigation View & Route Handling with Fallback Route
-  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders'>(() => {
+  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
+      if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
+        return 'admin_store';
+      }
       if (path.includes('/store') || hash.includes('/store') || hash.includes('store')) {
         return 'store';
       }
@@ -101,7 +105,9 @@ export default function App() {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
 
-      if (path.includes('/store') || hash.includes('/store') || hash.includes('store')) {
+      if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
+        setCurrentView('admin_store');
+      } else if (path.includes('/store') || hash.includes('/store') || hash.includes('store')) {
         setCurrentView('store');
       } else if (path.includes('/admin/orders') || hash.includes('/admin/orders') || hash.includes('admin_orders')) {
         setCurrentView('admin_orders');
@@ -130,10 +136,10 @@ export default function App() {
     };
   }, []);
 
-  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders') => {
+  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
-      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : '/';
+      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : '/';
       try {
         window.history.pushState({}, '', targetPath);
       } catch {}
@@ -1381,6 +1387,51 @@ export default function App() {
                 </span>
               </div>
               <AdminSupplyOrdersManager isMasterAdmin={isMasterAdmin} />
+            </div>
+          )
+        ) : currentView === 'admin_store' ? (
+          (!isAuthenticated || !currentUser || (!isMasterAdmin && currentRole !== 'admin')) ? (
+            <div className="p-8 sm:p-12 text-center space-y-4 rounded-3xl bg-white/[0.03] border border-white/10 max-w-lg mx-auto mt-6">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 shadow-xl">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-white">Administrator Restricted Access</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Store &amp; Inventory Management (<code className="font-mono text-emerald-300">/admin/store</code>) is strictly reserved for authorized administrative staff.
+              </p>
+              <div className="pt-2 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateView('portal')}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  Return to Home
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAuthModal('signin')}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black shadow-lg transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-slate-950" />
+                  <span>Sign In as Admin</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateView('portal')}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>← Back to Admin Portal</span>
+                </button>
+                <span className="text-xs text-emerald-300 font-mono bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                  Direct Route: /admin/store
+                </span>
+              </div>
+              <AdminStoreInventoryManager />
             </div>
           )
         ) : !isAuthenticated || !currentUser ? (

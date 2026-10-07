@@ -36,6 +36,7 @@ import {
   saveMedicalSupplyToSupabase,
   deleteMedicalSupplyFromSupabase
 } from '../../lib/supabase';
+import { AdminStoreInventoryManager } from './AdminStoreInventoryManager';
 import { soundFX } from '../../utils/soundEffects';
 import { getCorrectItemImage } from '../../utils/productImages';
 
@@ -716,6 +717,10 @@ export const AdminSupplyOrdersManager: React.FC<AdminSupplyOrdersManagerProps> =
       {/* VIEW 2: PRODUCT CATALOG & INVENTORY MANAGEMENT */}
       {/* ========================================================================= */}
       {subTab === 'products' && (
+        <AdminStoreInventoryManager />
+      )}
+
+      {false && subTab === 'products' && (
         <div className="space-y-4">
           {/* Header Action & Filters Bar */}
           <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">

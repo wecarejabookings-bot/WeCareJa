@@ -22,9 +22,9 @@ import {
   X
 } from 'lucide-react';
 import { MedicalSupplyItem, SupplyOrderItem, UserAccount } from '../../types';
-import { fetchMedicalSuppliesFromSupabase, createSupplyOrderRecord } from '../../lib/supabase';
+import { createSupplyOrderRecord } from '../../lib/supabase';
+import { fetchClientStoreProducts } from '../../services/storeProductsService';
 import { soundFX } from '../../utils/soundEffects';
-import { getCorrectItemImage } from '../../utils/productImages';
 import confetti from 'canvas-confetti';
 
 interface MedicalStorePageProps {
@@ -68,13 +68,23 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
     }
   }, [currentUser]);
 
-  // Load supplies from Supabase
+  // Load active supplies from store_products table (is_active=true)
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        const items = await fetchMedicalSuppliesFromSupabase();
-        setSupplies(items);
+        const prods = await fetchClientStoreProducts();
+        setSupplies(prods.map(p => ({
+          id: p.id,
+          name: p.name,
+          price_jmd: p.price_jmd,
+          category: p.category,
+          stock: p.stock_qty,
+          stock_quantity: p.stock_qty,
+          description: p.description,
+          image_url: p.image_url,
+          is_active: p.is_active
+        })));
       } catch (err) {
         console.error('Failed to load supplies:', err);
       } finally {
@@ -306,11 +316,11 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
                 >
                   <div className="h-44 w-full bg-slate-900/80 relative overflow-hidden">
                     <img
-                      src={getCorrectItemImage(item)}
+                      src={item.image_url || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'}
                       alt={item.name}
                       loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/images/first_aid_kit.jpg';
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500';
                       }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />

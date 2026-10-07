@@ -76,6 +76,7 @@ import { AdminNurseEditModal } from './AdminNurseEditModal';
 import { AdminBookingActionModal } from './AdminBookingActionModal';
 import { AdminSupplyOrdersManager } from './AdminSupplyOrdersManager';
 import { AdminRatesPricingManager } from './AdminRatesPricingManager';
+import { AdminStoreInventoryManager } from './AdminStoreInventoryManager';
 import { updateBookingPriceInSupabase } from '../../lib/supabase';
 
 interface AdminPortalProps {
@@ -158,8 +159,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const effectiveMasterAdmin = isMasterUser;
 
   // Navigation tab states
-  type AdminTabType = 'payroll' | 'finances' | 'verifications' | 'clients' | 'bookings' | 'settings' | 'export' | 'my_payslip' | 'sos' | 'skill_badges' | 'analytics' | 'video_meetings' | 'schools_db' | 'disputes' | 'payouts' | 'zones' | 'users' | 'reviews' | 'earnings' | 'orders' | 'pricing';
-  const [activeTab, setActiveTab] = useState<AdminTabType>(effectiveMasterAdmin ? 'payroll' : 'verifications');
+  type AdminTabType = 'payroll' | 'finances' | 'verifications' | 'clients' | 'bookings' | 'settings' | 'export' | 'my_payslip' | 'sos' | 'skill_badges' | 'analytics' | 'video_meetings' | 'schools_db' | 'disputes' | 'payouts' | 'zones' | 'users' | 'reviews' | 'earnings' | 'orders' | 'pricing' | 'store';
+  const [activeTab, setActiveTab] = useState<AdminTabType>(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const h = window.location.hash.toLowerCase();
+      if (p.includes('/admin/store') || h.includes('/admin/store') || h.includes('admin_store')) {
+        return 'store';
+      }
+    }
+    return effectiveMasterAdmin ? 'payroll' : 'verifications';
+  });
 
   // Local bookings state for instant inline updates across all admins
   const [localBookings, setLocalBookings] = useState<Booking[]>(bookings);
@@ -651,6 +661,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab('store')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === 'store' 
+                  ? 'bg-gradient-to-r from-emerald-600 to-[#1E1B4B] text-white shadow-lg shadow-emerald-950/50 border border-emerald-400/40 font-black' 
+                  : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
+              }`}
+            >
+              <ShoppingBag className="w-4 h-4 text-emerald-300" /> Store &amp; Inventory
+            </button>
+
+            <button
               onClick={() => setActiveTab('orders')}
               className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === 'orders' 
@@ -1115,6 +1136,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           onUpdateNurseProfile={onUpdateNurseProfile}
           adminName={ADMIN_PROFILE.name}
         />
+      )}
+
+      {/* TAB: STORE & INVENTORY CONTROL (/admin/store) */}
+      {activeTab === 'store' && (
+        <AdminStoreInventoryManager />
       )}
 
       {/* TAB: MEDICAL SUPPLY ORDERS (STORE ORDERS) - Supabase live table */}
