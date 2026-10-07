@@ -58,7 +58,8 @@ import {
   Crown,
   Edit2,
   X,
-  Percent
+  Percent,
+  ShoppingBag
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { SkillBadgeAdminPipeline } from './SkillBadgeAdminPipeline';
@@ -719,7 +720,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       {activeTab === 'payroll' && effectiveMasterAdmin && (
         <AdminPayrollAccountabilitySystem
           bookings={bookings}
-          currentUser={currentUser || { id: 'admin-sydney', email: 'wecareja.bookings@gmail.com', name: 'Sydney Mattis', role: 'admin' }}
+          currentUser={currentUser || { 
+            id: 'admin-sydney', 
+            email: 'wecareja.bookings@gmail.com', 
+            name: 'Sydney Mattis', 
+            full_name: 'Sydney Mattis',
+            username: 'sydney',
+            phone: '(876) 582-7613',
+            role: 'admin', 
+            createdAt: new Date().toISOString() 
+          }}
           isMasterAdmin={true}
           selectedStaffEmail="wecareja.bookings@gmail.com"
         />

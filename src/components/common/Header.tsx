@@ -73,8 +73,8 @@ interface HeaderProps {
   onOpenBiometricAuth?: () => void;
   onForceSync?: () => void;
   isMasterAdmin?: boolean;
-  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders') => void;
-  currentView?: 'portal' | 'store' | 'admin_orders';
+  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store') => void;
+  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store';
 }
 
 export const Header: React.FC<HeaderProps> = ({

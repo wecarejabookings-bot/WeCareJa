@@ -172,7 +172,7 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
         name: c.item.name,
         price_jmd: c.item.price_jmd,
         quantity: c.quantity,
-        image_url: getCorrectItemImage(c.item)
+        image_url: c.item.image_url || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'
       }));
 
       const created = await createSupplyOrderRecord({
@@ -468,11 +468,11 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
                         className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3"
                       >
                         <img
-                          src={getCorrectItemImage(item)}
+                          src={item.image_url || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'}
                           alt={item.name}
                           loading="lazy"
                           onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/images/first_aid_kit.jpg';
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500';
                           }}
                           className="w-12 h-12 rounded-xl object-cover border border-white/10 shrink-0"
                         />
