@@ -44,6 +44,7 @@ import {
 import { BiometricCredentialRecord } from '../../types';
 import { WhatsAppSettingsCard } from '../whatsapp/WhatsAppSettingsCard';
 import { 
+  supabase,
   signInWithUsername, 
   signUpClientUser, 
   updateProfileData, 
@@ -264,18 +265,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    // Critical Security Constraint: "Sign in with Credentials" ONLY accepts sydney / 12345678 as valid
-    if (trimmedInput.toLowerCase() !== 'sydney' || enteredPassword !== '12345678') {
-      setLoginError('Invalid username or password. Please verify your credentials.');
-      soundFX.playWarningSound();
-      return;
-    }
-
     setIsSubmittingAuth(true);
     try {
       try {
-        const res = await signInWithUsername('sydney', '12345678');
+        const res = await signInWithUsername(trimmedInput, enteredPassword);
         if (res?.profile) {
+          if (res.profile.id) {
+            try {
+              await supabase.functions.invoke('confirm-user', { body: { user_id: res.profile.id } });
+            } catch (fnErr) {
+              console.warn('confirm-user invoke error:', fnErr);
+            }
+            try {
+              await supabase.from('profiles').upsert({
+                id: res.profile.id,
+                email: res.profile.email || (res as any).user?.email,
+                role: res.profile.role || 'client'
+              });
+            } catch (upErr) {
+              console.warn('profiles upsert error:', upErr);
+            }
+          }
           soundFX.playSuccessPing();
           onSelectUser(res.profile);
           confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
@@ -284,26 +294,38 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       } catch (err: any) {
         console.warn('Supabase auth sign-in warning:', err);
+        // If not Sydney fallback, display error message
+        if (trimmedInput.toLowerCase() !== 'sydney') {
+          setLoginError(err?.message || 'Invalid username or password. Please verify your credentials.');
+          soundFX.playWarningSound();
+          return;
+        }
       }
 
       // Fallback for Master Admin Sydney Mattis
-      const fallbackAdmin: UserAccount = allAccounts.find(a => a.username.toLowerCase() === 'sydney') || {
-        id: 'user-admin-01',
-        name: 'Sydney Mattis',
-        full_name: 'Sydney Mattis',
-        username: 'sydney',
-        email: 'wecareja.bookings@gmail.com',
-        phone: '(876) 582-7613',
-        role: 'admin',
-        title: 'Lead Operations Director & Master Administrator',
-        zone: 'St. Catherine & Kingston',
-        address: '4 Claudete Drive, St. Catherine, Jamaica',
-        createdAt: new Date().toISOString()
-      };
-      soundFX.playSuccessPing();
-      onSelectUser(fallbackAdmin);
-      confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
-      onClose();
+      if (trimmedInput.toLowerCase() === 'sydney' && enteredPassword === '12345678') {
+        const fallbackAdmin: UserAccount = allAccounts.find(a => a.username.toLowerCase() === 'sydney') || {
+          id: 'user-admin-01',
+          name: 'Sydney Mattis',
+          full_name: 'Sydney Mattis',
+          username: 'sydney',
+          email: 'wecareja.bookings@gmail.com',
+          phone: '(876) 582-7613',
+          role: 'admin',
+          title: 'Lead Operations Director & Master Administrator',
+          zone: 'St. Catherine & Kingston',
+          address: '4 Claudete Drive, St. Catherine, Jamaica',
+          createdAt: new Date().toISOString()
+        };
+        soundFX.playSuccessPing();
+        onSelectUser(fallbackAdmin);
+        confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });
+        onClose();
+        return;
+      }
+
+      setLoginError('Invalid username or password. Please verify your credentials.');
+      soundFX.playWarningSound();
     } finally {
       setIsSubmittingAuth(false);
     }
@@ -473,6 +495,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         phone: regPhone.trim(),
         address: regZone.trim()
       });
+
+      const userId = res?.profile?.id || (res as any)?.user?.id;
+      if (userId) {
+        // Call confirm-user edge function
+        try {
+          await supabase.functions.invoke('confirm-user', { body: { user_id: userId } });
+        } catch (fnErr) {
+          console.warn('confirm-user invoke error:', fnErr);
+        }
+
+        // After signUp ALWAYS upsert profiles
+        try {
+          await supabase.from('profiles').upsert({
+            id: userId,
+            email: regEmail.trim(),
+            role: res.profile?.role || 'client'
+          });
+        } catch (upErr) {
+          console.warn('profiles upsert note:', upErr);
+        }
+      }
 
       soundFX.playSuccessPing();
       onCreateAccount(res.profile);

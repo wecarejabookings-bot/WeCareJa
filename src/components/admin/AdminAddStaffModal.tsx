@@ -71,9 +71,27 @@ export const AdminAddStaffModal: React.FC<AdminAddStaffModalProps> = ({
         }
         if (authData?.user?.id) {
           createdUserId = authData.user.id;
+          try {
+            await supabase.functions.invoke('confirm-user', { body: { user_id: authData.user.id } });
+          } catch (fnErr) {
+            console.warn('confirm-user invoke error:', fnErr);
+          }
         }
       } catch (authErr: any) {
         console.warn('Supabase auth signup caught:', authErr);
+      }
+
+      // After signUp ALWAYS upsert profiles
+      try {
+        await supabase.from('profiles').upsert({
+          id: createdUserId,
+          email: cleanEmail,
+          role: role,
+          full_name: cleanName,
+          is_admin: true
+        });
+      } catch (profErr) {
+        console.warn('profiles upsert note:', profErr);
       }
 
       // Step 2 & 3: Insert into admin_staff
