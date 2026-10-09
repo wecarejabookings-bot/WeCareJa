@@ -20,10 +20,10 @@ import {
   Key
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { soundFX } from '../../utils/soundEffects';
-import { saveNurseProfile, markNurseInviteUsed } from '../../services/qrFirebaseStore';
-import { supabase } from '../../lib/supabase';
-import { NurseProfile } from '../../types';
+import { soundFX } from '../src/utils/soundEffects';
+import { saveNurseProfile, markNurseInviteUsed } from '../src/services/qrFirebaseStore';
+import { supabase } from '../src/lib/supabase';
+import { NurseProfile } from '../src/types';
 
 interface NurseOnboardingFormProps {
   onSuccess?: (newNurse: NurseProfile) => void;
@@ -56,15 +56,15 @@ const SERVICE_TYPES = [
   { id: 'vital_monitoring', name: 'Chronic Illness & Vitals Surveillance', rate: 7000 }
 ];
 
-export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
+export default function NurseSignUpPage({
   onSuccess,
   onNavigateHome
-}) => {
+}: NurseOnboardingFormProps) {
   // Query param parsing for ?ref= and ?id=
   const [inviteRef, setInviteRef] = useState<string>('ADMIN_INVITE');
   const [inviteId, setInviteId] = useState<string>('');
 
-  // Required Fields (P0 Bug 3 Fix)
+  // Required Fields
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [fullName, setFullName] = useState<string>('');
@@ -159,34 +159,22 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
     e.preventDefault();
     setErrorToast(null);
 
-    // Strict validation as required
     if (!email || !password) {
-      alert('Fill all fields');
+      alert('Fill all fields (Email and Password are required)');
       return;
     }
 
     if (!fullName || !ncjLicense) {
-      alert('Fill all fields');
+      alert('Fill all fields (Full Name and NCJ License are required)');
       return;
     }
-
-    console.log('Submitting nurse onboarding registration:', {
-      email,
-      fullName,
-      ncjLicense,
-      trn,
-      phone,
-      parish,
-      serviceType,
-      inviteId
-    });
 
     setIsSubmitting(true);
     soundFX.playStepComplete();
 
     const uid = `nurse-inv-${Date.now()}`;
 
-    // Direct Supabase Auth & profiles insert (zero reliance on fetch('/api/...'))
+    // Direct Supabase Auth & profiles insert
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -204,7 +192,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
       if (error) {
         console.warn('[Supabase Auth signUp notice]:', error.message);
-        // If already registered or email exists, attempt sign in
         const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
         if (signInErr) {
           console.warn('[Supabase Auth signIn notice]:', signInErr.message);
@@ -256,7 +243,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       setErrorToast(err?.message || 'Database connection notice: nurse added to local roster');
     }
 
-    // 2. Save to Firebase /nurses/{uid} and mark invite as used in /qr_invites
+    // Save to Firebase /nurses/{uid} and mark invite as used in /qr_invites
     saveNurseProfile(uid, {
       fullName,
       email,
@@ -272,7 +259,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       markNurseInviteUsed(inviteId);
     }
 
-    // 3. Build NurseProfile for active application state
+    // Build NurseProfile for active application state
     const newNurseProfile: NurseProfile = {
       id: uid,
       name: fullName,
@@ -313,7 +300,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
   return (
     <div className="min-h-screen bg-[#070314] text-white py-8 px-4 sm:px-6 flex flex-col items-center justify-start">
-      {/* Brand Navigation Bar */}
       <header className="w-full max-w-4xl flex items-center justify-between pb-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div 
@@ -348,9 +334,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         </button>
       </header>
 
-      {/* Main Container */}
       <main className="w-full max-w-4xl mt-6 space-y-6">
-        {/* Dynamic QR Invite Verification Banner */}
         <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-[#1E1B4B] via-slate-900 to-indigo-950 border-2 border-[#F59E0B] shadow-2xl flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -369,7 +353,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
               Official Nurse Fast-Track Onboarding
             </h1>
             <p className="text-xs text-slate-300">
-              Welcome to We Care Jamaica. You scanned an authenticated dynamic recruitment QR code.
+              Welcome to We Care Jamaica. You scanned an authenticated recruitment QR code.
             </p>
           </div>
 
@@ -379,7 +363,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
           </div>
         </div>
 
-        {/* Error Toast Notification if any */}
         {errorToast && (
           <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-2 shadow-lg">
             <div className="flex items-center gap-2">
@@ -397,7 +380,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         )}
 
         {isSubmitted ? (
-          /* Submission Celebration Card */
           <div className="p-8 rounded-3xl bg-[#0f0a26] border-2 border-emerald-400 text-center space-y-4 shadow-2xl animate-fadeIn">
             <div className="w-16 h-16 rounded-3xl bg-emerald-500 text-slate-950 flex items-center justify-center mx-auto shadow-lg">
               <CheckCircle2 className="w-10 h-10" />
@@ -406,14 +388,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
               Registration Complete &amp; Profile Active!
             </h2>
             <p className="text-sm text-slate-200 max-w-md mx-auto">
-              Welcome aboard, <strong>{fullName}</strong> ({email}). Your NCJ credentials have been verified and saved to the registry database.
+              Welcome aboard, <strong>{fullName}</strong>. Your NCJ credentials have been verified and saved to the registry database.
             </p>
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 max-w-sm mx-auto text-xs text-left space-y-1 font-mono">
-              <p className="text-slate-300">Email: <span className="text-white">{email}</span></p>
-              <p className="text-slate-300">License: <span className="text-emerald-300 font-bold">{ncjLicense}</span></p>
-              <p className="text-slate-300">Parish: <span className="text-white">{parish}</span></p>
-              <p className="text-slate-300">Rate: <span className="text-amber-300 font-bold">J${selectedHourlyRate.toLocaleString()}/hr</span> (85% take-home)</p>
-            </div>
             <button
               type="button"
               onClick={() => {
@@ -431,7 +407,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Column: Onboarding Form */}
             <div className="lg:col-span-7 bg-[#0f0a26] border-2 border-[#1E1B4B] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-5">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
@@ -448,7 +423,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4 text-left">
-                {/* Full Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
                     Full Legal Name &amp; Title *
@@ -463,7 +437,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   />
                 </div>
 
-                {/* Email and Password (P0 Bug 3 Fix) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1">
@@ -497,7 +470,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* TRN */}
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
                       TRN (Tax Registration Number) *
@@ -512,7 +484,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                     />
                   </div>
 
-                  {/* Phone */}
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
                       Phone Number *
@@ -528,7 +499,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
-                {/* NCJ License Validator Box */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-300">
@@ -562,7 +532,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* Parish */}
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
                       Primary Operating Parish *
@@ -580,7 +549,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                     </select>
                   </div>
 
-                  {/* Years of Experience */}
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
                       Years of Clinical Experience *
@@ -596,7 +564,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
-                {/* Service Type */}
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
                     Primary Homecare Specialty *
@@ -614,7 +581,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </select>
                 </div>
 
-                {/* Submit Action */}
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -633,9 +599,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
               </form>
             </div>
 
-            {/* Right Column: Earnings Calculator & NCJ Info */}
             <div className="lg:col-span-5 space-y-5 text-left">
-              {/* Homecare Nurse Earnings Calculator */}
               <div 
                 className="bg-[#0f0a26] border-2 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4"
                 style={{ borderColor: '#F59E0B' }}
@@ -650,7 +614,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </span>
                 </div>
 
-                {/* Hours Slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-300">Commitment per Week:</span>
@@ -672,7 +635,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
-                {/* Estimated Projected Payouts */}
                 <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Hourly Rate:</span>
@@ -695,7 +657,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                 </p>
               </div>
 
-              {/* NCJ Regulatory Standards Badge */}
               <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
@@ -711,4 +672,4 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       </main>
     </div>
   );
-};
+}

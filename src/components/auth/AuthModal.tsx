@@ -276,14 +276,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             } catch (fnErr) {
               console.warn('confirm-user invoke error:', fnErr);
             }
+            // Self-heal profile using ONLY existing columns: id, full_name, role, phone, address, trn
             try {
               await supabase.from('profiles').upsert({
                 id: res.profile.id,
-                email: res.profile.email || (res as any).user?.email,
-                role: res.profile.role || 'client'
-              });
+                full_name: res.profile.full_name || res.profile.name || 'WeCare Practitioner',
+                role: res.profile.role || 'nurse',
+                phone: res.profile.phone || '',
+                address: res.profile.address || '',
+                trn: (res.profile as any).trn || ''
+              }, { onConflict: 'id' });
             } catch (upErr) {
-              console.warn('profiles upsert error:', upErr);
+              console.warn('profiles upsert note:', upErr);
             }
           }
           soundFX.playSuccessPing();
@@ -294,9 +298,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
       } catch (err: any) {
         console.warn('Supabase auth sign-in warning:', err);
+        const errMsg = err?.message || '';
+
+        // Handle "Email not confirmed" error on login page and show "Check your email"
+        if (errMsg.toLowerCase().includes('email not confirmed')) {
+          setLoginError('Email not confirmed. Please check your email inbox to confirm your account.');
+          soundFX.playWarningSound();
+          return;
+        }
+
         // If not Sydney fallback, display error message
         if (trimmedInput.toLowerCase() !== 'sydney') {
-          setLoginError(err?.message || 'Invalid username or password. Please verify your credentials.');
+          setLoginError(errMsg || 'Invalid username or password. Please verify your credentials.');
           soundFX.playWarningSound();
           return;
         }

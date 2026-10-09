@@ -85,10 +85,10 @@ export const AdminAddStaffModal: React.FC<AdminAddStaffModalProps> = ({
       try {
         await supabase.from('profiles').upsert({
           id: createdUserId,
-          email: cleanEmail,
-          role: role,
           full_name: cleanName,
-          is_admin: true
+          role: role,
+          phone: '(876) 582-7613',
+          address: 'Kingston, Jamaica'
         });
       } catch (profErr) {
         console.warn('profiles upsert note:', profErr);

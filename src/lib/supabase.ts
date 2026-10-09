@@ -521,6 +521,28 @@ export async function fetchCurrentProfile(userId: string, authUser?: any): Promi
       }
       return mapProfileToUserAccount(data, data.email || authUser?.email);
     }
+
+    // Fallback: if profile doesn't exist, create it automatically with role='nurse' using ONLY existing columns so old broken users self-heal
+    if (!data && authUser) {
+      try {
+        const healRole = authUser.user_metadata?.role || 'nurse';
+        const healName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Nurse Practitioner';
+        const healPhone = authUser.user_metadata?.phone || '';
+        const healAddress = authUser.user_metadata?.address || 'Kingston, Jamaica';
+        const healTrn = authUser.user_metadata?.trn || '';
+
+        await supabase.from('profiles').upsert({
+          id: userId,
+          full_name: healName,
+          role: healRole,
+          phone: healPhone,
+          address: healAddress,
+          trn: healTrn
+        }, { onConflict: 'id' });
+      } catch (selfHealErr) {
+        console.warn('Profile self-healing insert note:', selfHealErr);
+      }
+    }
   } catch (err) {
     console.warn('Profiles query blocked by RLS or failed, using session fallback:', err);
   }
