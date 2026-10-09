@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Safe URL sanitation
+// Safe URL sanitation - handles prefixes like "Value: ", "https://...", etc.
 function sanitizeUrl(raw?: string): string {
   const fallback = 'https://qyhbyoojbmaguujzmdwz.supabase.co';
   if (!raw) return fallback;
@@ -8,6 +8,7 @@ function sanitizeUrl(raw?: string): string {
   return match ? match[0].replace(/\/+$/, '') : fallback;
 }
 
+// Safe Key sanitation - handles instructions text like "Go to Supabase...", "key: eyJ...", etc.
 function sanitizeKey(raw?: string): string {
   const fallback = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmbGdkZnZqaWdiY25hZ2N1aXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzYxMDQsImV4cCI6MjEwNjQxMjEwNH0.45kAiQU70KDqdvR5L_hFO9b6Cjyhkb28ymSBYdEueDQ';
   if (!raw) return fallback;
@@ -21,10 +22,6 @@ function sanitizeKey(raw?: string): string {
 
 const rawUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || process.env?.VITE_SUPABASE_URL;
 const rawKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_ANON_KEY;
-
-if (!rawUrl || !rawKey || rawUrl.includes('your-project') || rawKey.startsWith('Go to')) {
-  console.error('MISSING SUPABASE ENV', { url: rawUrl, keyExists: !!rawKey });
-}
 
 export const url = sanitizeUrl(rawUrl);
 export const key = sanitizeKey(rawKey);
