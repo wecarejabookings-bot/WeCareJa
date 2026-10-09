@@ -221,23 +221,7 @@ export default function NurseSignUpPage({
         console.warn('Profile upsert note:', profileError);
       }
 
-      // Optional nurses table insert wrapped safely
-      try {
-        await supabase.from('nurses').insert([
-          {
-            id: nurseUserId,
-            full_name: fullName,
-            ncj_license: ncjLicense,
-            phone: phone || '(876) 555-0199',
-            parish,
-            service_type: serviceType,
-            years_experience: experienceYears,
-            invite_id: inviteId || 'ADMIN_INVITE'
-          }
-        ]);
-      } catch (nurseErr) {
-        console.warn('Optional nurses table insert note:', nurseErr);
-      }
+
     } catch (err: any) {
       console.error('[Supabase Onboarding Exception]:', err);
       setErrorToast(err?.message || 'Database connection notice: nurse added to local roster');
