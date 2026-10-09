@@ -75,7 +75,11 @@ export const ActionDropdown: React.FC<ActionDropdownProps> = ({
   };
 
   return (
-    <div className={`relative inline-block ${className}`} ref={containerRef}>
+    <div 
+      className={`relative inline-block ${className}`} 
+      ref={containerRef}
+      style={{ zIndex: isOpen ? 9999 : 'auto', position: 'relative', overflow: 'visible' }}
+    >
       <button
         type="button"
         onClick={() => setIsOpen(prev => !prev)}
@@ -97,7 +101,8 @@ export const ActionDropdown: React.FC<ActionDropdownProps> = ({
 
       {isOpen && (
         <div
-          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full mt-1.5 min-w-[210px] p-1.5 rounded-2xl bg-[#140622]/98 border border-purple-500/30 shadow-2xl backdrop-blur-2xl z-50 animate-fadeIn space-y-0.5`}
+          style={{ zIndex: 9999, position: 'relative' }}
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full right-0 mt-2 z-[9999] min-w-[220px] p-1.5 rounded-2xl bg-[#1E1B4B] border-2 border-[#F59E0B] shadow-2xl backdrop-blur-2xl animate-fadeIn space-y-0.5`}
         >
           {items.map((item) => {
             const isDanger = item.variant === 'danger';

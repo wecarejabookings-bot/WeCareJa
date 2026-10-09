@@ -61,6 +61,7 @@ import { SplashOnboardingModal } from './components/common/SplashOnboardingModal
 import { MedicalStorePage } from './components/store/MedicalStorePage';
 import { AdminSupplyOrdersManager } from './components/admin/AdminSupplyOrdersManager';
 import { AdminStoreInventoryManager } from './components/admin/AdminStoreInventoryManager';
+import { NurseOnboardingForm } from './components/nurse/NurseOnboardingForm';
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -74,16 +75,20 @@ import { soundFX } from './utils/soundEffects';
 import confetti from 'canvas-confetti';
 import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail } from 'lucide-react';
 import { isNetworkOnline, processOfflineSyncQueue } from './utils/offlineSyncManager';
+import { subscribeToQRUpdates, generateBookingCheckin } from './services/qrFirebaseStore';
 
 export default function App() {
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
   const [logoVariation, setLogoVariation] = useState<LogoVariation>('heart-cross');
   
   // Navigation View & Route Handling with Fallback Route
-  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store'>(() => {
+  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
+      if (path.includes('/nurse-signup') || hash.includes('/nurse-signup') || hash.includes('nurse-signup')) {
+        return 'nurse_signup';
+      }
       if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
         return 'admin_store';
       }
@@ -105,7 +110,9 @@ export default function App() {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
 
-      if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
+      if (path.includes('/nurse-signup') || hash.includes('/nurse-signup') || hash.includes('nurse-signup')) {
+        setCurrentView('nurse_signup');
+      } else if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
         setCurrentView('admin_store');
       } else if (path.includes('/store') || hash.includes('/store') || hash.includes('store')) {
         setCurrentView('store');
@@ -122,8 +129,6 @@ export default function App() {
         setAuthModalTab('signin');
       } else if (path.includes('/signup') || path.includes('/register') || hash.includes('signup')) {
         setIsPatientSignUpOpen(true);
-      } else if (path.includes('/nurse-signup') || hash.includes('nurse-signup')) {
-        setIsNurseSignUpOpen(true);
       }
     };
 
@@ -136,10 +141,10 @@ export default function App() {
     };
   }, []);
 
-  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store') => {
+  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
-      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : '/';
+      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : view === 'nurse_signup' ? '/nurse-signup' : '/';
       try {
         window.history.pushState({}, '', targetPath);
       } catch {}
@@ -470,6 +475,29 @@ export default function App() {
     soundFX.triggerNotification(title, description, type);
   }, []);
 
+  // Live real-time sync for Doorstep QR & PIN Check-in across tabs/users
+  useEffect(() => {
+    const unsubscribe = subscribeToQRUpdates((type, payload) => {
+      if (type === 'CHECKIN_VERIFIED' && payload && payload.bookingId) {
+        setBookings(prev => prev.map(b => {
+          if (b.id === payload.bookingId) {
+            return {
+              ...b,
+              status: 'ARRIVED_VERIFIED',
+              arrivalVerified: true,
+              pinVerified: true,
+              arrivalVerifiedAt: payload.verifiedAt || new Date().toISOString(),
+              arrivalGpsLocation: payload.gpsLocation || '14 Trafalgar Road, Kingston 10, Jamaica',
+              checkinData: payload
+            };
+          }
+          return b;
+        }));
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   const handleMarkNotificationRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
@@ -661,6 +689,18 @@ export default function App() {
         // Check transitions cleanly
         if ((status === 'accepted' || additionalData?.nurseAccepted) && (!b.nurseAccepted || b.status === 'requested')) {
           newlyAcceptedBooking = updated;
+          generateBookingCheckin(bookingId);
+        }
+
+        if (status === 'ARRIVED_VERIFIED') {
+          updated.arrivalVerified = true;
+          updated.pinVerified = true;
+          if (!updated.arrivalVerifiedAt) {
+            updated.arrivalVerifiedAt = new Date().toISOString();
+          }
+          if (!updated.arrivalGpsLocation) {
+            updated.arrivalGpsLocation = '14 Trafalgar Road, Kingston 10, Jamaica';
+          }
         }
 
         if (status === 'completed' && b.status !== 'completed') {
@@ -1336,8 +1376,16 @@ export default function App() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8 relative z-10">
 
-        {/* VIEW 1: PUBLIC MEDICAL SUPPLIES STORE (/store) - Requirement 3 */}
-        {currentView === 'store' ? (
+        {/* VIEW 0: NURSE ONBOARDING & DYNAMIC QR SIGNUP ROUTE (/nurse-signup) */}
+        {currentView === 'nurse_signup' ? (
+          <NurseOnboardingForm
+            onSuccess={(newNurse) => {
+              handleAddNewNurse(newNurse);
+              handleNavigateView('portal');
+            }}
+            onNavigateHome={() => handleNavigateView('portal')}
+          />
+        ) : currentView === 'store' ? (
           <MedicalStorePage
             currentUser={currentUser}
             onBackToPortal={() => handleNavigateView('portal')}

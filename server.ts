@@ -124,6 +124,41 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Public CORS and iOS Safari cookie/security headers
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With");
+
+    // Ensure all cookies set have SameSite=None; Secure and avoid Safari __Host- prefix restrictions
+    const originalSetHeader = res.setHeader.bind(res);
+    res.setHeader = function (name: string, value: any) {
+      if (typeof name === "string" && name.toLowerCase() === "set-cookie") {
+        if (Array.isArray(value)) {
+          value = value.map((cookie: string) => {
+            let mod = cookie.replace(/__Host-|__Secure-/gi, "");
+            if (!mod.includes("SameSite=")) {
+              mod += "; SameSite=None; Secure";
+            }
+            return mod;
+          });
+        } else if (typeof value === "string") {
+          let mod = value.replace(/__Host-|__Secure-/gi, "");
+          if (!mod.includes("SameSite=")) {
+            mod += "; SameSite=None; Secure";
+          }
+          value = mod;
+        }
+      }
+      return originalSetHeader(name, value);
+    };
+
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // API Health Check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

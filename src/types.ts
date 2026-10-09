@@ -6,6 +6,7 @@ export type BookingStatus =
   | 'requested'
   | 'accepted'
   | 'en_route'
+  | 'ARRIVED_VERIFIED'
   | 'in_progress'
   | 'completed'
   | 'cancelled'
@@ -336,10 +337,19 @@ export interface Booking {
   unreadMessagesCount?: number;
   // QR-Based In-Person Doorstep Arrival & Attendance Verification
   arrivalVerified?: boolean;
+  pinVerified?: boolean;
   arrivalVerifiedAt?: string;
   arrivalVerificationMethod?: 'qr_scan' | 'gps_pinpoint' | 'passcode_entry';
   arrivalGpsLocation?: string;
   arrivalPassCode?: string;
+  checkinData?: {
+    qrData: string;
+    pin: string;
+    status: 'pending' | 'ARRIVED_VERIFIED';
+    createdAt: string;
+    verifiedAt?: string;
+    gpsLocation?: string;
+  };
   // QR-Based Visit Completion / Check-Out Verification
   checkoutVerified?: boolean;
   checkoutVerifiedAt?: string;

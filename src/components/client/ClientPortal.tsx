@@ -2550,6 +2550,66 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                       </div>
                     </div>
 
+                    {/* LIVE DOORSTEP CHECK-IN STATUS DISPLAY */}
+                    {(booking.arrivalVerified || booking.pinVerified || booking.status === 'ARRIVED_VERIFIED') ? (
+                      <div className="p-3.5 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-between gap-3 shadow-lg my-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md">
+                            <CheckCircle2 className="w-6 h-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 block">
+                              DOORSTEP ARRIVAL VERIFIED ✓
+                            </span>
+                            <h4 className="text-sm font-black text-white truncate">
+                              Nurse Arrived - PIN Verified at {booking.arrivalVerifiedAt ? new Date(booking.arrivalVerifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '9:32 AM'}
+                            </h4>
+                            <p className="text-[11px] text-emerald-100 flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
+                              <span className="truncate">{booking.arrivalGpsLocation || '14 Trafalgar Road, Kingston 10, Jamaica'}</span>
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBookingForArrivalQR(booking)}
+                          className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition shrink-0 cursor-pointer"
+                        >
+                          View Pass
+                        </button>
+                      </div>
+                    ) : (booking.status === 'accepted' || booking.status === 'en_route') ? (
+                      <div className="p-3.5 rounded-2xl bg-[#1E1B4B]/80 border-2 border-[#F59E0B] flex items-center justify-between gap-3 shadow-xl my-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div 
+                            className="w-10 h-10 rounded-xl text-slate-950 flex items-center justify-center font-black shrink-0 shadow-md"
+                            style={{ backgroundColor: '#F59E0B' }}
+                          >
+                            <QrCode className="w-6 h-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[10px] font-black uppercase tracking-wider text-amber-400 block">
+                              DOORSTEP ARRIVAL PASS READY
+                            </span>
+                            <h4 className="text-xs sm:text-sm font-black text-white truncate">
+                              Show QR Code or 4-Digit PIN to Nurse
+                            </h4>
+                            <p className="text-[11px] text-slate-300 truncate">
+                              Auto-generated Job #{booking.id} security pass
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBookingForArrivalQR(booking)}
+                          className="px-3.5 py-2 rounded-xl text-xs font-black text-[#1E1B4B] shadow-md transition shrink-0 cursor-pointer hover:opacity-95"
+                          style={{ backgroundColor: '#F59E0B' }}
+                        >
+                          Open QR Pass
+                        </button>
+                      </div>
+                    ) : null}
+
                     {/* Confirmed Booking & Arrival PPE Safety Reminder */}
                     <PPESafetyNotice
                       variant={booking.status === 'in_progress' ? 'on_arrival' : 'compact'}

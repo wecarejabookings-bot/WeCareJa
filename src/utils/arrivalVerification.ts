@@ -1,5 +1,6 @@
 import { Booking, ArrivalQRPayload, VisitQRAction, VisitQRPayload } from '../types';
 import { KINGSTON_ZONE_GEO } from '../data/geoData';
+import { getBookingCheckin } from '../services/qrFirebaseStore';
 
 /**
  * Clean deterministic 4-character ID suffix
@@ -125,6 +126,25 @@ export function verifyScannedVisitData(
   } catch {
     // Not JSON, continue to string/code matching
   }
+
+  // 1c. Job QR / PIN match from Firebase checkin store (Format: WECARE-{bookingId}-{PIN})
+  try {
+    const checkin = getBookingCheckin(targetBooking.id);
+    if (checkin) {
+      if (
+        cleanInput === checkin.qrData ||
+        cleanInput.includes(checkin.qrData) ||
+        cleanInput === checkin.pin ||
+        cleanInput.replace(/[^0-9]/g, '') === checkin.pin
+      ) {
+        return {
+          success: true,
+          action: 'check_in',
+          verifiedPassCode: checkin.pin
+        };
+      }
+    }
+  } catch {}
 
   // 2. Direct string / passcode matching
   const upper = cleanInput.toUpperCase();

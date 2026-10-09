@@ -581,13 +581,14 @@ export const NursePortal: React.FC<NursePortalProps> = ({
             </button>
 
             {/* Caregiver Tools Cascading Dropdown */}
-            <ActionDropdown
-              label="Tools"
-              icon={<Sparkles className="w-4 h-4 text-purple-300" />}
-              size="xs"
-              variant="secondary"
-              align="right"
-              items={[
+            <div style={{ zIndex: 9999, position: 'relative', overflow: 'visible' }}>
+              <ActionDropdown
+                label="Tools"
+                icon={<Sparkles className="w-4 h-4 text-purple-300" />}
+                size="xs"
+                variant="secondary"
+                align="right"
+                items={[
                 {
                   id: 'tool-video-admin',
                   label: 'Video Call Admin',
@@ -670,6 +671,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                 }
               ]}
             />
+            </div>
 
             {/* Sleek Nurse 119 Panic Button */}
             <button
@@ -1492,24 +1494,25 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                       {/* Right: Operational Status & QR Actions */}
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Doorstep Location-Based QR Attendance Verification (Check-In) */}
-                        {booking.arrivalVerified ? (
+                        {booking.arrivalVerified || booking.pinVerified || booking.status === 'ARRIVED_VERIFIED' ? (
                           <div
                             onClick={() => handleOpenQRScanner(booking, 'check_in')}
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 text-[11px] font-bold shadow-sm cursor-pointer hover:bg-emerald-500/30 transition"
-                            title={`Check-In confirmed via QR scan at ${booking.arrivalVerifiedAt ? new Date(booking.arrivalVerifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}`}
+                            title={`PIN Verified on Arrival at ${booking.arrivalVerifiedAt ? new Date(booking.arrivalVerifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}`}
                           >
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                            <span>QR Verified</span>
+                            <span>PIN Verified on Arrival ✓ - Job Started</span>
                           </div>
                         ) : (
                           <button
                             type="button"
                             onClick={() => handleOpenQRScanner(booking, 'check_in')}
-                            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:opacity-95 text-slate-950 font-black text-[11px] transition shadow-md flex items-center gap-1.5 cursor-pointer animate-pulse"
-                            title="Scan the patient's QR code on doorstep"
+                            className="px-3.5 py-1.5 rounded-xl text-slate-950 font-black text-xs transition shadow-md flex items-center gap-1.5 cursor-pointer animate-pulse"
+                            style={{ backgroundColor: '#F59E0B' }}
+                            title="I'm At Location - Scan client's QR code or enter 4-digit PIN"
                           >
-                            <QrCode className="w-4 h-4 text-slate-950" />
-                            <span>Scan QR</span>
+                            <MapPin className="w-4 h-4 text-slate-950" />
+                            <span>I'm At Location</span>
                           </button>
                         )}
 
@@ -2501,7 +2504,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
             setQrScannerInitialMode(undefined);
           }}
           onConfirmArrival={(bookingId, arrivalData) => {
-            onUpdateBookingStatus(bookingId, 'in_progress', undefined, arrivalData);
+            onUpdateBookingStatus(bookingId, 'ARRIVED_VERIFIED', undefined, arrivalData);
             setSelectedBookingForArrivalQRScan(null);
             setQrScannerInitialMode(undefined);
           }}
