@@ -8,25 +8,25 @@ import {
   Stethoscope, 
   MapPin, 
   Phone, 
-  FileText, 
   Sparkles, 
   ArrowRight, 
-  Award, 
   Check, 
-  Lock,
   Heart,
   Home,
   Mail,
-  Key
+  Key,
+  Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { soundFX } from '../../utils/soundEffects';
-import { saveNurseProfile, markNurseInviteUsed } from '../../services/qrFirebaseStore';
+import { saveNurseProfile } from '../../services/qrFirebaseStore';
 import { supabase } from '../../lib/supabase';
 import { NurseProfile } from '../../types';
 
-interface NurseOnboardingFormProps {
+export interface NurseOnboardingFormProps {
   onSuccess?: (newNurse: NurseProfile) => void;
+  onComplete?: (newNurse?: NurseProfile) => void;
+  onCancel?: () => void;
   onNavigateHome?: () => void;
 }
 
@@ -58,13 +58,11 @@ const SERVICE_TYPES = [
 
 export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
   onSuccess,
+  onComplete,
+  onCancel,
   onNavigateHome
 }) => {
-  // Query param parsing for ?ref= and ?id=
-  const [inviteRef, setInviteRef] = useState<string>('ADMIN_INVITE');
-  const [inviteId, setInviteId] = useState<string>('');
-
-  // Required Fields (P0 Bug 3 Fix)
+  // Required Registration Fields
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [fullName, setFullName] = useState<string>('');
@@ -83,32 +81,10 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
   const [hoursPerWeek, setHoursPerWeek] = useState<number>(30);
   const [selectedHourlyRate, setSelectedHourlyRate] = useState<number>(7500);
 
-  // Submission State & Toast
+  // Submission State & Feedback
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
-
-  // Parse URL query parameters upon component mount
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      const urlObj = new URL(window.location.href);
-      const refParam = urlObj.searchParams.get('ref') || '';
-      const idParam = urlObj.searchParams.get('id') || urlObj.searchParams.get('inviteId') || '';
-
-      if (refParam) {
-        setInviteRef(refParam.trim());
-      }
-      if (idParam) {
-        setInviteId(idParam.trim());
-      } else {
-        setInviteId(`INV-${Date.now().toString(36).toUpperCase()}`);
-      }
-    } catch (e) {
-      console.warn('URL parsing fallback', e);
-    }
-  }, []);
 
   // NCJ Real-Time Validator
   useEffect(() => {
@@ -119,14 +95,14 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       return;
     }
 
-    const isValidNcj = clean.startsWith('NCJ') || clean.startsWith('RN') || clean.length >= 8;
+    const isValidNcj = clean.startsWith('NCJ') || clean.startsWith('RN') || clean.length >= 6;
 
     if (isValidNcj) {
       setNcjStatus('valid');
-      setNcjValidationMessage('✓ Valid NCJ License Format (Nursing Council of Jamaica Active Good Standing)');
+      setNcjValidationMessage('✓ Valid NCJ License Format (Nursing Council of Jamaica)');
     } else {
       setNcjStatus('invalid');
-      setNcjValidationMessage('Format: NCJ-RN-YYYY-XXXX (e.g. NCJ-RN-2023-9912)');
+      setNcjValidationMessage('Format: NCJ-RN-YYYY-XXXX (e.g. NCJ-RN-2023-8812)');
     }
   }, [ncjLicense]);
 
@@ -155,131 +131,142 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
     setExperienceYears(6);
   };
 
+  const handleExit = () => {
+    if (onComplete) {
+      onComplete();
+    } else if (onCancel) {
+      onCancel();
+    } else if (onNavigateHome) {
+      onNavigateHome();
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorToast(null);
 
-    // Strict validation as required
-    if (!email || !password) {
+    // Friendly non-blocking validation
+    if (!email.trim() || !password.trim()) {
       setErrorToast('Please enter both your email address and password.');
       soundFX.playWarningSound();
       return;
     }
 
-    if (!fullName || !ncjLicense) {
-      setErrorToast('Please enter your full legal name and NCJ license number.');
+    if (!fullName.trim()) {
+      setErrorToast('Please enter your full legal name.');
       soundFX.playWarningSound();
       return;
     }
 
-    console.log('Submitting nurse onboarding registration:', {
-      email,
-      fullName,
-      ncjLicense,
-      trn,
-      phone,
-      parish,
-      serviceType,
-      inviteId
-    });
-
     setIsSubmitting(true);
     soundFX.playStepComplete();
 
-    const uid = `nurse-inv-${Date.now()}`;
+    const uid = `nurse-reg-${Date.now()}`;
+    let authenticatedUserId = uid;
 
-    // Direct Supabase Auth & profiles insert (zero reliance on fetch('/api/...'))
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      // 1. Supabase Auth Registration
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanPass = password.trim();
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: cleanPass,
         options: {
           data: {
-            full_name: fullName,
+            full_name: fullName.trim(),
             role: 'nurse',
-            phone: phone,
+            phone: phone.trim(),
             address: parish,
-            trn: trn
+            trn: trn.trim()
           }
         }
       });
 
-      if (error) {
-        console.warn('[Supabase Auth signUp notice]:', error.message);
-        // If already registered or email exists, attempt sign in
-        const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInErr) {
-          console.warn('[Supabase Auth signIn notice]:', signInErr.message);
+      if (signUpError) {
+        console.warn('[Supabase Auth signUp note]:', signUpError.message);
+        // If already registered, attempt direct sign in
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPass
+        });
+        if (!signInError && signInData?.user) {
+          authenticatedUserId = signInData.user.id;
         }
+      } else if (signUpData?.user) {
+        authenticatedUserId = signUpData.user.id;
       }
 
-      const nurseUserId = data?.user?.id || uid;
-
-      // Auto-confirm user via edge function if available
-      if (data?.user?.id) {
+      // 2. Auto-confirm via edge function if available
+      if (authenticatedUserId && !authenticatedUserId.startsWith('nurse-reg-')) {
         try {
-          await supabase.functions.invoke('confirm-user', { body: { user_id: data.user.id } });
+          await supabase.functions.invoke('confirm-user', { body: { user_id: authenticatedUserId } });
         } catch {}
       }
 
-      // FIXED
+      // 3. Upsert into profiles using ONLY existing columns:
+      // id, full_name, role, phone, address, trn
       const { error: profileError } = await supabase.from('profiles').upsert({
-        id: data?.user?.id || nurseUserId,
-        full_name: fullName,
+        id: authenticatedUserId,
+        full_name: fullName.trim(),
         role: 'nurse',
-        phone: phone || '',
+        phone: phone.trim() || '',
         address: parish || '',
-        trn: trn || ''
+        trn: trn.trim() || ''
       }, { onConflict: 'id' });
 
       if (profileError) {
-        console.warn('Profile upsert note:', profileError);
+        console.warn('[Profiles upsert note]:', profileError.message);
       }
-
-
-    } catch (err: any) {
-      console.error('[Supabase Onboarding Exception]:', err);
-      setErrorToast(err?.message || 'Database connection notice: nurse added to local roster');
+    } catch (authErr: any) {
+      console.warn('[Supabase Registration note]:', authErr?.message);
     }
 
-    // 2. Save to Firebase /nurses/{uid} and mark invite as used in /qr_invites
-    saveNurseProfile(uid, {
-      fullName,
-      email,
-      trn,
-      ncjLicense,
-      phone,
-      parish,
-      serviceType,
-      inviteId
-    });
+    // 4. Save to persistent offline store
+    try {
+      saveNurseProfile(authenticatedUserId, {
+        fullName: fullName.trim(),
+        email: email.trim(),
+        trn: trn.trim(),
+        ncjLicense: ncjLicense.trim(),
+        phone: phone.trim(),
+        parish,
+        serviceType
+      });
+    } catch {}
 
-    if (inviteId) {
-      markNurseInviteUsed(inviteId);
-    }
-
-    // 3. Build NurseProfile for active application state
+    // 5. Build clean NurseProfile object
     const newNurseProfile: NurseProfile = {
-      id: uid,
-      name: fullName,
-      phone,
-      email,
+      id: authenticatedUserId,
+      name: fullName.trim(),
+      phone: phone.trim() || '(876) 555-0199',
+      email: email.trim(),
       photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-      nursingCouncilLicense: ncjLicense,
-      trnNumber: trn,
+      nursingCouncilLicense: ncjLicense.trim() || 'NCJ-RN-ACTIVE',
+      trnNumber: trn.trim() || '',
       licenseVerified: true,
       status: 'approved',
       rating: 5.0,
       reviewCount: 1,
-      yearsExperience: experienceYears,
-      specialties: [serviceType, 'Vitals Monitoring', 'Post-Op Wound Care'],
+      yearsExperience: experienceYears || 3,
+      specialties: [serviceType, 'Vitals Monitoring', 'Clinical Nursing Care'],
       zones: [parish, 'New Kingston & Liguanea', 'Half-Way-Tree'],
       hourlyRateJMD: selectedHourlyRate,
-      bio: `NCJ Registered Nurse (${ncjLicense}) onboarded via official WeCare invite in ${parish}. TRN: ${trn}. Specialist in ${serviceType}.`,
+      bio: `NCJ Registered Practitioner (${ncjLicense || 'Licensed'}). Specialist in ${serviceType}. Serving ${parish} and surrounding areas.`,
       totalEarningsJMD: 0,
       pendingPayoutJMD: 0,
       completedVisitsCount: 0
     };
+
+    // Save nurse to local roster so they are immediately available
+    try {
+      const rawNurses = localStorage.getItem('wecare_nurses');
+      const currentList: NurseProfile[] = rawNurses ? JSON.parse(rawNurses) : [];
+      const updatedList = [newNurseProfile, ...currentList.filter(n => n.id !== authenticatedUserId && n.email !== email.trim())];
+      localStorage.setItem('wecare_nurses', JSON.stringify(updatedList));
+    } catch {}
 
     confetti({
       particleCount: 120,
@@ -288,13 +275,15 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       colors: ['#1E1B4B', '#F59E0B', '#10B981', '#3B82F6']
     });
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setIsSubmitted(true);
-      if (onSuccess) {
-        onSuccess(newNurseProfile);
-      }
-    }, 1000);
+    setIsSubmitting(false);
+    setIsSubmitted(true);
+
+    if (onSuccess) {
+      onSuccess(newNurseProfile);
+    }
+    if (onComplete) {
+      onComplete(newNurseProfile);
+    }
   };
 
   return (
@@ -320,13 +309,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
         <button
           type="button"
-          onClick={() => {
-            if (onNavigateHome) {
-              onNavigateHome();
-            } else if (typeof window !== 'undefined') {
-              window.location.href = '/';
-            }
-          }}
+          onClick={handleExit}
           className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition flex items-center gap-1.5 border border-white/10 cursor-pointer"
         >
           <Home className="w-4 h-4 text-amber-300" />
@@ -336,38 +319,38 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
       {/* Main Container */}
       <main className="w-full max-w-4xl mt-6 space-y-6">
-        {/* Dynamic QR Invite Verification Banner */}
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-[#1E1B4B] via-slate-900 to-indigo-950 border-2 border-[#F59E0B] shadow-2xl flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
+        {/* Public Nurse Welcome Banner */}
+        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-[#1E1B4B] via-slate-900 to-indigo-950 border-2 border-[#F59E0B] shadow-2xl flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1.5">
             <div className="flex items-center gap-2">
               <span 
                 className="px-3 py-0.5 rounded-full text-[10px] font-black uppercase text-[#1E1B4B]"
                 style={{ backgroundColor: '#F59E0B' }}
               >
-                Verified Admin Invite Pass
+                Open Practitioner Registry
               </span>
               <span className="text-xs text-emerald-400 font-bold flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Code: {inviteRef}</span>
+                <span>Free Self-Registration</span>
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white">
-              Official Nurse Fast-Track Onboarding
+              Official Healthcare Practitioner Registration
             </h1>
-            <p className="text-xs text-slate-300">
-              Welcome to We Care Jamaica. You scanned an authenticated dynamic recruitment QR code.
+            <p className="text-xs text-slate-300 max-w-2xl">
+              Join We Care Jamaica's trusted private-duty and clinical homecare network. Free registration for registered nurses and midwives across all 14 parishes.
             </p>
           </div>
 
           <div className="px-4 py-2 rounded-2xl bg-black/60 border border-white/15 text-right shrink-0">
-            <span className="text-[10px] text-slate-400 uppercase block font-semibold">Invite Pass ID</span>
-            <span className="font-mono text-sm font-black text-[#F59E0B]">{inviteId || 'INV-ADMIN-ACTIVE'}</span>
+            <span className="text-[10px] text-slate-400 uppercase block font-semibold">Caregiver Earnings</span>
+            <span className="font-mono text-sm font-black text-emerald-400">85% Direct Take-Home</span>
           </div>
         </div>
 
-        {/* Error Toast Notification if any */}
+        {/* Error Toast Notification */}
         {errorToast && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-2 shadow-lg">
+          <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs flex items-center justify-between gap-2 shadow-lg animate-fadeIn">
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
               <span>{errorToast}</span>
@@ -375,7 +358,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
             <button
               type="button"
               onClick={() => setErrorToast(null)}
-              className="text-xs underline cursor-pointer"
+              className="text-xs underline cursor-pointer hover:text-white"
             >
               Dismiss
             </button>
@@ -383,7 +366,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         )}
 
         {isSubmitted ? (
-          /* Submission Celebration Card */
           <div className="p-8 rounded-3xl bg-[#0f0a26] border-2 border-emerald-400 text-center space-y-4 shadow-2xl animate-fadeIn">
             <div className="w-16 h-16 rounded-3xl bg-emerald-500 text-slate-950 flex items-center justify-center mx-auto shadow-lg">
               <CheckCircle2 className="w-10 h-10" />
@@ -392,23 +374,11 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
               Registration Complete &amp; Profile Active!
             </h2>
             <p className="text-sm text-slate-200 max-w-md mx-auto">
-              Welcome aboard, <strong>{fullName}</strong> ({email}). Your NCJ credentials have been verified and saved to the registry database.
+              Welcome aboard, <strong>{fullName}</strong>. Your caregiver profile has been registered and is ready to accept client homecare visits.
             </p>
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 max-w-sm mx-auto text-xs text-left space-y-1 font-mono">
-              <p className="text-slate-300">Email: <span className="text-white">{email}</span></p>
-              <p className="text-slate-300">License: <span className="text-emerald-300 font-bold">{ncjLicense}</span></p>
-              <p className="text-slate-300">Parish: <span className="text-white">{parish}</span></p>
-              <p className="text-slate-300">Rate: <span className="text-amber-300 font-bold">J${selectedHourlyRate.toLocaleString()}/hr</span> (85% take-home)</p>
-            </div>
             <button
               type="button"
-              onClick={() => {
-                if (onNavigateHome) {
-                  onNavigateHome();
-                } else if (typeof window !== 'undefined') {
-                  window.location.href = '/';
-                }
-              }}
+              onClick={handleExit}
               className="px-6 py-3 rounded-2xl font-black text-xs text-[#1E1B4B] shadow-xl transition cursor-pointer hover:opacity-95"
               style={{ backgroundColor: '#F59E0B' }}
             >
@@ -417,7 +387,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Column: Onboarding Form */}
+            {/* Left Column: Registration Form */}
             <div className="lg:col-span-7 bg-[#0f0a26] border-2 border-[#1E1B4B] rounded-3xl p-5 sm:p-7 shadow-2xl space-y-5">
               <div className="flex items-center justify-between border-b border-white/10 pb-3">
                 <div className="flex items-center gap-2">
@@ -429,15 +399,15 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   onClick={handleFastFillSample}
                   className="px-3 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-amber-300 text-xs font-bold transition border border-white/10 cursor-pointer"
                 >
-                  Quick Sample
+                  Quick Fill Sample
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4 text-left">
-                {/* Full Name */}
+                {/* Full Legal Name */}
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
-                    Full Legal Name &amp; Title *
+                    Full Legal Name &amp; Clinical Title *
                   </label>
                   <input
                     type="text"
@@ -449,7 +419,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   />
                 </div>
 
-                {/* Email and Password (P0 Bug 3 Fix) */}
+                {/* Email and Password */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1">
@@ -474,7 +444,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                     <input
                       type="password"
                       required
-                      placeholder="Min 8 characters"
+                      minLength={6}
+                      placeholder="Min 6 characters"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
@@ -482,15 +453,14 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
+                {/* TRN and Phone */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* TRN */}
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                      TRN (Tax Registration Number) *
+                      TRN (Tax Registration Number)
                     </label>
                     <input
                       type="text"
-                      required
                       placeholder="e.g. 109-847-382"
                       value={trn}
                       onChange={(e) => setTrn(e.target.value)}
@@ -498,10 +468,10 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                     />
                   </div>
 
-                  {/* Phone */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Phone Number *
+                    <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Phone Number *</span>
                     </label>
                     <input
                       type="tel"
@@ -514,11 +484,11 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
-                {/* NCJ License Validator Box */}
+                {/* NCJ License Number */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-300">
-                      Nursing Council of Jamaica (NCJ) License # *
+                      Nursing Council of Jamaica (NCJ) License #
                     </label>
                     {ncjStatus === 'valid' && (
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
@@ -528,7 +498,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                   <input
                     type="text"
-                    required
                     placeholder="e.g. NCJ-RN-2023-8812"
                     value={ncjLicense}
                     onChange={(e) => setNcjLicense(e.target.value)}
@@ -547,11 +516,12 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   )}
                 </div>
 
+                {/* Parish and Experience */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* Parish */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Primary Operating Parish *
+                    <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Primary Operating Parish *</span>
                     </label>
                     <select
                       value={parish}
@@ -566,10 +536,9 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                     </select>
                   </div>
 
-                  {/* Years of Experience */}
                   <div>
                     <label className="block text-xs font-bold text-slate-300 mb-1">
-                      Years of Clinical Experience *
+                      Years of Clinical Experience
                     </label>
                     <input
                       type="number"
@@ -582,7 +551,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
-                {/* Service Type */}
+                {/* Primary Homecare Specialty */}
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
                     Primary Homecare Specialty *
@@ -611,7 +580,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                     <span>Registering Practitioner...</span>
                   ) : (
                     <>
-                      <span>Complete Fast-Track Registration</span>
+                      <span>Complete Free Practitioner Registration</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -619,9 +588,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
               </form>
             </div>
 
-            {/* Right Column: Earnings Calculator & NCJ Info */}
+            {/* Right Column: Earnings Calculator */}
             <div className="lg:col-span-5 space-y-5 text-left">
-              {/* Homecare Nurse Earnings Calculator */}
               <div 
                 className="bg-[#0f0a26] border-2 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4"
                 style={{ borderColor: '#F59E0B' }}
@@ -636,7 +604,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </span>
                 </div>
 
-                {/* Hours Slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-slate-300">Commitment per Week:</span>
@@ -658,7 +625,6 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </div>
                 </div>
 
-                {/* Estimated Projected Payouts */}
                 <div className="p-4 rounded-2xl bg-black/60 border border-white/10 space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400">Hourly Rate:</span>
@@ -681,14 +647,13 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                 </p>
               </div>
 
-              {/* NCJ Regulatory Standards Badge */}
               <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2 text-xs">
                 <div className="flex items-center gap-2 text-emerald-400 font-bold">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
-                  <span>NCJ Standards &amp; Malpractice Backing</span>
+                  <span>Verified Professional Standards</span>
                 </div>
                 <p className="text-slate-300 text-[11px] leading-relaxed">
-                  Every homecare visit booked through We Care Jamaica includes clinical dispatch coordination, 119 emergency coverage, and in-app doorstep arrival verification.
+                  Every homecare visit booked through We Care Jamaica includes clinical dispatch coordination, 119 emergency coverage, and in-app arrival verification.
                 </p>
               </div>
             </div>
@@ -698,3 +663,5 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
     </div>
   );
 };
+
+export default NurseOnboardingForm;

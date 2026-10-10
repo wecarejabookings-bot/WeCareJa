@@ -73,8 +73,8 @@ interface HeaderProps {
   onOpenBiometricAuth?: () => void;
   onForceSync?: () => void;
   isMasterAdmin?: boolean;
-  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup') => void;
-  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup';
+  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator') => void;
+  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator';
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -382,6 +382,22 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Package className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Orders</span>
+            </button>
+          )}
+
+          {/* Admin Marketing QR Ad Flyers (/admin/qr-generator) */}
+          {(isMasterAdmin || currentRole === 'admin') && (
+            <button
+              onClick={() => onNavigateView?.(currentView === 'admin_qr_generator' ? 'portal' : 'admin_qr_generator')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
+                currentView === 'admin_qr_generator'
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 font-black shadow-amber-950/40'
+                  : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+              }`}
+              title="Public Marketing QR Code Ad Flyers (/admin/qr-generator)"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Ad QR Flyers</span>
             </button>
           )}
 

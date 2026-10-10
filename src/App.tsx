@@ -62,6 +62,7 @@ import { MedicalStorePage } from './components/store/MedicalStorePage';
 import { AdminSupplyOrdersManager } from './components/admin/AdminSupplyOrdersManager';
 import { AdminStoreInventoryManager } from './components/admin/AdminStoreInventoryManager';
 import { NurseOnboardingForm } from './components/nurse/NurseOnboardingForm';
+import { AdminMarketingQRGenerator } from './components/admin/AdminMarketingQRGenerator';
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -82,12 +83,15 @@ export default function App() {
   const [logoVariation, setLogoVariation] = useState<LogoVariation>('heart-cross');
   
   // Navigation View & Route Handling with Fallback Route
-  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup'>(() => {
+  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
       if (path.includes('/nurse-signup') || hash.includes('/nurse-signup') || hash.includes('nurse-signup')) {
         return 'nurse_signup';
+      }
+      if (path.includes('/admin/qr-generator') || hash.includes('/admin/qr-generator') || hash.includes('qr-generator')) {
+        return 'admin_qr_generator';
       }
       if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
         return 'admin_store';
@@ -112,6 +116,8 @@ export default function App() {
 
       if (path.includes('/nurse-signup') || hash.includes('/nurse-signup') || hash.includes('nurse-signup')) {
         setCurrentView('nurse_signup');
+      } else if (path.includes('/admin/qr-generator') || hash.includes('/admin/qr-generator') || hash.includes('qr-generator')) {
+        setCurrentView('admin_qr_generator');
       } else if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
         setCurrentView('admin_store');
       } else if (path.includes('/store') || hash.includes('/store') || hash.includes('store')) {
@@ -127,7 +133,7 @@ export default function App() {
       if (path.includes('/signin') || path.includes('/login') || path.includes('/auth') || hash.includes('signin') || hash.includes('login')) {
         setIsAuthModalOpen(true);
         setAuthModalTab('signin');
-      } else if (path.includes('/signup') || path.includes('/register') || hash.includes('signup')) {
+      } else if (path.includes('/signup') || path.includes('/register') || path.includes('/client-signup') || hash.includes('signup') || hash.includes('client-signup')) {
         setIsPatientSignUpOpen(true);
       }
     };
@@ -141,10 +147,10 @@ export default function App() {
     };
   }, []);
 
-  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup') => {
+  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
-      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : view === 'nurse_signup' ? '/nurse-signup' : '/';
+      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : view === 'nurse_signup' ? '/nurse-signup' : view === 'admin_qr_generator' ? '/admin/qr-generator' : '/';
       try {
         window.history.pushState({}, '', targetPath);
       } catch {}
@@ -555,45 +561,99 @@ export default function App() {
   };
 
   // Handle nurse registration completion
-  const handleAddNewNurse = (newNurse: NurseProfile) => {
-    setNurses(prev => {
-      const exists = prev.some(n => n.id === newNurse.id || (newNurse.email && n.email === newNurse.email));
-      if (exists) return prev;
-      const updated = [newNurse, ...prev];
-      localStorage.setItem('wecare_nurses', JSON.stringify(updated));
-      return updated;
-    });
+  const handleAddNewNurse = (newNurse?: Partial<NurseProfile> | null) => {
+    if (!newNurse) return;
 
-    const nurseAccount: UserAccount = {
-      id: newNurse.id,
-      username: newNurse.email ? newNurse.email.split('@')[0] : `nurse_${Date.now()}`,
-      name: newNurse.name,
-      full_name: newNurse.name,
-      email: newNurse.email || '',
-      phone: newNurse.phone || '',
-      role: 'nurse',
-      approvalStatus: 'approved',
-      nurseProfileId: newNurse.id,
-      title: 'Registered Healthcare Practitioner',
-      avatarUrl: newNurse.photoUrl || 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-      zone: newNurse.zones?.[0] || 'Kingston & St. Andrew',
-      address: newNurse.zones?.[0] || 'Kingston, Jamaica',
-      createdAt: new Date().toISOString()
-    };
+    try {
+      const safeId = newNurse.id || `nurse-${Date.now()}`;
+      const safeName = newNurse.name || 'Registered Practitioner';
+      const safeEmail = newNurse.email || '';
+      const safePhone = newNurse.phone || '(876) 555-0199';
 
-    setUserAccounts(prev => {
-      const exists = prev.some(a => a.id === nurseAccount.id || (nurseAccount.email && a.email === nurseAccount.email));
-      if (exists) return prev;
-      const updated = [...prev, nurseAccount];
-      localStorage.setItem('wecare_user_accounts', JSON.stringify(updated));
-      return updated;
-    });
+      const completeNurseProfile: NurseProfile = {
+        id: safeId,
+        name: safeName,
+        phone: safePhone,
+        email: safeEmail,
+        photoUrl: newNurse.photoUrl || 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
+        nursingCouncilLicense: newNurse.nursingCouncilLicense || 'NCJ-RN-ACTIVE',
+        trnNumber: newNurse.trnNumber || '',
+        licenseVerified: true,
+        status: 'approved',
+        rating: 5.0,
+        reviewCount: 1,
+        yearsExperience: newNurse.yearsExperience || 3,
+        specialties: newNurse.specialties && newNurse.specialties.length > 0 ? newNurse.specialties : ['Elderly & Geriatric Home Care', 'Vitals Monitoring'],
+        zones: newNurse.zones && newNurse.zones.length > 0 ? newNurse.zones : ['Kingston', 'St. Andrew'],
+        hourlyRateJMD: newNurse.hourlyRateJMD || 7500,
+        bio: newNurse.bio || `Licensed Healthcare Practitioner serving Kingston and surrounding parishes.`,
+        totalEarningsJMD: 0,
+        pendingPayoutJMD: 0,
+        completedVisitsCount: 0
+      };
 
-    setCurrentUserId(nurseAccount.id);
-    setCurrentRole('nurse');
-    localStorage.setItem('wecare_current_user_id', nurseAccount.id);
-    soundFX.playSuccessPing();
-    handleTriggerNotification('system_alert', 'Welcome, Nurse!', `Your practitioner profile is now active.`);
+      setNurses(prev => {
+        const exists = prev.some(n => n.id === safeId || (safeEmail && n.email === safeEmail));
+        if (exists) return prev;
+        const updated = [completeNurseProfile, ...prev];
+        try {
+          localStorage.setItem('wecare_nurses', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      const nurseAccount: UserAccount = {
+        id: safeId,
+        username: safeEmail ? safeEmail.split('@')[0] : `nurse_${Date.now()}`,
+        name: safeName,
+        full_name: safeName,
+        email: safeEmail,
+        phone: safePhone,
+        role: 'nurse',
+        approvalStatus: 'approved',
+        nurseProfileId: safeId,
+        title: 'Registered Healthcare Practitioner',
+        avatarUrl: completeNurseProfile.photoUrl,
+        zone: completeNurseProfile.zones?.[0] || 'Kingston & St. Andrew',
+        address: completeNurseProfile.zones?.[0] || 'Kingston, Jamaica',
+        createdAt: new Date().toISOString()
+      };
+
+      setUserAccounts(prev => {
+        const exists = prev.some(a => a.id === safeId || (safeEmail && a.email === safeEmail));
+        if (exists) return prev;
+        const updated = [...prev, nurseAccount];
+        try {
+          localStorage.setItem('wecare_user_accounts', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      setCurrentUserId(nurseAccount.id);
+      setCurrentRole('nurse');
+      try {
+        localStorage.setItem('wecare_current_user_id', nurseAccount.id);
+      } catch {}
+
+      // Background upsert into profiles using ONLY existing columns
+      try {
+        Promise.resolve(
+          supabase.from('profiles').upsert({
+            id: safeId,
+            full_name: safeName,
+            role: 'nurse',
+            phone: safePhone,
+            address: completeNurseProfile.zones?.[0] || 'Kingston, Jamaica',
+            trn: completeNurseProfile.trnNumber || ''
+          }, { onConflict: 'id' })
+        ).catch(() => {});
+      } catch {}
+
+      soundFX.playSuccessPing();
+      handleTriggerNotification('system_alert', 'Welcome, Nurse!', `Your practitioner profile is now active.`);
+    } catch (err) {
+      console.error('Error handling nurse onboarding:', err);
+    }
   };
 
   // Handle role switch from UI - Master Admin Sydney Mattis has an All-Access Pass to ANY dashboard
@@ -1522,6 +1582,41 @@ export default function App() {
                 </span>
               </div>
               <AdminStoreInventoryManager />
+            </div>
+          )
+        ) : currentView === 'admin_qr_generator' ? (
+          (!isAuthenticated || !currentUser || (!isMasterAdmin && currentRole !== 'admin')) ? (
+            <div className="p-8 sm:p-12 text-center space-y-4 rounded-3xl bg-white/[0.03] border border-white/10 max-w-lg mx-auto mt-6">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-xl">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-white">Administrator Restricted Access</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Marketing QR Flyer Generator (<code className="font-mono text-amber-300">/admin/qr-generator</code>) is strictly reserved for authorized administrative staff.
+              </p>
+              <div className="pt-2 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateView('portal')}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  Return to Home
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAuthModal('signin')}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-lg transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-slate-950" />
+                  <span>Sign In as Admin</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 animate-fade-in">
+              <AdminMarketingQRGenerator
+                onBackToPortal={() => handleNavigateView('portal')}
+              />
             </div>
           )
         ) : !isAuthenticated || !currentUser ? (
