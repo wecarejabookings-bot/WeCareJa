@@ -19,6 +19,7 @@ export interface NurseInviteQR {
 export interface NurseRegistrationRecord {
   uid: string;
   fullName: string;
+  email?: string;
   trn: string;
   ncjLicense: string;
   phone: string;

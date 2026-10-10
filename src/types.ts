@@ -844,6 +844,7 @@ export type ActivityNotificationType =
   | 'system_alert'
   | 'nurse_signup'
   | 'nurse_arrived'
+  | 'arrival_checkin'
   | 'sos_emergency'
   | 'medication_push_alert'
   | 'milestone_unlocked'

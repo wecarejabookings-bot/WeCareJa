@@ -22,8 +22,8 @@ function sanitizeSupabaseKey(raw?: string): string {
 }
 
 // Read Supabase credentials with fallback error message if missing
-const rawEnvUrl = import.meta.env.VITE_SUPABASE_URL;
-const rawEnvKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const rawEnvUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || process.env?.VITE_SUPABASE_URL;
+const rawEnvKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_ANON_KEY;
 
 if (!rawEnvUrl || !rawEnvKey) {
   console.warn(

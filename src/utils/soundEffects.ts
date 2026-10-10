@@ -1220,6 +1220,10 @@ class SoundFXEngine {
     this.playCancellation();
   }
 
+  public playErrorBeep(): void {
+    this.playCancellation();
+  }
+
   public playAlert(): void {
     this.playCancellation();
   }
