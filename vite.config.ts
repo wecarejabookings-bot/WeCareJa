@@ -8,7 +8,9 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     define: {
       'process.env.VITE_SUPABASE_URL': JSON.stringify(
-        process.env.VITE_SUPABASE_URL || 'https://qyhbyoojbmaguujzmdwz.supabase.co'
+        process.env.VITE_SUPABASE_URL && !process.env.VITE_SUPABASE_URL.includes('qyhbyoojbmaguujzmdwz')
+          ? process.env.VITE_SUPABASE_URL
+          : 'https://yflgdfvjigbcnagcuism.supabase.co'
       ),
       'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(
         process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlmbGdkZnZqaWdiY25hZ2N1aXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA4MzYxMDQsImV4cCI6MjEwNjQxMjEwNH0.45kAiQU70KDqdvR5L_hFO9b6Cjyhkb28ymSBYdEueDQ'

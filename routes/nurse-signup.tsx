@@ -160,12 +160,14 @@ export default function NurseSignUpPage({
     setErrorToast(null);
 
     if (!email || !password) {
-      alert('Fill all fields (Email and Password are required)');
+      setErrorToast('Please enter both your email address and password.');
+      soundFX.playWarningSound();
       return;
     }
 
     if (!fullName || !ncjLicense) {
-      alert('Fill all fields (Full Name and NCJ License are required)');
+      setErrorToast('Please enter your full legal name and NCJ license number.');
+      soundFX.playWarningSound();
       return;
     }
 

@@ -518,13 +518,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           console.warn('confirm-user invoke error:', fnErr);
         }
 
-        // After signUp ALWAYS upsert profiles
+        // After signUp ALWAYS upsert profiles using existing columns only
         try {
           await supabase.from('profiles').upsert({
             id: userId,
-            email: regEmail.trim(),
-            role: res.profile?.role || 'client'
-          });
+            full_name: regName.trim(),
+            role: res.profile?.role || 'client',
+            phone: regPhone.trim(),
+            address: regZone.trim(),
+            trn: ''
+          }, { onConflict: 'id' });
         } catch (upErr) {
           console.warn('profiles upsert note:', upErr);
         }

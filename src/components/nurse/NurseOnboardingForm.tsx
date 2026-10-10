@@ -161,12 +161,14 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
     // Strict validation as required
     if (!email || !password) {
-      alert('Fill all fields');
+      setErrorToast('Please enter both your email address and password.');
+      soundFX.playWarningSound();
       return;
     }
 
     if (!fullName || !ncjLicense) {
-      alert('Fill all fields');
+      setErrorToast('Please enter your full legal name and NCJ license number.');
+      soundFX.playWarningSound();
       return;
     }
 

@@ -554,6 +554,48 @@ export default function App() {
     );
   };
 
+  // Handle nurse registration completion
+  const handleAddNewNurse = (newNurse: NurseProfile) => {
+    setNurses(prev => {
+      const exists = prev.some(n => n.id === newNurse.id || (newNurse.email && n.email === newNurse.email));
+      if (exists) return prev;
+      const updated = [newNurse, ...prev];
+      localStorage.setItem('wecare_nurses', JSON.stringify(updated));
+      return updated;
+    });
+
+    const nurseAccount: UserAccount = {
+      id: newNurse.id,
+      username: newNurse.email ? newNurse.email.split('@')[0] : `nurse_${Date.now()}`,
+      name: newNurse.name,
+      full_name: newNurse.name,
+      email: newNurse.email || '',
+      phone: newNurse.phone || '',
+      role: 'nurse',
+      approvalStatus: 'approved',
+      nurseProfileId: newNurse.id,
+      title: 'Registered Healthcare Practitioner',
+      avatarUrl: newNurse.photoUrl || 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
+      zone: newNurse.zones?.[0] || 'Kingston & St. Andrew',
+      address: newNurse.zones?.[0] || 'Kingston, Jamaica',
+      createdAt: new Date().toISOString()
+    };
+
+    setUserAccounts(prev => {
+      const exists = prev.some(a => a.id === nurseAccount.id || (nurseAccount.email && a.email === nurseAccount.email));
+      if (exists) return prev;
+      const updated = [...prev, nurseAccount];
+      localStorage.setItem('wecare_user_accounts', JSON.stringify(updated));
+      return updated;
+    });
+
+    setCurrentUserId(nurseAccount.id);
+    setCurrentRole('nurse');
+    localStorage.setItem('wecare_current_user_id', nurseAccount.id);
+    soundFX.playSuccessPing();
+    handleTriggerNotification('system_alert', 'Welcome, Nurse!', `Your practitioner profile is now active.`);
+  };
+
   // Handle role switch from UI - Master Admin Sydney Mattis has an All-Access Pass to ANY dashboard
   const handleRoleChange = (newRole: UserRole) => {
     if (!isAuthenticated || !currentUser) {

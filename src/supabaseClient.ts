@@ -2,8 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 
 // Safe URL sanitation - handles prefixes like "Value: ", "https://...", etc.
 function sanitizeUrl(raw?: string): string {
-  const fallback = 'https://qyhbyoojbmaguujzmdwz.supabase.co';
+  const fallback = 'https://yflgdfvjigbcnagcuism.supabase.co';
   if (!raw) return fallback;
+  if (raw.includes('qyhbyoojbmaguujzmdwz') || raw.includes('your-project')) return fallback;
   const match = raw.match(/https?:\/\/[^\s'"\)]+/i);
   return match ? match[0].replace(/\/+$/, '') : fallback;
 }
