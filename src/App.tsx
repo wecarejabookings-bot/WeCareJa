@@ -63,6 +63,7 @@ import { AdminSupplyOrdersManager } from './components/admin/AdminSupplyOrdersMa
 import { AdminStoreInventoryManager } from './components/admin/AdminStoreInventoryManager';
 import { NurseOnboardingForm } from './components/nurse/NurseOnboardingForm';
 import { AdminMarketingQRGenerator } from './components/admin/AdminMarketingQRGenerator';
+import { AdminUserManagementPage } from './components/admin/AdminUserManagementPage';
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -83,12 +84,15 @@ export default function App() {
   const [logoVariation, setLogoVariation] = useState<LogoVariation>('heart-cross');
   
   // Navigation View & Route Handling with Fallback Route
-  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator'>(() => {
+  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
       if (path.includes('/nurse-signup') || hash.includes('/nurse-signup') || hash.includes('nurse-signup')) {
         return 'nurse_signup';
+      }
+      if (path.includes('/admin/users') || hash.includes('/admin/users') || hash.includes('admin/users')) {
+        return 'admin_users';
       }
       if (path.includes('/admin/qr-generator') || hash.includes('/admin/qr-generator') || hash.includes('qr-generator')) {
         return 'admin_qr_generator';
@@ -116,6 +120,8 @@ export default function App() {
 
       if (path.includes('/nurse-signup') || hash.includes('/nurse-signup') || hash.includes('nurse-signup')) {
         setCurrentView('nurse_signup');
+      } else if (path.includes('/admin/users') || hash.includes('/admin/users') || hash.includes('admin/users')) {
+        setCurrentView('admin_users');
       } else if (path.includes('/admin/qr-generator') || hash.includes('/admin/qr-generator') || hash.includes('qr-generator')) {
         setCurrentView('admin_qr_generator');
       } else if (path.includes('/admin/store') || hash.includes('/admin/store') || hash.includes('admin_store')) {
@@ -147,10 +153,10 @@ export default function App() {
     };
   }, []);
 
-  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator') => {
+  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
-      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : view === 'nurse_signup' ? '/nurse-signup' : view === 'admin_qr_generator' ? '/admin/qr-generator' : '/';
+      const targetPath = view === 'store' ? '/store' : view === 'admin_orders' ? '/admin/orders' : view === 'admin_store' ? '/admin/store' : view === 'nurse_signup' ? '/nurse-signup' : view === 'admin_qr_generator' ? '/admin/qr-generator' : view === 'admin_users' ? '/admin/users' : '/';
       try {
         window.history.pushState({}, '', targetPath);
       } catch {}
@@ -1615,6 +1621,43 @@ export default function App() {
           ) : (
             <div className="space-y-4 animate-fade-in">
               <AdminMarketingQRGenerator
+                onBackToPortal={() => handleNavigateView('portal')}
+              />
+            </div>
+          )
+        ) : currentView === 'admin_users' ? (
+          (!isAuthenticated || !currentUser || (!isMasterAdmin && currentRole !== 'admin')) ? (
+            <div className="p-8 sm:p-12 text-center space-y-4 rounded-3xl bg-white/[0.03] border border-white/10 max-w-lg mx-auto mt-6">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shadow-xl">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-white">Administrator Restricted Access</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                User Management &amp; Signup Registry (<code className="font-mono text-blue-300">/admin/users</code>) is strictly reserved for authorized administrative staff.
+              </p>
+              <div className="pt-2 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateView('portal')}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  Return to Home
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAuthModal('signin')}
+                  className="px-5 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-400 text-white text-xs font-black shadow-lg transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-white" />
+                  <span>Sign In as Admin</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 animate-fade-in">
+              <AdminUserManagementPage
+                currentUser={currentUser}
+                isMasterAdmin={isMasterAdmin}
                 onBackToPortal={() => handleNavigateView('portal')}
               />
             </div>

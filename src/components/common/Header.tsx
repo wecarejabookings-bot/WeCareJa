@@ -73,8 +73,8 @@ interface HeaderProps {
   onOpenBiometricAuth?: () => void;
   onForceSync?: () => void;
   isMasterAdmin?: boolean;
-  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator') => void;
-  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator';
+  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users') => void;
+  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users';
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -382,6 +382,22 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Package className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Orders</span>
+            </button>
+          )}
+
+          {/* Admin User Management (/admin/users) */}
+          {(isMasterAdmin || currentRole === 'admin') && (
+            <button
+              onClick={() => onNavigateView?.(currentView === 'admin_users' ? 'portal' : 'admin_users')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
+                currentView === 'admin_users'
+                  ? 'bg-blue-600 text-white border-blue-400 font-black shadow-blue-950/40'
+                  : 'bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border-blue-500/30'
+              }`}
+              title="Admin User Management (/admin/users)"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Manage Users</span>
             </button>
           )}
 
