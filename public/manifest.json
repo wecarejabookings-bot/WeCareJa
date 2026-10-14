@@ -1,0 +1,17 @@
+{
+  "name": "We Care Jamaica - Home Care Nurses",
+  "short_name": "WeCare Jamaica",
+  "description": "Licensed in-home nurse booking and healthcare platform for Kingston, St. Andrew, Portmore, and Spanish Town, Jamaica.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#140620",
+  "theme_color": "#1E1B4B",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
