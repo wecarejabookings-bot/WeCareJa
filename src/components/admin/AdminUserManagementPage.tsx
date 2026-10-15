@@ -25,11 +25,13 @@ import {
   ChevronRight,
   Shield,
   FileText,
-  DollarSign
+  DollarSign,
+  Sparkles
 } from 'lucide-react';
 import { UserAccount, UserRole, NurseProfile } from '../../types';
 import { soundFX } from '../../utils/soundEffects';
 import { supabase } from '../../lib/supabase';
+import { AdminTopicsDirectoryManager } from './AdminTopicsDirectoryManager';
 import confetti from 'canvas-confetti';
 
 export interface AdminUserRecord {
@@ -86,6 +88,19 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<'all' | UserRole>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | string>('all');
+  
+  // High-visibility Admin Section Tab: 'users' vs 'topics' (Manage Topics Directory #01-#10)
+  const [activeAdminTab, setActiveAdminTab] = useState<'users' | 'topics'>(() => {
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname.toLowerCase();
+      const h = window.location.hash.toLowerCase();
+      const s = window.location.search.toLowerCase();
+      if (p.includes('topic') || h.includes('topic') || s.includes('topic')) {
+        return 'topics';
+      }
+    }
+    return 'users';
+  });
   
   // Modal states
   const [editingUser, setEditingUser] = useState<AdminUserRecord | null>(null);
@@ -622,6 +637,21 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
 
         {/* Global Controls */}
         <div className="flex items-center gap-2.5">
+          {/* Manage Topics Directory Quick Tab Button */}
+          <button
+            type="button"
+            onClick={() => setActiveAdminTab(activeAdminTab === 'topics' ? 'users' : 'topics')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 border cursor-pointer shadow-md ${
+              activeAdminTab === 'topics'
+                ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-950/40'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white border-blue-400/40 shadow-blue-950/40'
+            }`}
+            title="Manage 10 Interactive Homepage Topics (#01-#10) & App CMS"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{activeAdminTab === 'topics' ? '← Back to Users Directory' : 'Manage Topics Directory'}</span>
+          </button>
+
           <button
             type="button"
             onClick={fetchAllUsers}
@@ -644,6 +674,43 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
           </button>
         </div>
       </div>
+
+      {/* High-Visibility Admin Navigation Tabs: Users Directory vs Topics Directory CMS */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 rounded-2xl bg-slate-900/90 border border-white/10 backdrop-blur-md shadow-lg">
+        <button
+          type="button"
+          onClick={() => setActiveAdminTab('users')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activeAdminTab === 'users'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/50 font-black border border-blue-400/30'
+              : 'text-slate-300 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Users className="w-4 h-4 text-blue-300" />
+          <span>User Accounts Directory ({users.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveAdminTab('topics')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activeAdminTab === 'topics'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-950/50 font-black border border-blue-400/40'
+              : 'text-slate-300 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-amber-300" />
+          <span>Manage Topics Directory (#01–#10)</span>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-400 text-slate-950">
+            Homepage CMS
+          </span>
+        </button>
+      </div>
+
+      {activeAdminTab === 'topics' ? (
+        <AdminTopicsDirectoryManager currentUser={currentUser} />
+      ) : (
+        <>
 
       {/* Toast Alert */}
       {toastMessage && (
@@ -1258,6 +1325,8 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

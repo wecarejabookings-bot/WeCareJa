@@ -613,19 +613,32 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <span>Rates &amp; Pricing</span>
             </button>
 
+            {/* Manage Users */}
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === 'users'
+                  ? 'bg-gradient-to-r from-blue-600 to-[#1E1B4B] text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black'
+                  : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
+              }`}
+            >
+              <Users className="w-4 h-4 text-blue-300" />
+              <span>Manage Users</span>
+            </button>
+
             {/* Manage Topics Directory & Global CMS */}
             <button
               onClick={() => setActiveTab('topics')}
               className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === 'topics' || activeTab === 'cms'
-                  ? 'bg-gradient-to-r from-blue-600 to-[#1E1B4B] text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black'
                   : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
               }`}
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Topics &amp; CMS</span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
-                #01-#10
+              <span>Manage Topics Directory</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                #01–#10
               </span>
             </button>
 
@@ -756,19 +769,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <DollarSign className="w-4 h-4 text-emerald-400" /> Rates &amp; Pricing
             </button>
 
+            {/* Manage Users */}
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === 'users'
+                  ? 'bg-gradient-to-r from-blue-600 to-[#1E1B4B] text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black' 
+                  : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
+              }`}
+            >
+              <Users className="w-4 h-4 text-blue-300" /> Manage Users
+            </button>
+
             {/* Manage Topics Directory & CMS */}
             <button
               onClick={() => setActiveTab('topics')}
               className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
                 activeTab === 'topics' || activeTab === 'cms'
-                  ? 'bg-gradient-to-r from-blue-600 to-[#1E1B4B] text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black' 
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black' 
                   : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
               }`}
             >
               <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Manage Topics &amp; CMS</span>
-              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
-                #01-#10
+              <span>Manage Topics Directory</span>
+              <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase">
+                #01–#10
               </span>
             </button>
 

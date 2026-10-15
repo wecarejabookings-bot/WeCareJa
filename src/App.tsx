@@ -66,6 +66,7 @@ const AdminStoreInventoryManager = lazy(() => import('./components/admin/AdminSt
 const NurseOnboardingForm = lazy(() => import('./components/nurse/NurseOnboardingForm').then(m => ({ default: m.NurseOnboardingForm })));
 const AdminMarketingQRGenerator = lazy(() => import('./components/admin/AdminMarketingQRGenerator').then(m => ({ default: m.AdminMarketingQRGenerator })));
 const AdminUserManagementPage = lazy(() => import('./components/admin/AdminUserManagementPage').then(m => ({ default: m.AdminUserManagementPage })));
+const AdminTopicsDirectoryManager = lazy(() => import('./components/admin/AdminTopicsDirectoryManager').then(m => ({ default: m.AdminTopicsDirectoryManager })));
 const UnifiedAuthPage = lazy(() => import('./components/auth/UnifiedAuthPage').then(m => ({ default: m.UnifiedAuthPage })));
 import { 
   fetchBookingsFromSupabase, 
@@ -99,7 +100,7 @@ export default function App() {
   const [logoVariation, setLogoVariation] = useState<LogoVariation>('heart-cross');
   
   // Navigation View & Route Handling with Fallback Route
-  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'auth'>(() => {
+  const [currentView, setCurrentView] = useState<'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth'>(() => {
     if (typeof window !== 'undefined') {
       const path = window.location.pathname.toLowerCase();
       const hash = window.location.hash.toLowerCase();
@@ -114,7 +115,10 @@ export default function App() {
       if (path.includes('/auth') || hash.includes('/auth') || hash.includes('auth')) {
         return 'auth';
       }
-      if (path.includes('/admin/users') || hash.includes('/admin/users') || hash.includes('admin/users')) {
+      if (path.includes('/admin/topics') || hash.includes('admin/topics') || path.includes('/manage-topics') || hash.includes('manage-topics') || path.includes('topics-directory') || hash.includes('topics')) {
+        return 'admin_topics';
+      }
+      if (path.includes('/manage-users') || hash.includes('manage-users') || path.includes('/admin/users') || hash.includes('/admin/users') || hash.includes('admin/users')) {
         return 'admin_users';
       }
       if (path.includes('/admin/qr-generator') || hash.includes('/admin/qr-generator') || hash.includes('qr-generator')) {
@@ -166,7 +170,9 @@ export default function App() {
           }
         } catch {}
         setCurrentView('auth');
-      } else if (path.includes('/admin/users') || hash.includes('/admin/users') || hash.includes('admin/users')) {
+      } else if (path.includes('/admin/topics') || hash.includes('admin/topics') || path.includes('/manage-topics') || hash.includes('manage-topics') || path.includes('topics-directory') || hash.includes('topics')) {
+        setCurrentView('admin_topics');
+      } else if (path.includes('/manage-users') || hash.includes('manage-users') || path.includes('/admin/users') || hash.includes('/admin/users') || hash.includes('admin/users')) {
         setCurrentView('admin_users');
       } else if (path.includes('/admin/qr-generator') || hash.includes('/admin/qr-generator') || hash.includes('qr-generator')) {
         setCurrentView('admin_qr_generator');
@@ -200,7 +206,7 @@ export default function App() {
     };
   }, []);
 
-  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'auth') => {
+  const handleNavigateView = (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth') => {
     setCurrentView(view);
     if (typeof window !== 'undefined') {
       const targetPath = view === 'store' 
@@ -215,6 +221,8 @@ export default function App() {
         ? '/admin/qr-generator' 
         : view === 'admin_users' 
         ? '/admin/users' 
+        : view === 'admin_topics'
+        ? '/admin/topics'
         : view === 'auth'
         ? '/auth?mode=signup'
         : '/';
@@ -1770,6 +1778,60 @@ export default function App() {
               <AdminMarketingQRGenerator
                 onBackToPortal={() => handleNavigateView('portal')}
               />
+            </div>
+          )
+        ) : currentView === 'admin_topics' ? (
+          (!isAuthenticated || !currentUser || (!isMasterAdmin && currentRole !== 'admin')) ? (
+            <div className="p-8 sm:p-12 text-center space-y-4 rounded-3xl bg-white/[0.03] border border-white/10 max-w-lg mx-auto mt-6">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-xl">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-white">Administrator Restricted Access</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Manage Topics Directory (#01–#10) &amp; Homepage CMS (<code className="font-mono text-amber-300">/admin/topics</code>) is strictly reserved for authorized administrative staff.
+              </p>
+              <div className="pt-2 flex justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateView('portal')}
+                  className="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition cursor-pointer"
+                >
+                  Return to Home
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAuthModal('signin')}
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-lg transition flex items-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-slate-950" />
+                  <span>Sign In as Admin</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 animate-fade-in">
+              <div className="flex items-center justify-between pb-3 border-b border-white/10">
+                <button
+                  type="button"
+                  onClick={() => handleNavigateView('portal')}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 hover:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>← Back to Admin Portal</span>
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleNavigateView('admin_users')}
+                    className="px-3 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/20 text-xs font-bold transition cursor-pointer"
+                  >
+                    Switch to Manage Users
+                  </button>
+                  <span className="text-xs text-amber-300 font-mono bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                    Direct Route: /admin/topics
+                  </span>
+                </div>
+              </div>
+              <AdminTopicsDirectoryManager currentUser={currentUser} />
             </div>
           )
         ) : currentView === 'admin_users' ? (

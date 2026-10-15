@@ -73,8 +73,8 @@ interface HeaderProps {
   onOpenBiometricAuth?: () => void;
   onForceSync?: () => void;
   isMasterAdmin?: boolean;
-  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'auth') => void;
-  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'auth';
+  onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth') => void;
+  currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth';
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -398,6 +398,22 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <Users className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Manage Users</span>
+            </button>
+          )}
+
+          {/* Admin Topics Directory & Homepage CMS (/admin/topics) */}
+          {(isMasterAdmin || currentRole === 'admin') && (
+            <button
+              onClick={() => onNavigateView?.(currentView === 'admin_topics' ? 'portal' : 'admin_topics')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
+                currentView === 'admin_topics'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-400 font-black shadow-blue-950/40'
+                  : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'
+              }`}
+              title="Manage Topics Directory (#01-#10) and Homepage CMS (/admin/topics)"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden md:inline">Topics Directory</span>
             </button>
           )}
 
