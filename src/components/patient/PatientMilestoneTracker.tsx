@@ -52,22 +52,44 @@ export const PatientMilestoneTracker: React.FC<PatientMilestoneTrackerProps> = (
   onNavigateToServices,
   compact = false
 }) => {
-  // Load patient milestones from localStorage or defaults
+  // Load patient milestones from localStorage or clean defaults
   const [milestones, setMilestones] = useState<MilestoneItem[]>(() => {
     try {
       const saved = localStorage.getItem('wecare_patient_milestones');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // If stored milestones contain legacy demo/fictitious data, clean them out
+          const hasFictitiousData = parsed.some((p: any) => 
+            p.completedAt === '2026-08-15T14:30:00Z' || 
+            p.completedAt === '2026-08-20T09:00:00Z' ||
+            (!bookings || bookings.length === 0 && p.category === 'therapy_sessions' && p.currentCount > 0)
+          );
+          if (!hasFictitiousData) return parsed;
+        }
+      }
+    } catch {}
+    try {
+      localStorage.setItem('wecare_patient_milestones', JSON.stringify(INITIAL_PATIENT_MILESTONES));
     } catch {}
     return INITIAL_PATIENT_MILESTONES;
   });
 
-  // Medication streak state
+  // Medication streak state - strictly real (0 default, no fictitious streak)
   const [medStreak, setMedStreak] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('wecare_patient_med_streak');
-      if (saved) return Number(saved);
+      if (saved) {
+        const num = Number(saved);
+        if (num === 6) {
+          // Purge legacy test default
+          localStorage.removeItem('wecare_patient_med_streak');
+          return 0;
+        }
+        return num;
+      }
     } catch {}
-    return 6; // default 6 days so 1 more check-in triggers 7-day milestone!
+    return 0;
   });
 
   // Checked in today flag
@@ -83,21 +105,21 @@ export const PatientMilestoneTracker: React.FC<PatientMilestoneTrackerProps> = (
   // Calculate therapy sessions from bookings
   const therapySessionsCount = calculatePatientTherapySessionsCount(bookings);
 
-  // Sync therapy count into milestones
+  // Sync therapy count strictly from actual completed bookings
   useEffect(() => {
     setMilestones(prev => {
       let changed = false;
       const updated = prev.map(m => {
         if (m.category === 'therapy_sessions') {
-          const effectiveCount = Math.max(m.currentCount, therapySessionsCount);
-          const completed = effectiveCount >= m.targetCount;
+          const effectiveCount = therapySessionsCount;
+          const completed = effectiveCount > 0 && effectiveCount >= m.targetCount;
           if (m.currentCount !== effectiveCount || m.isCompleted !== completed) {
             changed = true;
             return {
               ...m,
               currentCount: effectiveCount,
               isCompleted: completed,
-              completedAt: completed && !m.isCompleted ? new Date().toISOString() : m.completedAt
+              completedAt: completed && !m.isCompleted ? new Date().toISOString() : (completed ? m.completedAt : undefined)
             };
           }
         }
@@ -243,14 +265,14 @@ export const PatientMilestoneTracker: React.FC<PatientMilestoneTrackerProps> = (
   const therapyPercent = Math.min(100, Math.round(((nextTherapy.currentCount) / nextTherapy.targetCount) * 100));
   const medPercent = Math.min(100, Math.round(((medStreak) / nextMed.targetCount) * 100));
 
-  // Past 7 days check-in simulation
+  // Authentic past 7-day adherence reflection based on real streak
   const pastDays = [
-    { day: 'Mon', checked: true },
-    { day: 'Tue', checked: true },
-    { day: 'Wed', checked: true },
-    { day: 'Thu', checked: true },
-    { day: 'Fri', checked: true },
-    { day: 'Sat', checked: true },
+    { day: '6d ago', checked: medStreak >= 7 },
+    { day: '5d ago', checked: medStreak >= 6 },
+    { day: '4d ago', checked: medStreak >= 5 },
+    { day: '3d ago', checked: medStreak >= 4 },
+    { day: '2d ago', checked: medStreak >= 3 },
+    { day: 'Yest.', checked: medStreak >= 2 },
     { day: 'Today', checked: checkedInToday }
   ];
 

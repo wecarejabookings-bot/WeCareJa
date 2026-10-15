@@ -34,6 +34,7 @@ interface UserAccountsManagerProps {
   logoVariation?: LogoVariation;
   onUpdateUserAccount?: (account: UserAccount) => void;
   onRegisterNewClient?: (account: UserAccount) => void;
+  onOpenTopicsManager?: () => void;
   initialRoleFilter?: 'all' | 'client' | 'nurse' | 'admin';
 }
 
@@ -42,6 +43,7 @@ export const UserAccountsManager: React.FC<UserAccountsManagerProps> = ({
   onOpenExportModal,
   onUpdateUserAccount,
   onRegisterNewClient,
+  onOpenTopicsManager,
   initialRoleFilter = 'all'
 }) => {
   const [query, setQuery] = useState('');
@@ -131,6 +133,17 @@ export const UserAccountsManager: React.FC<UserAccountsManagerProps> = ({
             <UserPlus className="w-3.5 h-3.5" />
             <span>Register New Client</span>
           </button>
+
+          {onOpenTopicsManager && (
+            <button
+              type="button"
+              onClick={onOpenTopicsManager}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white text-xs font-black shadow-md shadow-blue-950/40 flex items-center gap-1.5 shrink-0 cursor-pointer transition border border-blue-400/30"
+              title="Manage 10 Interactive Homepage Topics and App CMS Content"
+            >
+              <span>Manage Topics Directory (#01-#10)</span>
+            </button>
+          )}
 
           {onOpenExportModal && (
             <button

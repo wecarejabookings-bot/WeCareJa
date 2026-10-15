@@ -314,6 +314,18 @@ export default function App() {
     try {
       localStorage.removeItem('wecare_notifications');
       localStorage.removeItem('wecare_activity_stream');
+      // Purge any legacy fictitious patient milestones or fake default streak
+      const savedMilestones = localStorage.getItem('wecare_patient_milestones');
+      if (savedMilestones) {
+        const parsed = JSON.parse(savedMilestones);
+        if (Array.isArray(parsed) && parsed.some((p: any) => p.completedAt === '2026-08-15T14:30:00Z' || p.completedAt === '2026-08-20T09:00:00Z')) {
+          localStorage.setItem('wecare_patient_milestones', JSON.stringify(INITIAL_PATIENT_MILESTONES));
+        }
+      }
+      const savedMedStreak = localStorage.getItem('wecare_patient_med_streak');
+      if (savedMedStreak && Number(savedMedStreak) === 6) {
+        localStorage.removeItem('wecare_patient_med_streak');
+      }
     } catch {}
     return [];
   });

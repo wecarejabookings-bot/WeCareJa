@@ -84,6 +84,7 @@ import { AdminBookingActionModal } from './AdminBookingActionModal';
 import { AdminSupplyOrdersManager } from './AdminSupplyOrdersManager';
 import { AdminRatesPricingManager } from './AdminRatesPricingManager';
 import { AdminStoreInventoryManager } from './AdminStoreInventoryManager';
+import { AdminTopicsDirectoryManager } from './AdminTopicsDirectoryManager';
 import { updateBookingPriceInSupabase } from '../../lib/supabase';
 
 interface AdminPortalProps {
@@ -143,9 +144,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onUpdateUserAccount,
   onRegisterNewClient
 }) => {
-  // Master Admin Staff Account in We Care Jamaica (Kingston & St Catherine)
+  // Master Admin Sydney Mattis account + any newly registered admin staff (no demo profiles)
+  const registeredAdminStaff = (userAccounts || [])
+    .filter(u => u.role === 'admin' && u.email?.toLowerCase() !== 'wecareja.bookings@gmail.com' && u.username?.toLowerCase() !== 'sydney')
+    .map(u => ({
+      id: u.id,
+      name: u.name || u.full_name || 'Staff Member',
+      email: u.email,
+      role: (u.department?.includes('Dispatch') ? 'Dispatcher' : u.department?.includes('Manager') ? 'Manager' : 'Support') as any,
+      isMaster: false,
+      phone: u.phone || '(876) 582-7613',
+      title: u.title || 'Operations Staff'
+    }));
+
   const ADMIN_STAFF_MEMBERS = [
-    { id: 'admin-sydney', name: 'Sydney Mattis', email: 'wecareja.bookings@gmail.com', role: 'Manager' as const, isMaster: true, phone: '(876) 582-7613', title: 'Lead Operations Director & Master Administrator' }
+    { id: 'admin-sydney', name: 'Sydney Mattis', email: 'wecareja.bookings@gmail.com', role: 'Manager' as const, isMaster: true, phone: '(876) 582-7613', title: 'Lead Operations Director & Master Administrator' },
+    ...registeredAdminStaff
   ];
 
   const [selectedStaffEmail, setSelectedStaffEmail] = useState<string>('wecareja.bookings@gmail.com');
@@ -166,13 +180,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const effectiveMasterAdmin = isMasterUser;
 
   // Navigation tab states
-  type AdminTabType = 'payroll' | 'finances' | 'verifications' | 'clients' | 'bookings' | 'settings' | 'export' | 'my_payslip' | 'sos' | 'skill_badges' | 'analytics' | 'video_meetings' | 'schools_db' | 'disputes' | 'payouts' | 'zones' | 'users' | 'reviews' | 'earnings' | 'orders' | 'pricing' | 'store';
+  type AdminTabType = 'payroll' | 'finances' | 'verifications' | 'clients' | 'bookings' | 'settings' | 'export' | 'my_payslip' | 'sos' | 'skill_badges' | 'analytics' | 'video_meetings' | 'schools_db' | 'disputes' | 'payouts' | 'zones' | 'users' | 'reviews' | 'earnings' | 'orders' | 'pricing' | 'store' | 'topics' | 'cms';
   const [activeTab, setActiveTab] = useState<AdminTabType>(() => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname.toLowerCase();
       const h = window.location.hash.toLowerCase();
       if (p.includes('/admin/store') || h.includes('/admin/store') || h.includes('admin_store')) {
         return 'store';
+      }
+      if (p.includes('topic') || h.includes('topic') || p.includes('cms') || h.includes('cms')) {
+        return 'topics';
       }
     }
     return effectiveMasterAdmin ? 'payroll' : 'verifications';
@@ -596,6 +613,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <span>Rates &amp; Pricing</span>
             </button>
 
+            {/* Manage Topics Directory & Global CMS */}
+            <button
+              onClick={() => setActiveTab('topics')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === 'topics' || activeTab === 'cms'
+                  ? 'bg-gradient-to-r from-blue-600 to-[#1E1B4B] text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black'
+                  : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>Topics &amp; CMS</span>
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
+                #01-#10
+              </span>
+            </button>
+
             {/* 4. My Payslip */}
             <button
               onClick={() => setActiveTab('my_payslip')}
@@ -721,6 +754,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               }`}
             >
               <DollarSign className="w-4 h-4 text-emerald-400" /> Rates &amp; Pricing
+            </button>
+
+            {/* Manage Topics Directory & CMS */}
+            <button
+              onClick={() => setActiveTab('topics')}
+              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                activeTab === 'topics' || activeTab === 'cms'
+                  ? 'bg-gradient-to-r from-blue-600 to-[#1E1B4B] text-white shadow-lg shadow-blue-950/50 border border-blue-400/40 font-black' 
+                  : 'text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.08] border border-white/5'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>Manage Topics &amp; CMS</span>
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] font-bold">
+                #01-#10
+              </span>
             </button>
 
             <button
@@ -1978,6 +2027,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           }}
           logoVariation={logoVariation}
           onUpdateUserAccount={onUpdateUserAccount}
+          onOpenTopicsManager={() => setActiveTab('topics')}
         />
       )}
 
@@ -1990,6 +2040,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             viewerRole="admin"
           />
         </div>
+      )}
+
+      {/* Tab: Topics Directory (#01-#10) & Global App CMS Content Manager */}
+      {(activeTab === 'topics' || activeTab === 'cms') && (
+        <AdminTopicsDirectoryManager
+          currentUser={currentUser}
+        />
       )}
 
       {/* Invoice & Duration Audit Modal */}

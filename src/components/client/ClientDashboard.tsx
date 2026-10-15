@@ -75,33 +75,51 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   onNavigateToMedSchedule,
   onUpdateBookingStatus
 }) => {
-  // Load and sync medical milestones
+  // Load and sync medical milestones (clean authentic state, no fictitious progress)
   const [milestones, setMilestones] = useState<MilestoneItem[]>(() => {
     try {
       const saved = localStorage.getItem('wecare_patient_milestones');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const seen = new Set<string>();
-          return parsed.filter((item: any, idx: number) => {
-            const id = item?.id || `milestone-init-${idx}`;
-            if (seen.has(id)) return false;
-            seen.add(id);
-            return true;
-          });
+          // Check if saved contains legacy fictitious data
+          const hasFictitiousData = parsed.some((p: any) =>
+            p.completedAt === '2026-08-15T14:30:00Z' ||
+            p.completedAt === '2026-08-20T09:00:00Z' ||
+            (!bookings || bookings.length === 0 && p.category === 'therapy_sessions' && p.currentCount > 0)
+          );
+          if (!hasFictitiousData) {
+            const seen = new Set<string>();
+            return parsed.filter((item: any, idx: number) => {
+              const id = item?.id || `milestone-init-${idx}`;
+              if (seen.has(id)) return false;
+              seen.add(id);
+              return true;
+            });
+          }
         }
       }
+    } catch {}
+    try {
+      localStorage.setItem('wecare_patient_milestones', JSON.stringify(INITIAL_PATIENT_MILESTONES));
     } catch {}
     return INITIAL_PATIENT_MILESTONES;
   });
 
-  // Daily medication adherence streak
+  // Daily medication adherence streak - strictly 0 initial (no fictitious 6-day streak)
   const [medStreak, setMedStreak] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('wecare_patient_med_streak');
-      if (saved) return Number(saved);
+      if (saved) {
+        const num = Number(saved);
+        if (num === 6) {
+          localStorage.removeItem('wecare_patient_med_streak');
+          return 0;
+        }
+        return num;
+      }
     } catch {}
-    return 6; // Default to 6 so next check-in triggers 7-day milestone
+    return 0;
   });
 
   const [checkedInToday, setCheckedInToday] = useState<boolean>(() => {
@@ -118,21 +136,21 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     return calculatePatientTherapySessionsCount(bookings);
   }, [bookings]);
 
-  // Sync therapy counts with milestones
+  // Sync therapy counts with milestones strictly from real bookings
   useEffect(() => {
     setMilestones(prev => {
       let changed = false;
       const updated = prev.map(m => {
         if (m.category === 'therapy_sessions') {
-          const effectiveCount = Math.max(m.currentCount, therapySessionsCount);
-          const completed = effectiveCount >= m.targetCount;
+          const effectiveCount = therapySessionsCount;
+          const completed = effectiveCount > 0 && effectiveCount >= m.targetCount;
           if (m.currentCount !== effectiveCount || m.isCompleted !== completed) {
             changed = true;
             return {
               ...m,
               currentCount: effectiveCount,
               isCompleted: completed,
-              completedAt: completed && !m.isCompleted ? new Date().toISOString() : m.completedAt
+              completedAt: completed && !m.isCompleted ? new Date().toISOString() : (completed ? m.completedAt : undefined)
             };
           }
         }
@@ -810,18 +828,39 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
           {/* Active Milestones Progress List */}
           <div className="space-y-3">
-            {activeMilestones.map((milestone, idx) => {
-              const progressPercent = Math.min(100, Math.round((milestone.currentCount / milestone.targetCount) * 100));
-
-              return (
-                <div
-                  key={`active-milestone-${milestone.id || idx}-${idx}`}
-                  className={`p-4 rounded-2xl border transition-all ${
-                    milestone.isCompleted
-                      ? 'bg-emerald-950/30 border-emerald-500/40 shadow-sm'
-                      : 'bg-white/5 hover:bg-white/10 border-white/10'
-                  }`}
+            {therapySessionsCount === 0 && medStreak === 0 ? (
+              <div className="p-6 rounded-2xl bg-white/[0.03] border border-white/10 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-300 flex items-center justify-center mx-auto">
+                  <Trophy className="w-6 h-6 text-amber-400" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">No Active Medical Milestones Yet</h4>
+                  <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+                    Milestones and care credits activate automatically once you start booking and receiving in-home clinical care from your verified nurse.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRequestNewVisit}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-95 text-white font-bold text-xs shadow-md transition inline-flex items-center gap-1.5 cursor-pointer"
                 >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Book Your First Care Visit</span>
+                </button>
+              </div>
+            ) : (
+              activeMilestones.map((milestone, idx) => {
+                const progressPercent = Math.min(100, Math.round((milestone.currentCount / milestone.targetCount) * 100));
+
+                return (
+                  <div
+                    key={`active-milestone-${milestone.id || idx}-${idx}`}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      milestone.isCompleted
+                        ? 'bg-emerald-950/30 border-emerald-500/40 shadow-sm'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10'
+                    }`}
+                  >
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-start gap-2.5">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
@@ -909,7 +948,8 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
           </div>
 
           {/* Reassurance Banner */}

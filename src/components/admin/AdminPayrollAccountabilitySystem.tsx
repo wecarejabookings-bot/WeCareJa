@@ -68,8 +68,36 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
   isMasterAdmin = true,
   selectedStaffEmail
 }) => {
-  // State for Admin Payroll List and Payment History stored in localStorage
-  const [admins, setAdmins] = useState<AdminPayrollRecord[]>(() => loadAdminPayroll());
+  // State for Admin Payroll List and Payment History stored in localStorage (Live Launch: Sydney Mattis only until new staff register)
+  const [admins, setAdmins] = useState<AdminPayrollRecord[]>(() => {
+    const list = loadAdminPayroll();
+    const liveList = list.filter(a => {
+      if (a.id === 'admin-sydney' || a.email?.toLowerCase() === OWNER_EMAIL.toLowerCase()) return true;
+      const idLower = (a.id || '').toLowerCase();
+      const nameLower = (a.fullName || '').toLowerCase();
+      const emailLower = (a.email || '').toLowerCase();
+      return !idLower.includes('demo') && !idLower.includes('test') && !nameLower.includes('demo') && !nameLower.includes('test') && !emailLower.includes('demo');
+    });
+    return liveList.length > 0 ? liveList : [
+      {
+        id: 'admin-sydney',
+        fullName: 'Sydney Mattis',
+        email: OWNER_EMAIL,
+        role: 'Manager',
+        weeklySalaryJMD: 8500,
+        startDate: '2026-10-06',
+        weeksWorked: 0,
+        status: 'Active',
+        totalPaid: 0,
+        totalEarned: 0,
+        balanceDue: 0,
+        lastPayDate: '2026-10-06',
+        lynkOrBankInfo: 'Lynk @sydneymattis / NCB 214892019',
+        phone: '1876-582-7613',
+        lastAccrualMonday: '2026-10-05'
+      }
+    ];
+  });
   const [paymentHistory, setPaymentHistory] = useState<AdminPaymentHistoryItem[]>(() => loadPaymentHistory());
 
   // Interactive View Persona Switcher (Allows testing Owner vs Regular Admin perspectives)
@@ -88,6 +116,24 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
       setActivePersona(currentUser?.email || OWNER_EMAIL);
     }
   }, [selectedStaffEmail, isMasterAdmin]);
+
+  // Clean out any legacy demo staff on mount
+  useEffect(() => {
+    setAdmins(prev => {
+      const liveOnly = prev.filter(a => {
+        if (a.id === 'admin-sydney' || a.email?.toLowerCase() === OWNER_EMAIL.toLowerCase()) return true;
+        const idLower = (a.id || '').toLowerCase();
+        const nameLower = (a.fullName || '').toLowerCase();
+        const emailLower = (a.email || '').toLowerCase();
+        return !idLower.includes('demo') && !idLower.includes('test') && !nameLower.includes('demo') && !nameLower.includes('test') && !emailLower.includes('demo');
+      });
+      if (liveOnly.length !== prev.length) {
+        saveAdminPayroll(liveOnly);
+        return liveOnly;
+      }
+      return prev;
+    });
+  }, []);
 
   // Modal States
   const [selectedAdminForPay, setSelectedAdminForPay] = useState<AdminPayrollRecord | null>(null);

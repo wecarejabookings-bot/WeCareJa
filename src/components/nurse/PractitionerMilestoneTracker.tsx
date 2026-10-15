@@ -45,7 +45,17 @@ export const PractitionerMilestoneTracker: React.FC<PractitionerMilestoneTracker
   const [milestones, setMilestones] = useState<MilestoneItem[]>(() => {
     try {
       const saved = localStorage.getItem(`wecare_nurse_milestones_${currentNurse.id}`);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const hasFictitiousData = parsed.some((p: any) =>
+            p.completedAt === '2026-07-10T11:00:00Z' ||
+            p.completedAt === '2026-08-02T16:00:00Z' ||
+            p.completedAt === '2026-07-28T12:00:00Z'
+          );
+          if (!hasFictitiousData) return parsed;
+        }
+      }
     } catch {}
     return INITIAL_PRACTITIONER_MILESTONES;
   });
@@ -53,21 +63,21 @@ export const PractitionerMilestoneTracker: React.FC<PractitionerMilestoneTracker
   // Calculate actual completed visits from bookings
   const actualVisitsCount = calculateNurseVisitsCount(currentNurse.id, bookings);
 
-  // Sync count
+  // Sync count strictly from real visits
   useEffect(() => {
     setMilestones(prev => {
       let changed = false;
       const updated = prev.map(m => {
         if (m.category === 'practitioner_visits') {
-          const effectiveCount = Math.max(m.currentCount, actualVisitsCount, currentNurse.completedVisitsCount || 0);
-          const completed = effectiveCount >= m.targetCount;
+          const effectiveCount = actualVisitsCount > 0 ? actualVisitsCount : (currentNurse.completedVisitsCount || 0);
+          const completed = effectiveCount > 0 && effectiveCount >= m.targetCount;
           if (m.currentCount !== effectiveCount || m.isCompleted !== completed) {
             changed = true;
             return {
               ...m,
               currentCount: effectiveCount,
               isCompleted: completed,
-              completedAt: completed && !m.isCompleted ? new Date().toISOString() : m.completedAt
+              completedAt: completed && !m.isCompleted ? new Date().toISOString() : (completed ? m.completedAt : undefined)
             };
           }
         }

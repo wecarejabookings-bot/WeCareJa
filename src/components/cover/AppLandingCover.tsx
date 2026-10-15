@@ -1,9 +1,15 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ServiceItem, NurseProfile, LogoVariation } from '../../types';
 import { HealthNewsFeed } from '../client/HealthNewsFeed';
 import { Logo } from '../common/Logo';
 import { ServiceLogo } from '../common/ServiceLogo';
 import { INITIAL_STORE_PRODUCTS } from '../../services/storeProductsService';
+import { 
+  TopicDirectoryItem, 
+  fetchTopicsDirectory, 
+  getCachedTopics 
+} from '../../services/topicsDirectoryService';
+import { useCMS } from '../../services/cmsService';
 import { 
   ShieldCheck, 
   Sparkles, 
@@ -70,6 +76,7 @@ interface TopicItem {
   number: string;
   title: string;
   subtitle: string;
+  description?: string;
   category: string;
   badgeColor: string;
   pictureUrl: string;
@@ -153,129 +160,65 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
     return `JMD $${amount.toLocaleString()}`;
   };
 
-  // 10 Comprehensive Topics representing all the uses and capabilities of WeCare Jamaica
-  const topics: TopicItem[] = [
-    {
-      id: 'exclusive_promos',
-      number: '01',
-      title: 'Exclusive Health Care Promotions & Advertisements',
-      subtitle: 'Welcome voucher $500 off, 3x daily elder guardian packages & post-op savings',
-      category: 'Special Deals',
-      badgeColor: 'from-amber-500 to-orange-500 text-slate-950',
-      pictureUrl: '/images/wound_dressing.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=400',
-      icon: Tag,
-      tags: ['Voucher WECARE2026', '3x Daily Elder Care', 'Sterile Wound Care', 'Save JMD $500']
-    },
-    {
-      id: 'hospital_vs_home',
-      number: '02',
-      title: 'Skip Hospital Waiting — VIP Care Right on Your Sofa',
-      subtitle: 'Why wait 8 hours at KPH or Spanish Town? Verified nurse arrives in 15–30 mins',
-      category: 'Home Advantage',
-      badgeColor: 'from-rose-500 to-pink-500 text-white',
-      pictureUrl: '/images/elderly_vitals.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=400',
-      icon: Zap,
-      tags: ['0 Min Wait Time', 'Zero Contagion Risk', 'No Taxi Gridlock', '1-on-1 Nurse Attention']
-    },
-    {
-      id: 'clinical_services',
-      number: '03',
-      title: 'In-Home Clinical Nursing Procedures & Rates',
-      subtitle: 'Wound care, IV therapy, catheterization, vitals check, medication & senior respite',
-      category: 'Procedures',
-      badgeColor: 'from-blue-600 to-indigo-600 text-white',
-      pictureUrl: '/images/iv_therapy.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=400',
-      icon: Activity,
-      tags: ['Wound Dressings', 'IV Drip Therapy', 'Blood Pressure & Glucose', 'Transparent JMD Rates']
-    },
-    {
-      id: 'medical_store',
-      number: '04',
-      title: 'Medical Supplies & Home Healthcare Equipment Store (/store)',
-      subtitle: 'Order BP monitors, pulse oximeters, wheelchairs, commodes, wound kits & diapers',
-      category: 'Supplies & Equipment',
-      badgeColor: 'from-emerald-500 to-teal-500 text-slate-950',
-      pictureUrl: '/images/bp_monitor.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1582719471384-894fbb16e074?w=500',
-      icon: ShoppingBag,
-      tags: ['Digital BP Monitors', 'Pulse Oximeters', 'Foldable Wheelchairs', 'Adult Diapers & Kits']
-    },
-    {
-      id: 'escrow_security',
-      number: '05',
-      title: '100% Escrow Protection, NCJ Licensing & Safe Payouts',
-      subtitle: 'Funds securely held until service is completed. 100% Nursing Council verified',
-      category: 'Safety & Escrow',
-      badgeColor: 'from-purple-600 to-indigo-600 text-white',
-      pictureUrl: '/images/senior_respite.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=400',
-      icon: ShieldCheck,
-      tags: ['100% Escrow Fund Safety', 'NCJ Verified Staff', 'Live Proximity Engine', 'EHR Clinical Notes']
-    },
-    {
-      id: 'jamaica_health_news',
-      number: '06',
-      title: 'Official Jamaica Health News & Ministry Advisories (MOHW)',
-      subtitle: 'Live Ministry of Health bulletins, Dengue alerts, heatwave tips & community guidance',
-      category: 'Public Health',
-      badgeColor: 'from-sky-500 to-blue-600 text-white',
-      pictureUrl: '/images/medication_management.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&q=80&w=400',
-      icon: Heart,
-      tags: ['MOHW Verified Alerts', 'Dengue Prevention', 'Clinic Bulletins', 'Community Wellness']
-    },
-    {
-      id: 'emergency_119',
-      number: '07',
-      title: '119 Emergency Speed Dial & Instant Medical SOS Beacon',
-      subtitle: 'One-tap direct speed dial to Jamaica 119, GPS location broadcast & ER hospital contacts',
-      category: 'Emergency SOS',
-      badgeColor: 'from-red-600 to-rose-600 text-white',
-      pictureUrl: '/images/vitals_monitoring.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1587745416684-47953f16f02f?auto=format&fit=crop&q=80&w=400',
-      icon: Ambulance,
-      tags: ['119 Police Speed Dial', '110 Fire & Ambulance', 'KPH & Spanish Town ER', 'GPS Beacon']
-    },
-    {
-      id: 'family_reviews',
-      number: '08',
-      title: 'Verified Jamaican Patient & Family Stories (4.9 ★)',
-      subtitle: 'Real reviews from Kingston 6, Portmore Pines, Spanish Town & St. Andrew families',
-      category: 'Reviews & Trust',
-      badgeColor: 'from-amber-400 to-yellow-500 text-slate-950',
-      pictureUrl: '/images/mobility_hydration.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&q=80&w=400',
-      icon: Star,
-      tags: ['1,420+ Visits Completed', '4.9 Star Rating', 'Verified Patient Feedback', 'Real Jamaican Stories']
-    },
-    {
-      id: 'how_it_works',
-      number: '09',
-      title: 'How WeCare Works (Simple 3-Step Visual Guide)',
-      subtitle: '1. Choose Care -> 2. Matched with Nearby Nurse -> 3. Safe Escrow Payment',
-      category: 'How It Works',
-      badgeColor: 'from-cyan-500 to-blue-600 text-white',
-      pictureUrl: '/images/palliative_comfort.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&q=80&w=400',
-      icon: Compass,
-      tags: ['Step 1: Pick Service', 'Step 2: Rapid Dispatch (15-30m)', 'Step 3: Escrow Approval']
-    },
-    {
-      id: 'nurse_careers',
-      number: '10',
-      title: 'Join As a Registered Nurse or Caregiver (Top Earnings)',
-      subtitle: 'Earn up to 85% per visit with guaranteed bank transfers (NCB, BNS, JN, Sagicor)',
-      category: 'Careers & Earnings',
-      badgeColor: 'from-emerald-500 to-green-600 text-white',
-      pictureUrl: '/images/gauze_dressing.webp',
-      fallbackUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-      icon: Stethoscope,
-      tags: ['Highest Earnings in Jamaica', 'Weekly Bank Deposits', 'Flexible Hours', 'Full Independence']
-    }
-  ];
+  // Dynamic Topics Directory loaded from Supabase topics_directory table
+  const [dynamicTopicsList, setDynamicTopicsList] = useState<TopicDirectoryItem[]>(() => {
+    return getCachedTopics().filter(t => t.is_active);
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadTopics = async () => {
+      const fetched = await fetchTopicsDirectory();
+      if (isMounted && fetched && fetched.length > 0) {
+        setDynamicTopicsList(fetched);
+      }
+    };
+    loadTopics();
+
+    const handleUpdate = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setDynamicTopicsList(e.detail.filter((t: TopicDirectoryItem) => t.is_active));
+      } else {
+        loadTopics();
+      }
+    };
+
+    window.addEventListener('wecare:topics_updated', handleUpdate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('wecare:topics_updated', handleUpdate);
+    };
+  }, []);
+
+  const getTopicIcon = (category: string, id: string) => {
+    const cat = (category || '').toLowerCase();
+    if (id === 'exclusive_promos' || cat.includes('deal') || cat.includes('promo')) return Tag;
+    if (id === 'hospital_vs_home') return Zap;
+    if (id === 'clinical_services' || cat.includes('procedure') || cat.includes('care')) return Activity;
+    if (id === 'medical_store' || cat.includes('store') || cat.includes('suppli') || cat.includes('equip')) return ShoppingBag;
+    if (id === 'escrow_security' || cat.includes('escrow') || cat.includes('safet')) return ShieldCheck;
+    if (id === 'jamaica_health_news' || cat.includes('news') || cat.includes('health') || cat.includes('mohw')) return Heart;
+    if (id === 'emergency_119' || cat.includes('emergency') || cat.includes('sos')) return Ambulance;
+    if (id === 'family_reviews' || cat.includes('review') || cat.includes('trust') || cat.includes('star')) return Star;
+    if (id === 'how_it_works' || cat.includes('how')) return Compass;
+    if (id === 'nurse_careers' || cat.includes('career') || cat.includes('earning') || cat.includes('nurse')) return Stethoscope;
+    return Sparkles;
+  };
+
+  // Convert TopicDirectoryItem to TopicItem for rendering
+  const topics: TopicItem[] = dynamicTopicsList.map(t => ({
+    id: t.id,
+    number: (t.card_number || '').replace(/^#/, '') || '00',
+    title: t.title,
+    subtitle: t.subtitle,
+    description: t.description,
+    category: t.category,
+    badgeColor: t.badge_color || 'from-blue-600 to-indigo-600 text-white',
+    pictureUrl: t.image_url,
+    fallbackUrl: t.fallback_url || t.image_url || '/images/wound_dressing.webp',
+    icon: getTopicIcon(t.category, t.id),
+    tags: Array.isArray(t.tags) ? t.tags : []
+  }));
 
   // Filtering topics based on search and category
   const filteredTopics = topics.filter(t => {
@@ -285,19 +228,24 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
       t.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
 
+    const catLower = (t.category || '').toLowerCase();
     const matchesCategory = 
       activeCategoryFilter === 'all' || 
-      (activeCategoryFilter === 'deals' && t.id === 'exclusive_promos') ||
-      (activeCategoryFilter === 'care' && (t.id === 'hospital_vs_home' || t.id === 'clinical_services')) ||
-      (activeCategoryFilter === 'store' && t.id === 'medical_store') ||
-      (activeCategoryFilter === 'safety' && (t.id === 'escrow_security' || t.id === 'emergency_119')) ||
-      (activeCategoryFilter === 'news' && t.id === 'jamaica_health_news') ||
-      (activeCategoryFilter === 'careers' && t.id === 'nurse_careers');
+      (activeCategoryFilter === 'deals' && (t.id === 'exclusive_promos' || catLower.includes('deal') || catLower.includes('promo'))) ||
+      (activeCategoryFilter === 'care' && (t.id === 'hospital_vs_home' || t.id === 'clinical_services' || catLower.includes('care') || catLower.includes('procedure'))) ||
+      (activeCategoryFilter === 'store' && (t.id === 'medical_store' || catLower.includes('store') || catLower.includes('suppli') || catLower.includes('equip'))) ||
+      (activeCategoryFilter === 'safety' && (t.id === 'escrow_security' || t.id === 'emergency_119' || catLower.includes('safet') || catLower.includes('escrow') || catLower.includes('emergency'))) ||
+      (activeCategoryFilter === 'news' && (t.id === 'jamaica_health_news' || catLower.includes('news') || catLower.includes('health'))) ||
+      (activeCategoryFilter === 'careers' && (t.id === 'nurse_careers' || catLower.includes('career') || catLower.includes('nurse') || catLower.includes('earning')));
 
     return matchesSearch && matchesCategory;
   });
 
   const featuredStoreProducts = INITIAL_STORE_PRODUCTS.slice(0, 6);
+
+  const heroBadge = useCMS('homepage_hero_badge', "Jamaica's #1 On-Demand Healthcare Network");
+  const heroTitle = useCMS('homepage_hero_title', "Hospital-Grade Nursing Care, Delivered Right to Your Door.");
+  const heroSubtitle = useCMS('homepage_hero_subtitle', "Book verified registered nurses for post-op recovery, elderly care, sterile wound dressings, IV therapy, and vital checks without the stress of crowded clinics.");
 
   return (
     <div className="space-y-10 pb-16 animate-fadeIn">
@@ -311,7 +259,7 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 rounded-full text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1.5 shadow-sm">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-              <span>Jamaica's #1 On-Demand Healthcare Network</span>
+              <span>{heroBadge}</span>
             </span>
             <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/5 text-slate-300 border border-white/10 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-rose-400" />
@@ -326,13 +274,10 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
           {/* Main Title */}
           <div className="space-y-3">
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
-              Hospital-Grade Nursing Care, <br />
-              <span className="bg-gradient-to-r from-blue-400 via-indigo-200 to-amber-400 bg-clip-text text-transparent">
-                Delivered Right to Your Door.
-              </span>
+              {heroTitle}
             </h1>
             <p className="text-sm sm:text-base lg:text-lg text-slate-300 max-w-2xl leading-relaxed">
-              Book verified registered nurses for post-op recovery, elderly care, sterile wound dressings, IV therapy, and vital checks without the stress of crowded clinics.
+              {heroSubtitle}
             </p>
           </div>
 
@@ -1293,6 +1238,62 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                           <span className="font-bold text-emerald-400 block">4. Local Bank Payout</span>
                           <p className="text-slate-400">Weekly direct deposit to NCB / BNS</p>
                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DYNAMIC / CUSTOM TOPIC DETAIL CARD FOR ADMIN ADDED TOPICS */}
+                  {!['exclusive_promos', 'hospital_vs_home', 'clinical_services', 'medical_store', 'escrow_security', 'jamaica_health_news', 'emergency_119', 'family_reviews', 'how_it_works', 'nurse_careers'].includes(topic.id) && (
+                    <div className="space-y-6">
+                      <div className="p-6 sm:p-8 rounded-3xl bg-white/[0.03] border border-white/10 space-y-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-gradient-to-r ${topic.badgeColor}`}>
+                              {topic.category}
+                            </span>
+                            <h4 className="text-xl sm:text-2xl font-black text-white">{topic.title}</h4>
+                            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
+                              {topic.description || topic.subtitle}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <button
+                              onClick={onOpenRegisterClient}
+                              className="px-5 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-900/40 transition cursor-pointer"
+                            >
+                              Book Care Now
+                            </button>
+                            <button
+                              onClick={onOpenStore || onOpenSignIn}
+                              className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/10 transition cursor-pointer"
+                            >
+                              Explore More
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Image Showcase */}
+                        <div className="relative w-full h-56 sm:h-72 rounded-2xl overflow-hidden border border-white/15 bg-slate-950">
+                          <img
+                            src={topic.pictureUrl}
+                            alt={topic.title}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = topic.fallbackUrl;
+                            }}
+                          />
+                        </div>
+
+                        {/* Tags */}
+                        {topic.tags && topic.tags.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-2 pt-2">
+                            {topic.tags.map((tag, tIdx) => (
+                              <span key={tIdx} className="px-3 py-1 rounded-xl bg-white/5 border border-white/10 text-xs text-slate-300 font-medium">
+                                ✓ {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

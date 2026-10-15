@@ -163,36 +163,32 @@ export function loadAdminPayroll(): AdminPayrollRecord[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      // Purge any legacy demo staff (kevin, dwayne, tanesha, althea) and sanitize 91-week bug
-      const cleaned = parsed
-        .filter(
-          (a: AdminPayrollRecord) =>
-            a.id === 'admin-sydney' ||
-            (!a.id.includes('kevin') &&
-              !a.id.includes('dwayne') &&
-              !a.id.includes('tanesha') &&
-              !a.id.includes('althea'))
-        )
-        .map((a: AdminPayrollRecord) => {
-          if (a.balanceDue >= 110000 || a.totalEarned >= 110000 || (a.startDate && a.startDate.startsWith('2025-01'))) {
-            return {
-              ...a,
-              startDate: '2026-10-06',
-              weeksWorked: 0,
-              totalEarned: 0,
-              totalPaid: 0,
-              balanceDue: 0
-            };
-          }
-          return a;
-        });
+      // Live launch: Purge ALL demo staff accounts. Only Master Admin Sydney Mattis and genuine newly registered staff remain.
+      const cleaned = parsed.filter((a: AdminPayrollRecord) => {
+        if (a.id === 'admin-sydney' || a.email?.toLowerCase() === OWNER_EMAIL.toLowerCase()) return true;
+        const idLower = (a.id || '').toLowerCase();
+        const nameLower = (a.fullName || '').toLowerCase();
+        const emailLower = (a.email || '').toLowerCase();
+        
+        // Exclude any demo, test, sample or legacy names
+        if (
+          idLower.includes('demo') || idLower.includes('test') || idLower.includes('sample') ||
+          idLower.includes('kevin') || idLower.includes('dwayne') || idLower.includes('tanesha') || idLower.includes('althea') ||
+          nameLower.includes('demo') || nameLower.includes('test') || nameLower.includes('sample') ||
+          emailLower.includes('demo') || emailLower.includes('test') || emailLower.includes('example.com')
+        ) {
+          return false;
+        }
 
-      if (cleaned.length === 0) {
-        localStorage.setItem(ADMIN_PAYROLL_STORAGE_KEY, JSON.stringify(INITIAL_ADMIN_PAYROLL));
-        return INITIAL_ADMIN_PAYROLL;
-      }
-      localStorage.setItem(ADMIN_PAYROLL_STORAGE_KEY, JSON.stringify(cleaned));
-      return cleaned;
+        // Must be a legitimate registered staff account with valid name and email
+        return Boolean(a.fullName && a.email && a.id && (a.id.startsWith('staff-') || a.id.startsWith('admin-reg-') || a.id.startsWith('admin-')));
+      });
+
+      // Ensure Sydney Mattis is always present as the Master Admin profile
+      const hasSydney = cleaned.some(a => a.id === 'admin-sydney' || a.email?.toLowerCase() === OWNER_EMAIL.toLowerCase());
+      const finalList = hasSydney ? cleaned : [INITIAL_ADMIN_PAYROLL[0], ...cleaned];
+      localStorage.setItem(ADMIN_PAYROLL_STORAGE_KEY, JSON.stringify(finalList));
+      return finalList;
     }
   } catch (err) {
     console.error('Error loading admin payroll:', err);

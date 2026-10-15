@@ -66,9 +66,9 @@ export const CaregiverPerformanceMetrics: React.FC<CaregiverPerformanceMetricsPr
   // Timeframe selector
   const [timeRange, setTimeRange] = useState<'6m' | '3m' | 'all'>('6m');
 
-  // Simulated visits state (synced with actual bookings and nurse record)
+  // Actual visits state (synced with real bookings and nurse record - zero fictitious baseline)
   const actualVisits = calculateNurseVisitsCount(currentNurse.id, bookings);
-  const baselineCount = Math.max(actualVisits, currentNurse.completedVisitsCount || 8);
+  const baselineCount = actualVisits > 0 ? actualVisits : (currentNurse.completedVisitsCount || 0);
   const [simulatedVisits, setSimulatedVisits] = useState<number>(baselineCount);
 
   // Generate monthly performance metrics for recharts
