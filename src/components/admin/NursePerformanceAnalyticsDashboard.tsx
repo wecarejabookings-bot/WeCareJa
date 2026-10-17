@@ -682,7 +682,7 @@ export const NursePerformanceAnalyticsDashboard: React.FC<NursePerformanceAnalyt
                 Commission &amp; Financial Earnings Charts Are Restricted
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed max-w-lg mx-auto">
-                Only the <strong>Master Administrator (Sydney Mattis)</strong> has clearance to view the 15% platform commission cut, gross earnings volume, and caregiver payouts analytics.
+                Only the <strong>Master Administrator</strong> has clearance to view the 15% platform commission cut, gross earnings volume, and caregiver payouts analytics.
               </p>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
                 As a Regular Administrator, you can monitor visit completion rates, client ratings, on-time arrivals, nurse licensing, and dispatch operations.

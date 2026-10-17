@@ -54,7 +54,7 @@ export const NurseContractAgreementModal: React.FC<NurseContractAgreementModalPr
     companyAddress: '4 Claudete Drive, St. Catherine, Jamaica',
     companyRepName: ADMIN_PROFILE.name,
     companyRepTitle: ADMIN_PROFILE.title,
-    companySignature: 'Sydney Mattis (Authorized Operations Signatory)',
+    companySignature: 'Authorized Corporate Signatory',
     companySignedAt: new Date().toISOString(),
     nurseLegalName: nurse.name,
     nurseAddress: '12 Hope Road, Liguanea, Kingston 6, St Andrew, Jamaica',
@@ -363,7 +363,7 @@ export const NurseContractAgreementModal: React.FC<NurseContractAgreementModalPr
                     <div className="py-2">
                       <span className="text-[10px] text-slate-500 uppercase block font-bold">Authorized Signature:</span>
                       <div className="font-serif italic text-base font-bold text-[#1E1B4B] border-b border-slate-300 pb-1">
-                        Sydney Mattis
+                        Executive Directorate
                       </div>
                     </div>
                     <p><strong>Date:</strong> {contract.companySignedAt ? contract.companySignedAt.split('T')[0] : contract.agreementDate}</p>

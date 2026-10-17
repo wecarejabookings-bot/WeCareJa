@@ -86,6 +86,7 @@ import { AdminRatesPricingManager } from './AdminRatesPricingManager';
 import { AdminStoreInventoryManager } from './AdminStoreInventoryManager';
 import { AdminTopicsDirectoryManager } from './AdminTopicsDirectoryManager';
 import { updateBookingPriceInSupabase } from '../../lib/supabase';
+import { getDisplayName } from '../../utils/privacy';
 
 interface AdminPortalProps {
   nurses: NurseProfile[];
@@ -421,11 +422,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           <div className="relative z-10 mt-6 p-4 rounded-2xl bg-gradient-to-r from-purple-950/70 via-slate-900/80 to-purple-950/60 border border-purple-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#1E1B4B] to-[#F59E0B] flex items-center justify-center text-white font-black text-lg shadow-lg shadow-purple-950/50 shrink-0 border border-white/20">
-                {currentStaff?.name ? currentStaff.name.split(' ').map(n => n[0]).join('') : 'AD'}
+                {getDisplayName(currentStaff, currentUser).split(' ').map(n => n[0]).join('').slice(0, 2)}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-white text-base tracking-tight">{currentStaff?.name || 'Administrator'}</h3>
+                  <h3 className="font-extrabold text-white text-base tracking-tight">{getDisplayName(currentStaff, currentUser)}</h3>
                   <span className="px-2 py-0.5 rounded-full bg-purple-500/30 text-[#C77DFF] border border-purple-500/40 text-[10px] font-bold">
                     {currentStaff?.title || 'Operations Staff'}
                   </span>
@@ -1726,7 +1727,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 Caregiver Payouts &amp; Commission Ledger Are Restricted
               </h3>
               <p className="text-xs text-slate-300 leading-relaxed max-w-lg mx-auto">
-                Only the <strong>Master Administrator (Sydney Mattis)</strong> has clearance to view the 15% platform commission cut, 85% caregiver gross earnings, bank payout batches, and financial ledger reports.
+                Only the <strong>Master Administrator</strong> has clearance to view the 15% platform commission cut, 85% caregiver gross earnings, bank payout batches, and financial ledger reports.
               </p>
               <p className="text-xs text-slate-400 max-w-md mx-auto">
                 As a Regular Administrator, you have full access to nurse vetting, clinical licensing, skill badge approvals, live visit master logs, dispute mediation, telehealth scheduling, and the Kingston coverage map.
@@ -1739,7 +1740,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:opacity-95 text-slate-950 font-black text-xs transition flex items-center gap-2 mx-auto shadow-lg shadow-amber-950/40 cursor-pointer"
               >
                 <Crown className="w-4 h-4 text-slate-950" />
-                <span>Switch to Master Admin View (Sydney Mattis)</span>
+                <span>Switch to Master Admin View</span>
               </button>
             </div>
           </div>

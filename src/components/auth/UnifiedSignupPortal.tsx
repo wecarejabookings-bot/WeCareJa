@@ -1646,7 +1646,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             <div className="space-y-3.5 animate-fadeIn">
               <div className="p-3 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-[11px] text-emerald-200">
                 <strong>Mandatory Document Uploads for Admin Review:</strong>
-                Lead Administrator Sydney Mattis examines your Jamaican TRN, Government ID, and Driver's License (both front and back sides) before accepting your account into the active clinical portal.
+                Lead Administrator examines your Jamaican TRN, Government ID, and Driver's License (both front and back sides) before accepting your account into the active clinical portal.
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1960,7 +1960,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   </h4>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-relaxed">
-                  Upon submission, your application will be reviewed by Lead Administrator <strong>Sydney Mattis</strong>. All clinical documents (ID, TRN, Driver's License front and back, and Nursing Council certificate) must be verified before your account can take active client visits.
+                  Upon submission, your application will be reviewed by Lead Administrator. All clinical documents (ID, TRN, Driver's License front and back, and Nursing Council certificate) must be verified before your account can take active client visits.
                 </p>
               </div>
 
@@ -2033,7 +2033,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 required
                 value={fullName}
                 onChange={e => setFullName(e.target.value)}
-                placeholder="e.g. Sydney Mattis"
+                placeholder="e.g. Registered Administrator"
                 className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-amber-400 outline-none"
               />
             </div>

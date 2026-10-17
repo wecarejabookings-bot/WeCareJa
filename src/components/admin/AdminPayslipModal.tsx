@@ -196,7 +196,7 @@ Kingston, Jamaica`;
                   Disbursing Authority
                 </span>
                 <span className="font-serif italic font-bold text-slate-800 text-sm">
-                  Sydney Mattis
+                  Authorized Disbursing Authority
                 </span>
               </div>
               <div className="text-[11px] font-bold text-slate-700">Signature Owner: ____________</div>

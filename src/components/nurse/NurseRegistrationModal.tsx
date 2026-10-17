@@ -820,7 +820,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       companyAddress: '4 Claudete Drive, St. Catherine, Jamaica',
       companyRepName: ADMIN_PROFILE.name,
       companyRepTitle: ADMIN_PROFILE.title,
-      companySignature: 'Sydney Mattis (Operations Director)',
+      companySignature: 'Authorized Director (Operations Director)',
       companySignedAt: new Date().toISOString(),
       nurseLegalName: name,
       nurseAddress: address || 'Kingston & St Andrew, Jamaica',
@@ -1128,7 +1128,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                   Welcome to We Care, {name}!
                 </h3>
                 <p className="text-xs text-slate-300 max-w-lg mx-auto mt-2 leading-relaxed">
-                  Your <strong>Independent Nurse Contractor Agreement</strong> has been digitally executed and created as a secure legal file under your profile record. It has been transmitted along with your 5 compliance documents to Lead Administrator <strong>Sydney Mattis</strong> for confidential verification.
+                  Your <strong>Independent Nurse Contractor Agreement</strong> has been digitally executed and created as a secure legal file under your profile record. It has been transmitted along with your 5 compliance documents to Lead Administrator for confidential verification.
                 </p>
               </div>
 
@@ -2828,7 +2828,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                       <span className="text-[10px] font-extrabold uppercase text-purple-900 block">The Company</span>
                       <p className="font-bold text-slate-900">We Care Limited</p>
                       <p className="text-[11px] text-slate-600">4 Claudete Drive, St. Catherine, Jamaica</p>
-                      <p className="text-[11px] text-slate-600">Rep: Sydney Mattis, Operations Director</p>
+                      <p className="text-[11px] text-slate-600">Rep: Authorized Director, Operations</p>
                     </div>
                     <div className="p-3 bg-white rounded-lg border border-slate-200">
                       <span className="text-[10px] font-extrabold uppercase text-emerald-900 block">The Nurse Contractor</span>
@@ -2958,10 +2958,10 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                     <span className="font-extrabold text-slate-950 block uppercase text-[11px]">
                       For We Care Limited
                     </span>
-                    <p><strong>Name:</strong> Sydney Mattis</p>
+                    <p><strong>Name:</strong> Authorized Representative</p>
                     <p><strong>Title:</strong> Operations Director</p>
                     <div className="font-serif italic text-sm text-purple-900 font-bold py-1">
-                      Sydney Mattis
+                      Executive Directorate
                     </div>
                     <p className="text-[10px] text-slate-500">Authorized Corporate Representative</p>
                   </div>

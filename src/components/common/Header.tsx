@@ -38,6 +38,7 @@ import {
   Package
 } from 'lucide-react';
 import { useNetworkStatus } from '../../utils/offlineSyncManager';
+import { getDisplayName, getProfileDropdownLabel } from '../../utils/privacy';
 
 interface HeaderProps {
   currentRole: UserRole;
@@ -449,15 +450,15 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => onOpenAuthModal('profile')}
                   className="flex items-center gap-1.5 p-1 sm:px-2.5 sm:py-1 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-white transition group cursor-pointer"
-                  title={`Logged in as ${currentUser.name} (@${currentUser.username})`}
+                  title={`Logged in as ${getDisplayName(currentUser, currentUser)} (@${currentUser.username})`}
                 >
                   <img loading="lazy" decoding="async"
                     src={currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'}
-                    alt={currentUser.name}
+                    alt={getDisplayName(currentUser, currentUser)}
                     className="w-6 h-6 rounded-lg object-cover border border-purple-400"
                   />
                   <span className="hidden md:inline text-[11px] font-bold text-white">
-                    {currentUser.name.split(' ')[0]}
+                    {getProfileDropdownLabel(currentUser, currentUser)}
                   </span>
                   <KeyRound className="w-3 h-3 text-[#C77DFF] opacity-70 group-hover:opacity-100 transition" />
                 </button>

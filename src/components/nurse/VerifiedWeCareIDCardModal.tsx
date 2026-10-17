@@ -305,7 +305,7 @@ export const VerifiedWeCareIDCardModal: React.FC<VerifiedWeCareIDCardModalProps>
                       <div className="text-right">
                         <span className="block text-[7px] text-slate-400 uppercase">Director Authorization</span>
                         <span className="font-serif italic font-bold text-[10px] text-amber-200 print:text-amber-900">
-                          Sydney Mattis
+                          Executive Directorate
                         </span>
                       </div>
                       <div className="w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-[7px] text-amber-300 font-black">
@@ -431,7 +431,7 @@ export const VerifiedWeCareIDCardModal: React.FC<VerifiedWeCareIDCardModalProps>
                 <p><strong>We Care Credential ID:</strong> {idNumber}</p>
                 <p><strong>Primary Contact:</strong> {nurse.phone}</p>
                 <p><strong>Emergency Contact:</strong> {nurse.emergencyContact?.name} ({nurse.emergencyContact?.phone})</p>
-                <p><strong>Clinical Directorate:</strong> Sydney Mattis, Lead Administrator</p>
+                <p><strong>Clinical Directorate:</strong> Lead Administrator</p>
               </div>
             </div>
             <p className="text-[10px] text-slate-500 italic">

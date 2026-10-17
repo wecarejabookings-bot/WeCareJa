@@ -36,7 +36,7 @@ interface SkillBadgeAdminPipelineProps {
 export const SkillBadgeAdminPipeline: React.FC<SkillBadgeAdminPipelineProps> = ({
   nurses,
   onUpdateNurseProfile,
-  adminName = 'Sydney Mattis, Master Administrator'
+  adminName = 'Master Administrator'
 }) => {
   const [filterSkill, setFilterSkill] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<'pending' | 'verified' | 'all'>('pending');

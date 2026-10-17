@@ -102,7 +102,7 @@ export const getDefaultSkillBadgesForNurse = (nurse: NurseProfile): NurseSkillBa
       status: 'verified',
       requestedAt: '2026-08-15T09:30:00.000Z',
       verifiedAt: '2026-08-16T14:20:00.000Z',
-      verifiedByAdminName: 'Sydney Mattis, Master Administrator',
+      verifiedByAdminName: 'Master Administrator',
       supportingNote: '8 years clinical experience including UHWI Main Surgical Theater and private surgical homecare recovery.',
       documentProofName: 'UHWI_Surgical_Unit_Reference.pdf',
       iconName: 'Activity'
@@ -114,7 +114,7 @@ export const getDefaultSkillBadgesForNurse = (nurse: NurseProfile): NurseSkillBa
       status: 'verified',
       requestedAt: '2026-08-15T09:35:00.000Z',
       verifiedAt: '2026-08-16T14:22:00.000Z',
-      verifiedByAdminName: 'Sydney Mattis, Master Administrator',
+      verifiedByAdminName: 'Master Administrator',
       supportingNote: 'Certified in sterile VAC therapy, diabetic ulcer staging, and debridement.',
       documentProofName: 'Advanced_Wound_Care_Certified.pdf',
       iconName: 'Bandage'
@@ -144,7 +144,7 @@ export const getDefaultSkillBadgesForNurse = (nurse: NurseProfile): NurseSkillBa
       status: 'verified',
       requestedAt: '2026-08-20T10:00:00.000Z',
       verifiedAt: '2026-08-21T11:15:00.000Z',
-      verifiedByAdminName: 'Sydney Mattis, Master Administrator',
+      verifiedByAdminName: 'Master Administrator',
       supportingNote: 'UTech School of Nursing certified in peripheral venous cannulation & hydration infusion protocols.',
       documentProofName: 'UTech_IV_Cannulation_Cert.pdf',
       iconName: 'Syringe'
@@ -174,7 +174,7 @@ export const getDefaultSkillBadgesForNurse = (nurse: NurseProfile): NurseSkillBa
       status: 'verified',
       requestedAt: '2026-08-10T14:10:00.000Z',
       verifiedAt: '2026-08-11T16:05:00.000Z',
-      verifiedByAdminName: 'Sydney Mattis, Master Administrator',
+      verifiedByAdminName: 'Master Administrator',
       supportingNote: '12 years specialized experience in senior companion care, Alzheimer’s redirection, and mobility support.',
       documentProofName: 'HEART_Geriatric_Care_Diploma.pdf',
       iconName: 'HeartHandshake'
@@ -211,7 +211,7 @@ export const getDefaultSkillBadgesForNurse = (nurse: NurseProfile): NurseSkillBa
         status: 'verified',
         requestedAt: '2026-08-18T12:00:00.000Z',
         verifiedAt: '2026-08-19T09:30:00.000Z',
-        verifiedByAdminName: 'Sydney Mattis, Master Administrator',
+        verifiedByAdminName: 'Master Administrator',
         supportingNote: 'Certified in pediatric homecare.',
         documentProofName: 'PALS_Certification.pdf',
         iconName: 'Baby'
@@ -225,7 +225,7 @@ export const getDefaultSkillBadgesForNurse = (nurse: NurseProfile): NurseSkillBa
         status: 'verified',
         requestedAt: '2026-08-12T10:00:00.000Z',
         verifiedAt: '2026-08-13T11:00:00.000Z',
-        verifiedByAdminName: 'Sydney Mattis, Master Administrator',
+        verifiedByAdminName: 'Master Administrator',
         supportingNote: 'Specialized in elderly dementia companion care.',
         documentProofName: 'Elderly_Care_Accreditation.pdf',
         iconName: 'HeartHandshake'

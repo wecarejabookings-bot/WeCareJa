@@ -30,7 +30,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({
     { name: '110 Fire Brigade & Ambulance', number: '110', badge: 'Ambulance / Fire', color: 'bg-orange-600' },
     { name: 'UHWI Mona Emergency Room', number: '+1 (876) 927-1620', badge: 'Hospital ER', color: 'bg-purple-700' },
     { name: 'Kingston Public Hospital (KPH)', number: '+1 (876) 922-0210', badge: 'Trauma Center', color: 'bg-blue-700' },
-    { name: `We Care Admin Office (${ADMIN_PROFILE.name})`, number: ADMIN_PROFILE.officeNumber, badge: 'Lead Administrator', color: 'bg-[#7209B7]' }
+    { name: 'We Care Admin Office (Lead Operations)', number: ADMIN_PROFILE.officeNumber, badge: 'Lead Administrator', color: 'bg-[#7209B7]' }
   ];
 
   return (

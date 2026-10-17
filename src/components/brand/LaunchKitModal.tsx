@@ -171,7 +171,7 @@ export const LaunchKitModal: React.FC<LaunchKitModalProps> = ({
                     <Users className="w-3.5 h-3.5 text-[#C77DFF]" /> Roles &amp; Auth
                   </span>
                   <p className="text-slate-300 leading-relaxed">
-                    <strong>Roles:</strong> Client, Nurse, Admin (<strong>{ADMIN_PROFILE.name}</strong>, Office: <span className="font-mono text-purple-200">{ADMIN_PROFILE.officeNumber}</span>).<br/>
+                    <strong>Roles:</strong> Client, Nurse, Admin (<strong>Master Admin</strong>, Office: <span className="font-mono text-purple-200">{ADMIN_PROFILE.officeNumber}</span>).<br/>
                     <strong>Auth:</strong> Jamaican Phone (+1 876) OTP for both. Nurses submit Gov ID + Nursing Council of Jamaica license number for mandatory manual Admin review.
                   </p>
                 </div>
@@ -360,7 +360,7 @@ export const LaunchKitModal: React.FC<LaunchKitModalProps> = ({
         <div className="mt-8 pt-4 border-t border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
           <div>
             <span>We Care Healthcare Ltd. • Kingston, St. Andrew, Portmore, and Spanish Town, Jamaica</span>
-            <span className="block text-[11px] text-slate-500 mt-0.5">Admin in Command: <strong>{ADMIN_PROFILE.name}</strong> • Office Direct: <strong className="font-mono text-purple-300">{ADMIN_PROFILE.officeNumber}</strong></span>
+            <span className="block text-[11px] text-slate-500 mt-0.5">Admin in Command: <strong>Master Admin</strong> • Office Direct: <strong className="font-mono text-purple-300">{ADMIN_PROFILE.officeNumber}</strong></span>
           </div>
           <button
             onClick={onClose}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Logo } from './Logo';
 import { LogoVariation } from '../../types';
 import { ADMIN_PROFILE } from '../../data/mockData';
+import { getDisplayName } from '../../utils/privacy';
 import { 
   X, 
   ShieldCheck, 
@@ -22,13 +23,15 @@ interface AboutUsModalProps {
   onClose: () => void;
   logoVariation?: LogoVariation;
   onOpenContact?: () => void;
+  currentUser?: any;
 }
 
 export const AboutUsModal: React.FC<AboutUsModalProps> = ({
   isOpen,
   onClose,
   logoVariation = 'heart-cross',
-  onOpenContact
+  onOpenContact,
+  currentUser
 }) => {
   if (!isOpen) return null;
 
@@ -136,10 +139,10 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({
             </h4>
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#1E1B4B] to-[#F59E0B] flex items-center justify-center font-black text-white text-sm shrink-0 border border-white/20">
-                SM
+                WC
               </div>
               <div>
-                <div className="font-bold text-white">{ADMIN_PROFILE.name}</div>
+                <div className="font-bold text-white">{getDisplayName(ADMIN_PROFILE, currentUser)}</div>
                 <div className="text-[11px] text-purple-300">{ADMIN_PROFILE.title}</div>
                 <div className="text-[10px] text-slate-400 font-mono">
                   {ADMIN_PROFILE.officeAddress} • Tel: (876) 582-7613

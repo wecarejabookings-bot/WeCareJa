@@ -239,18 +239,29 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
   const clean = usernameInput.trim();
   if (!clean) return null;
   const cleanLower = clean.toLowerCase();
+  const digitsOnly = clean.replace(/\D/g, '');
 
-  // 1. Direct email entered
+  // 1. Direct email entered (contains @)
   if (clean.includes('@')) {
     return cleanLower;
   }
 
-  // 2. Master Admin Sydney Mattis shortcut
-  if (cleanLower === 'sydney' || cleanLower === 'master admin' || cleanLower === 'smattis' || cleanLower === 'admin') {
+  // 2. Master Admin shortcut (username or official phone)
+  if (
+    cleanLower === 'sydney' || 
+    cleanLower === 'master admin' || 
+    cleanLower === 'smattis' || 
+    cleanLower === 'admin' ||
+    digitsOnly.endsWith('5827613') ||
+    clean.includes('582-7613')
+  ) {
     return 'wecareja.bookings@gmail.com';
   }
 
-  // 3. Check local browser cache
+  // 3. Numeric telephone check
+  const isTelephone = /^[0-9+()-\s]+$/.test(clean) && digitsOnly.length >= 7;
+
+  // 4. Check local browser cache
   try {
     const raw = localStorage.getItem('wecare_username_cache');
     if (raw) {
@@ -258,57 +269,70 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
       if (cache[cleanLower]) {
         return cache[cleanLower];
       }
+      if (digitsOnly && cache[digitsOnly]) {
+        return cache[digitsOnly];
+      }
     }
   } catch {}
 
-  // 4. Query Supabase profiles table directly (case-insensitive username match)
+  // 5. Check local user accounts list
   try {
-    const { data, error } = await supabase
+    const rawAccounts = localStorage.getItem('wecare_user_accounts');
+    if (rawAccounts) {
+      const accounts = JSON.parse(rawAccounts);
+      if (Array.isArray(accounts)) {
+        const found = accounts.find((a: any) => {
+          if (a.email?.toLowerCase() === cleanLower) return true;
+          if (a.username?.toLowerCase() === cleanLower) return true;
+          if (a.name?.toLowerCase() === cleanLower || a.full_name?.toLowerCase() === cleanLower) return true;
+          if (isTelephone && a.phone) {
+            const accDigits = String(a.phone).replace(/\D/g, '');
+            if (accDigits && digitsOnly && (accDigits.endsWith(digitsOnly) || digitsOnly.endsWith(accDigits))) {
+              return true;
+            }
+          }
+          return false;
+        });
+        if (found?.email) {
+          saveUsernameToCache(clean, found.email);
+          return found.email.toLowerCase();
+        }
+      }
+    }
+  } catch {}
+
+  // 6. Query Supabase profiles table directly
+  try {
+    if (isTelephone) {
+      const { data: phoneRow } = await supabase
+        .from('profiles')
+        .select('email, username, phone')
+        .ilike('phone', `%${digitsOnly.slice(-7)}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (phoneRow?.email) {
+        saveUsernameToCache(clean, phoneRow.email);
+        return phoneRow.email.toLowerCase();
+      }
+    }
+
+    const { data: userRow } = await supabase
       .from('profiles')
       .select('email, username')
       .ilike('username', clean)
       .limit(1)
       .maybeSingle();
 
-    if (!error && data?.email) {
-      saveUsernameToCache(clean, data.email);
-      return data.email.toLowerCase();
+    if (userRow?.email) {
+      saveUsernameToCache(clean, userRow.email);
+      return userRow.email.toLowerCase();
     }
   } catch (err) {
-    console.warn('Profile lookup by username query failed (RLS):', err);
+    console.warn('Profile lookup query note:', err);
   }
 
-  // 5. Query Supabase profiles table with exact lowercase match
-  try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('email, username')
-      .eq('username', cleanLower)
-      .limit(1)
-      .maybeSingle();
-
-    if (!error && data?.email) {
-      saveUsernameToCache(clean, data.email);
-      return data.email.toLowerCase();
-    }
-  } catch {}
-
-  // 6. Query Supabase profiles table by full_name
-  try {
-    const { data } = await supabase
-      .from('profiles')
-      .select('email, username, full_name')
-      .ilike('full_name', clean)
-      .limit(1)
-      .maybeSingle();
-
-    if (data?.email) {
-      saveUsernameToCache(clean, data.email);
-      return data.email.toLowerCase();
-    }
-  } catch {}
-
-  // 7. Check server-side proxy route (which can bypass client RLS)
+  // 7. Check server-side proxy route
   try {
     const res = await fetch(`/api/auth/lookup-username?username=${encodeURIComponent(clean)}`);
     if (res.ok) {
@@ -316,25 +340,6 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
       if (json.success && json.email) {
         saveUsernameToCache(clean, json.email);
         return json.email.toLowerCase();
-      }
-    }
-  } catch {}
-
-  // 8. Check known accounts stored in local state
-  try {
-    const rawAccounts = localStorage.getItem('wecare_user_accounts');
-    if (rawAccounts) {
-      const accounts = JSON.parse(rawAccounts);
-      if (Array.isArray(accounts)) {
-        const found = accounts.find((a: any) => 
-          a.username?.toLowerCase() === cleanLower ||
-          a.name?.toLowerCase() === cleanLower ||
-          a.full_name?.toLowerCase() === cleanLower
-        );
-        if (found?.email) {
-          saveUsernameToCache(clean, found.email);
-          return found.email.toLowerCase();
-        }
       }
     }
   } catch {}
@@ -347,17 +352,17 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
   const cleanPass = passwordInput.trim();
 
   if (!cleanInput) {
-    throw new Error('Please enter your username (e.g. "sydney").');
+    throw new Error('Please enter your Email, Username, or Phone.');
   }
   if (!cleanPass) {
     throw new Error('Please enter your password.');
   }
 
-  // Resolve email from username
+  // Resolve email from Email / Username / Phone
   let targetEmail = await lookupEmailFromUsername(cleanInput);
 
-  // Fallback for Sydney Mattis
-  if (!targetEmail && cleanInput.toLowerCase() === 'sydney') {
+  // Fallback for Master Admin
+  if (!targetEmail && (cleanInput.toLowerCase() === 'sydney' || cleanInput.replace(/\D/g, '').endsWith('5827613'))) {
     targetEmail = 'wecareja.bookings@gmail.com';
   }
 
@@ -367,7 +372,7 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
   }
 
   if (!targetEmail) {
-    throw new Error(`No account found for username "${cleanInput}". For Master Admin, sign in with username: sydney`);
+    throw new Error(`No account found for "${cleanInput}". Please verify your email, username, or phone number.`);
   }
 
   // Authenticate with Supabase Auth

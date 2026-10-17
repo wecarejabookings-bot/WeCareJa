@@ -83,6 +83,7 @@ import confetti from 'canvas-confetti';
 import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail } from 'lucide-react';
 import { isNetworkOnline, processOfflineSyncQueue } from './utils/offlineSyncManager';
 import { subscribeToQRUpdates, generateBookingCheckin } from './services/qrFirebaseStore';
+import { getDisplayName } from './utils/privacy';
 
 const SuspenseFallback: React.FC = () => (
   <div className="min-h-[50vh] flex flex-col items-center justify-center py-20 px-4 text-center">
@@ -806,7 +807,7 @@ export default function App() {
       handleTriggerNotification(
         'system_alert',
         `Switched to ${newRole.toUpperCase()} Dashboard`,
-        `All-Access Pass Active: You are now viewing the ${newRole.toUpperCase()} dashboard as Master Admin Sydney Mattis.`
+        `All-Access Pass Active: You are now viewing the ${newRole.toUpperCase()} dashboard as ${getDisplayName(currentUser, currentUser)}.`
       );
       return;
     }
@@ -815,7 +816,7 @@ export default function App() {
       handleTriggerNotification(
         'system_alert',
         'Sign Out Required',
-        `You are currently signed in as ${currentUser.name} (${currentUser.role.toUpperCase()}). Please sign out first before switching users or roles, or sign in as Master Admin Sydney Mattis.`
+        `You are currently signed in as ${getDisplayName(currentUser, currentUser)} (${currentUser.role.toUpperCase()}). Please sign out first before switching users or roles, or sign in as Master Admin.`
       );
       return;
     }
@@ -1330,7 +1331,7 @@ export default function App() {
       handleTriggerNotification(
         'nurse_signup',
         'Practitioner Credentials Approved',
-        `Administrator Sydney Mattis has approved license credentials for practitioner #${nurseId}. Account is now fully active.`
+        `Administrator has approved license credentials for practitioner #${nurseId}. Account is now fully active.`
       );
     }
   };
@@ -1453,7 +1454,7 @@ export default function App() {
   const handleStartVideoMeeting = (meeting: VideoMeeting) => {
     setActiveVideoCall({
       isOpen: true,
-      callerName: currentUser ? currentUser.name : 'Sydney Mattis (Admin)',
+      callerName: currentUser ? getDisplayName(currentUser, currentUser) : 'Lead Administrator',
       callerRole: currentRole,
       participantName: meeting.participantName,
       participantRole: meeting.participantRole,
@@ -1465,7 +1466,7 @@ export default function App() {
   const handleOpenDirectVideoCall = (participantName: string, participantRole: 'client' | 'nurse' | 'admin', meetingTitle?: string) => {
     setActiveVideoCall({
       isOpen: true,
-      callerName: currentUser ? currentUser.name : (currentRole === 'admin' ? 'Sydney Mattis (Admin)' : 'We Care User'),
+      callerName: currentUser ? getDisplayName(currentUser, currentUser) : (currentRole === 'admin' ? 'Lead Administrator' : 'We Care User'),
       callerRole: currentRole,
       participantName,
       participantRole,
@@ -1478,7 +1479,7 @@ export default function App() {
   const handleTriggerFullScreenSOS = useCallback((bookingContext?: Booking | null, triggeredByRole?: 'client' | 'nurse' | 'admin') => {
     const targetBooking = bookingContext || emergencyActiveBooking || bookings.find(b => ['accepted', 'en_route', 'in_progress'].includes(b.status)) || bookings[0];
     const role = triggeredByRole || currentRole;
-    const triggererName = currentUser?.name || (role === 'nurse' ? (targetBooking?.nurseName || 'Nurse on Duty') : role === 'admin' ? 'Sydney Mattis (Admin)' : (targetBooking?.clientName || 'Patient / Family'));
+    const triggererName = currentUser ? getDisplayName(currentUser, currentUser) : (role === 'nurse' ? (targetBooking?.nurseName || 'Nurse on Duty') : role === 'admin' ? 'Lead Administrator' : (targetBooking?.clientName || 'Patient / Family'));
 
     const emergencyData: EmergencySOSData = {
       id: `sos-${Date.now()}`,
@@ -1626,7 +1627,7 @@ export default function App() {
           currentRole={currentRole}
           onChangeRole={handleRoleChange}
           isMasterAdmin={isMasterAdmin}
-          userName={currentUser?.name || 'Sydney Mattis'}
+          userName={currentUser ? getDisplayName(currentUser, currentUser) : 'Master Admin'}
         />
       )}
 
@@ -1663,7 +1664,7 @@ export default function App() {
               </div>
               <h3 className="text-xl font-black text-white">Administrator Restricted Access</h3>
               <p className="text-xs text-slate-300 leading-relaxed">
-                Medical Supply Orders Management (<code className="font-mono text-amber-300">/admin/orders</code>) is strictly reserved for Master Administrator Sydney Mattis and authorized administrative staff.
+                Medical Supply Orders Management (<code className="font-mono text-amber-300">/admin/orders</code>) is strictly reserved for Master Administrator and authorized administrative staff.
               </p>
               <div className="pt-2 flex justify-center gap-3">
                 <button
@@ -2150,7 +2151,7 @@ export default function App() {
           handleTriggerNotification(
             'nurse_signup',
             `Practitioner Registration Submitted: ${newNurse.name}`,
-            `Registration for ${newNurse.name} received. Pending clinical license approval by Lead Admin Sydney Mattis. All nurse signups require admin approval.`
+            `Registration for ${newNurse.name} received. Pending clinical license approval by Lead Administrator. All nurse signups require admin approval.`
           );
         }}
         onAddNewSchoolPendingApproval={(newSchool) => {

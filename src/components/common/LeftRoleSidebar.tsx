@@ -21,7 +21,7 @@ export const LeftRoleSidebar: React.FC<LeftRoleSidebarProps> = ({
   currentRole,
   onChangeRole,
   isMasterAdmin,
-  userName = 'Sydney Mattis'
+  userName = 'Master Admin'
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 

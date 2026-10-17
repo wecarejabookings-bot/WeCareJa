@@ -77,7 +77,7 @@ export const QuickSOSButton: React.FC<QuickSOSButtonProps> = ({
 
     // 2. High-priority broadcast payload
     const sosTitle = `🚨 QUICK-SOS: ${alertOrigin} Triggered Urgent Safety Alert!`;
-    const sosDescription = `URGENT: Immediate safety alert dispatched at ${location} for booking #${booking.id} (${booking.serviceName}). Alerting ${emergencyContactName} (${emergencyContactPhone}), 119 Emergency Services, and Admin ${ADMIN_PROFILE.name}.`;
+    const sosDescription = `URGENT: Immediate safety alert dispatched at ${location} for booking #${booking.id} (${booking.serviceName}). Alerting ${emergencyContactName} (${emergencyContactPhone}), 119 Emergency Services, and Lead Administrator.`;
 
     // Dispatch global full-screen takeover event for both client and nurse screens
     if (typeof window !== 'undefined') {

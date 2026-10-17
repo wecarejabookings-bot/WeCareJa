@@ -96,7 +96,7 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
     setAlertDispatched(true);
     soundFX.triggerNotification(
       '🚨 119 Emergency Alert Broadcast Dispatched',
-      `Direct emergency alert sent to JCF Police 119 dispatch, UHWI Emergency Trauma, and We Care Lead Administrator ${ADMIN_PROFILE.name}.`,
+      `Direct emergency alert sent to JCF Police 119 dispatch, UHWI Emergency Trauma, and We Care Lead Administrator.`,
       'sos_emergency'
     );
   };
@@ -361,7 +361,7 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
 
               <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10">
                 <span className="text-[10px] text-slate-400 block font-bold">We Care Admin Control</span>
-                <span className="font-bold text-white text-xs block">{ADMIN_PROFILE.name} ({ADMIN_PROFILE.title})</span>
+                <span className="font-bold text-white text-xs block">Lead Administrator (Operations)</span>
                 <a href={`tel:${ADMIN_PROFILE.officeNumber}`} className="text-xs text-purple-300 font-mono hover:underline">
                   Office: {ADMIN_PROFILE.officeNumber}
                 </a>

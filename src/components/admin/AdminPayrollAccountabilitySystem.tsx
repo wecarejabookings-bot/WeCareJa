@@ -533,7 +533,7 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
               }`}
             >
               <Crown className="w-3.5 h-3.5" />
-              <span>Owner (Sydney Mattis)</span>
+              <span>Owner (Master Admin)</span>
             </button>
           )}
 

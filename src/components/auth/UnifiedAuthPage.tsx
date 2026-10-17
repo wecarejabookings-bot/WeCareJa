@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { UserRole, NurseProfile, UserAccount } from '../../types';
 import { UnifiedSignupPortal } from './UnifiedSignupPortal';
-import { supabase } from '../../lib/supabase';
+import { supabase, lookupEmailFromUsername } from '../../lib/supabase';
 import confetti from 'canvas-confetti';
 
 const JAMAICAN_PARISHES = [
@@ -68,6 +68,8 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showLoginInfo, setShowLoginInfo] = useState(true);
   const [phone, setPhone] = useState('');
   const [parish, setParish] = useState('Kingston');
   const [address, setAddress] = useState('');
@@ -152,9 +154,21 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
 
     try {
       if (mode === 'signin') {
+        const cleanIdent = email.trim();
+        let targetEmail = await lookupEmailFromUsername(cleanIdent);
+        if (!targetEmail && cleanIdent.includes('@')) {
+          targetEmail = cleanIdent.toLowerCase();
+        }
+        if (!targetEmail && (cleanIdent.toLowerCase() === 'sydney' || cleanIdent.replace(/\D/g, '').endsWith('5827613'))) {
+          targetEmail = 'wecareja.bookings@gmail.com';
+        }
+        if (!targetEmail) {
+          throw new Error(`No account found for "${cleanIdent}". Please check your email, username, or phone.`);
+        }
+
         // Sign In Flow
         const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
+          email: targetEmail,
           password: cleanPassword
         });
 
@@ -478,20 +492,60 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
           />
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-left">
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-amber-400" />
-                <span>Email Address or Username *</span>
-              </label>
-              <input
-                type="email"
-                required
-                placeholder="your.email@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
-              />
+            {/* Global Toggle Button: Show / Hide Login Info */}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] text-slate-300 font-bold uppercase tracking-wider">Account Credentials</span>
+              <button
+                type="button"
+                onClick={() => setShowLoginInfo(!showLoginInfo)}
+                className="text-[11px] text-amber-300 hover:text-white font-bold transition flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/10"
+              >
+                <span>{showLoginInfo ? 'Hide Login Info' : 'Show Login Info'}</span>
+              </button>
             </div>
+
+            {/* Single Login Field: Email or Username or Phone */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Email or Username or Phone *</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowLogin(!showLogin)}
+                  className="px-2 py-0.5 text-xs text-amber-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                  aria-label={showLogin ? 'Hide login info' : 'Show login info'}
+                >
+                  {showLogin ? <EyeOff size={16} /> : <Eye size={16} />}
+                  <span>{showLogin ? 'Hide' : 'Show'}</span>
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showLogin ? "text" : "password"}
+                  required
+                  placeholder="Email or Username or Phone"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B] font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLogin(!showLogin)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
+                >
+                  {showLogin ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {showLoginInfo && (
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Enter your Email, Username (e.g. sydney), or Jamaican Phone (+876).
+                </p>
+              )}
+            </div>
+
+            {/* Password Field with Eye Toggle */}
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
                 <Lock className="w-3.5 h-3.5 text-amber-400" />
@@ -504,14 +558,14 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
                   placeholder="Enter account password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B] pr-10 font-mono"
+                  className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B] font-mono"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>

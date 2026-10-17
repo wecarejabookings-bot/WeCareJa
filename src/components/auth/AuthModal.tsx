@@ -43,6 +43,7 @@ import {
   detectPlatformBiometrics 
 } from '../../utils/biometricAuth';
 import { BiometricCredentialRecord } from '../../types';
+import { getDisplayName, isOwnerUser } from '../../utils/privacy';
 import { WhatsAppSettingsCard } from '../whatsapp/WhatsAppSettingsCard';
 import { 
   supabase,
@@ -118,6 +119,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [loginUsername, setLoginUsername] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [showLoginInfo, setShowLoginInfo] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [isVerifyingPasskey, setIsVerifyingPasskey] = useState(false);
   const [isBiometricEnrolled, setIsBiometricEnrolled] = useState<boolean>(() => {
@@ -281,7 +284,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const enteredPassword = loginPassword.trim();
 
     if (!trimmedInput) {
-      setLoginError('Please enter your username (e.g., "sydney").');
+      setLoginError('Please enter your Email or Username or Phone.');
       soundFX.playWarningSound();
       return;
     }
@@ -752,7 +755,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               className="min-h-[48px] py-3 px-4 text-xs font-bold transition flex items-center gap-2 border-b-2 border-[#C77DFF] text-white auth-touch-target"
             >
               <User className="w-4 h-4" />
-              <span>My Profile ({currentUser.name.split(' ')[0]})</span>
+              <span>My Profile ({getDisplayName(currentUser, currentUser).split(' ')[0]})</span>
             </button>
           ) : (
             <>
@@ -1364,21 +1367,61 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </div>
                 )}
 
+                {/* Global Toggle Button: Show / Hide Login Info */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] text-slate-300 font-bold uppercase tracking-wider">Account Credentials</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginInfo(!showLoginInfo)}
+                    className="text-[11px] text-amber-300 hover:text-white font-bold transition flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/10"
+                  >
+                    <span>{showLoginInfo ? 'Hide Login Info' : 'Show Login Info'}</span>
+                  </button>
+                </div>
+
                 <div className="auth-modal-grid grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs w-full">
+                  {/* Single Login Field: Email or Username or Phone */}
                   <div className="w-full">
-                    <label className="font-bold text-slate-300 block mb-1.5 text-xs">Username</label>
-                    <input
-                      type="text"
-                      value={loginUsername}
-                      onChange={(e) => {
-                        setLoginUsername(e.target.value);
-                        setLoginError('');
-                      }}
-                      placeholder="Enter your username (e.g. sydney)"
-                      className="auth-modal-input w-full min-h-[48px] px-3.5 py-3 text-base sm:text-xs rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="font-bold text-slate-300 text-xs">Email or Username or Phone</label>
+                      <button
+                        type="button"
+                        onClick={() => setShowLogin(!showLogin)}
+                        className="auth-touch-target px-2 py-0.5 text-xs text-purple-300 hover:text-white flex items-center justify-end gap-1 cursor-pointer"
+                        aria-label={showLogin ? 'Hide login identifier' : 'Show login identifier'}
+                      >
+                        {showLogin ? <EyeOff size={16} /> : <Eye size={16} />}
+                        <span>{showLogin ? 'Hide' : 'Show'}</span>
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showLogin ? "text" : "password"}
+                        value={loginUsername}
+                        onChange={(e) => {
+                          setLoginUsername(e.target.value);
+                          setLoginError('');
+                        }}
+                        placeholder="Email or Username or Phone"
+                        className="auth-modal-input w-full min-h-[48px] px-3.5 py-3 pr-10 text-base sm:text-xs rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLogin(!showLogin)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
+                        aria-label={showLogin ? 'Hide login identifier' : 'Show login identifier'}
+                      >
+                        {showLogin ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
+                    {showLoginInfo && (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Sign in with your Email, Username (e.g. sydney), or Jamaican Phone (+876).
+                      </p>
+                    )}
                   </div>
 
+                  {/* Password Field */}
                   <div className="w-full">
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="font-bold text-slate-300 text-xs">Password</label>
@@ -1392,16 +1435,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         <span>{showPassword ? 'Hide' : 'Show'}</span>
                       </button>
                     </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={loginPassword}
-                      onChange={(e) => {
-                        setLoginPassword(e.target.value);
-                        setLoginError('');
-                      }}
-                      placeholder="Enter your account password"
-                      className="auth-modal-input w-full min-h-[48px] px-3.5 py-3 text-base sm:text-xs rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={loginPassword}
+                        onChange={(e) => {
+                          setLoginPassword(e.target.value);
+                          setLoginError('');
+                        }}
+                        placeholder="Enter your account password"
+                        className="auth-modal-input w-full min-h-[48px] px-3.5 py-3 pr-10 text-base sm:text-xs rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none font-mono"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                      </button>
+                    </div>
                   </div>
                 </div>
 

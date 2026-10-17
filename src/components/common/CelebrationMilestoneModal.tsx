@@ -315,7 +315,7 @@ export const CelebrationMilestoneModal: React.FC<CelebrationMilestoneModalProps>
 
               <div className="pt-4 flex items-end justify-between text-left text-[10px] text-slate-600 border-t border-amber-800/20">
                 <div>
-                  <p className="font-bold text-slate-800">Sydney Mattis</p>
+                  <p className="font-bold text-slate-800">Executive Directorate</p>
                   <p>Director of Operations, We Care</p>
                   <p className="font-mono text-[9px] text-slate-400">Kingston, Jamaica</p>
                 </div>

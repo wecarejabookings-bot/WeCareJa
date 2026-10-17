@@ -1,13 +1,40 @@
 import React, { useState } from 'react';
-import { supabase } from '../../src/lib/supabase';
-import { Heart, Stethoscope, Lock, Mail, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { supabase, lookupEmailFromUsername } from '../../src/lib/supabase';
+import { Heart, Lock, User, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff, Info } from 'lucide-react';
 
-export async function handleLoginWithSelfHeal(emailInput: string, passwordInput: string) {
-  const email = emailInput.trim().toLowerCase();
+export async function handleLoginWithSelfHeal(loginInput: string, passwordInput: string) {
+  const rawInput = loginInput.trim();
   const password = passwordInput.trim();
 
+  if (!rawInput) {
+    throw new Error('Please enter your Email or Username or Phone.');
+  }
+  if (!password) {
+    throw new Error('Please enter your password.');
+  }
+
+  let targetEmail = '';
+  const cleanLower = rawInput.toLowerCase();
+  const digitsOnly = rawInput.replace(/\D/g, '');
+  const isNumeric = /^[0-9+()-\s]+$/.test(rawInput) && digitsOnly.length >= 7;
+
+  // Backend/Resolver logic: Check if input contains @ = email, else if numeric = telephone, else = username
+  if (cleanLower.includes('@')) {
+    targetEmail = cleanLower;
+  } else if (isNumeric) {
+    const resolved = await lookupEmailFromUsername(rawInput);
+    targetEmail = resolved || (digitsOnly.endsWith('5827613') ? 'wecareja.bookings@gmail.com' : '');
+  } else {
+    const resolved = await lookupEmailFromUsername(rawInput);
+    targetEmail = resolved || (cleanLower === 'sydney' ? 'wecareja.bookings@gmail.com' : '');
+  }
+
+  if (!targetEmail) {
+    throw new Error(`No account found for "${rawInput}". Please check your Email, Username, or Phone number.`);
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: targetEmail,
     password
   });
 
@@ -32,7 +59,7 @@ export async function handleLoginWithSelfHeal(emailInput: string, passwordInput:
   if (!existingProfile) {
     console.log('[Self-Heal] User logged in with no profile. Auto-creating profile for:', data.user.id);
     const meta = data.user.user_metadata || {};
-    const fullName = meta.full_name || meta.name || email.split('@')[0] || 'Nurse Practitioner';
+    const fullName = meta.full_name || meta.name || targetEmail.split('@')[0] || 'Nurse Practitioner';
     const role = meta.role || 'nurse';
     const phone = meta.phone || '';
     const address = meta.address || 'Kingston, Jamaica';
@@ -56,8 +83,11 @@ export async function handleLoginWithSelfHeal(emailInput: string, passwordInput:
 }
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
+  const [loginInput, setLoginInput] = useState('');
   const [password, setPassword] = useState('');
+  const [showLogin, setShowLogin] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showLoginInfo, setShowLoginInfo] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -69,7 +99,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await handleLoginWithSelfHeal(email, password);
+      await handleLoginWithSelfHeal(loginInput, password);
       setSuccessMessage('Login successful! Redirecting to dashboard...');
       setTimeout(() => {
         window.location.href = '/';
@@ -97,6 +127,32 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Global toggle button: Show / Hide Login Info */}
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/10">
+          <div className="flex items-center gap-2 text-xs text-slate-300">
+            <Info className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-[11px]">One login for Email, Username &amp; Phone</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowLoginInfo(!showLoginInfo)}
+            className="text-[11px] text-amber-300 hover:text-white font-bold transition flex items-center gap-1.5 cursor-pointer bg-white/5 hover:bg-white/10 px-2.5 py-1 rounded-lg border border-white/10"
+          >
+            <span>{showLoginInfo ? 'Hide Login Info' : 'Show / Hide Login Info'}</span>
+          </button>
+        </div>
+
+        {showLoginInfo && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-200 space-y-1">
+            <p className="font-bold text-amber-300">Accepted Login Formats:</p>
+            <ul className="list-disc list-inside space-y-0.5 text-[11px] text-slate-300">
+              <li><strong className="text-white">Email:</strong> e.g., nurse@wecare.jm</li>
+              <li><strong className="text-white">Username:</strong> e.g., sydney or practitioner ID</li>
+              <li><strong className="text-white">Phone:</strong> e.g., (876) 582-7613 or 8765827613</li>
+            </ul>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="p-3.5 rounded-2xl bg-amber-500/20 border border-amber-500/40 text-amber-200 text-xs flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
@@ -112,34 +168,75 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Single input with eye toggle */}
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-              <Mail className="w-3.5 h-3.5 text-amber-400" />
-              <span>Email Address</span>
-            </label>
-            <input
-              type="email"
-              required
-              placeholder="nurse@wecare.jm"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-amber-400" />
+                <span>Email or Username or Phone</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowLogin(!showLogin)}
+                className="px-2 py-0.5 text-xs text-amber-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                aria-label={showLogin ? 'Hide login info' : 'Show login info'}
+              >
+                {showLogin ? <EyeOff size={16} /> : <Eye size={16} />}
+                <span>{showLogin ? 'Hide' : 'Show'}</span>
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type={showLogin ? "text" : "password"}
+                required
+                placeholder="Email or Username or Phone"
+                value={loginInput}
+                onChange={(e) => setLoginInput(e.target.value)}
+                className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowLogin(!showLogin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
+                aria-label={showLogin ? 'Hide login value' : 'Show login value'}
+              >
+                {showLogin ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Password</span>
-            </label>
-            <input
-              type="password"
-              required
-              placeholder="Enter your password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
-            />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Password</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="px-2 py-0.5 text-xs text-amber-300 hover:text-white flex items-center gap-1 cursor-pointer"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                <span>{showPassword ? 'Hide' : 'Show'}</span>
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer p-1"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
 
           <button

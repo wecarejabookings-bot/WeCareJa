@@ -32,6 +32,7 @@ import { UserAccount, UserRole, NurseProfile } from '../../types';
 import { soundFX } from '../../utils/soundEffects';
 import { supabase } from '../../lib/supabase';
 import { AdminTopicsDirectoryManager } from './AdminTopicsDirectoryManager';
+import { getDisplayName } from '../../utils/privacy';
 import confetti from 'canvas-confetti';
 
 export interface AdminUserRecord {
@@ -477,7 +478,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
 
     setIsSaving(false);
     setEditingUser(null);
-    setToastMessage({ type: 'success', text: `User "${updatedUser.fullName}" updated successfully.` });
+    setToastMessage({ type: 'success', text: `User "${getDisplayName(updatedUser, currentUser)}" updated successfully.` });
     soundFX.playSuccessPing();
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -508,7 +509,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
       }
     } catch {}
 
-    setToastMessage({ type: 'success', text: `${user.fullName}'s role updated to ${newRole.toUpperCase()}.` });
+    setToastMessage({ type: 'success', text: `${getDisplayName(user, currentUser)}'s role updated to ${newRole.toUpperCase()}.` });
     setTimeout(() => setToastMessage(null), 2500);
   };
 
@@ -537,7 +538,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
     confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
     setToastMessage({ 
       type: 'success', 
-      text: newStatus === 'approved' ? `Nurse ${user.fullName} is now APPROVED for patient dispatch.` : `Nurse ${user.fullName} status updated.` 
+      text: newStatus === 'approved' ? `Nurse ${getDisplayName(user, currentUser)} is now APPROVED for patient dispatch.` : `Nurse ${getDisplayName(user, currentUser)} status updated.` 
     });
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -573,7 +574,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
     } catch {}
 
     setDeletingUser(null);
-    setToastMessage({ type: 'success', text: `User "${deletingUser.fullName}" has been deleted.` });
+    setToastMessage({ type: 'success', text: `User "${getDisplayName(deletingUser, currentUser)}" has been deleted.` });
     setTimeout(() => setToastMessage(null), 3000);
   };
 
@@ -842,7 +843,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
                             )}
                           </div>
                           <div>
-                            <span className="font-bold text-white block">{u.fullName}</span>
+                            <span className="font-bold text-white block">{getDisplayName(u, currentUser)}</span>
                             <span className="text-[10px] font-mono text-slate-500 truncate block max-w-[140px]">
                               {u.id}
                             </span>
@@ -976,7 +977,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
               <div className="flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-amber-400" />
                 <h3 className="text-base font-black text-white">
-                  Edit User Profile: {editingUser.fullName}
+                  Edit User Profile: {getDisplayName(editingUser, currentUser)}
                 </h3>
               </div>
               <button
@@ -1304,7 +1305,7 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
 
             <h3 className="text-lg font-black text-white">Delete User Account?</h3>
             <p className="text-xs text-slate-300">
-              Are you sure you want to delete <strong>{deletingUser.fullName}</strong> ({deletingUser.role})? This will remove the profile record from Supabase and active dispatch roster.
+              Are you sure you want to delete <strong>{getDisplayName(deletingUser, currentUser)}</strong> ({deletingUser.role})? This will remove the profile record from Supabase and active dispatch roster.
             </p>
 
             <div className="flex justify-center gap-3 pt-2">

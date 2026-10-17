@@ -123,7 +123,7 @@ export const AdminVideoMeetingSchedulerModal: React.FC<AdminVideoMeetingSchedule
       title: meetingTitle,
       meetingType,
       hostRole: 'admin',
-      hostName: 'Sydney Mattis (Admin)',
+      hostName: 'Master Administrator',
       participantRole,
       participantId: selectedParticipantId,
       participantName: pName,

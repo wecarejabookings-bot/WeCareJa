@@ -592,11 +592,11 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                 {
                   id: 'tool-video-admin',
                   label: 'Video Call Admin',
-                  sublabel: 'Direct clinical consultation with Sydney Mattis',
+                  sublabel: 'Direct clinical consultation with Clinical Administration',
                   icon: <Video className="w-4 h-4 text-purple-300" />,
                   onClick: () => {
                     if (onOpenVideoCall) {
-                      onOpenVideoCall('Sydney Mattis (Admin & Clinical Director)', 'admin', 'Direct Clinical Consultation & Admin Support');
+                      onOpenVideoCall('Lead Administrator (Clinical Director)', 'admin', 'Direct Clinical Consultation & Admin Support');
                     }
                   }
                 },

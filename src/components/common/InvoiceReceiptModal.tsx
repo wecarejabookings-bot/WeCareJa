@@ -359,7 +359,7 @@ Status: Settled in Full`;
               <span>We Care Jamaica • Nursing Council of Jamaica Licensed Network</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-slate-300">Admin Oversight: <strong className="text-white">{ADMIN_PROFILE.name}</strong> (Office: <strong className="font-mono text-purple-300">{ADMIN_PROFILE.officeNumber}</strong>)</span>
+              <span className="text-slate-300">Admin Oversight: <strong className="text-white">Clinical Operations Directorate</strong> (Office: <strong className="font-mono text-purple-300">{ADMIN_PROFILE.officeNumber}</strong>)</span>
               <span className="font-mono">Payment Mode: {String(invoice?.paymentMethod || 'card').toUpperCase().replace(/_/g, ' ')} • ESCROW CLEARED</span>
             </div>
           </div>

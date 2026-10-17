@@ -573,43 +573,78 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     "sydney": "wecareja.bookings@gmail.com",
     "admin": "wecareja.bookings@gmail.com",
     "smattis": "wecareja.bookings@gmail.com",
-    "master admin": "wecareja.bookings@gmail.com"
+    "master admin": "wecareja.bookings@gmail.com",
+    "8765827613": "wecareja.bookings@gmail.com",
+    "+18765827613": "wecareja.bookings@gmail.com",
+    "(876) 582-7613": "wecareja.bookings@gmail.com"
   };
 
-  // 1. Lookup email from username from profiles table or memory cache
+  // 1. Lookup email from single login field: Email or Username or Phone
   app.get("/api/auth/lookup-username", async (req, res) => {
-    const username = ((req.query.username as string) || "").trim().toLowerCase();
-    if (!username) {
-      return res.status(400).json({ success: false, message: "Username query parameter required" });
+    const rawInput = ((req.query.username as string) || (req.query.identifier as string) || "").trim();
+    if (!rawInput) {
+      return res.status(400).json({ success: false, message: "Email, Username, or Phone required" });
     }
 
-    if (username.includes("@")) {
-      return res.json({ success: true, email: username, username });
+    const cleanLower = rawInput.toLowerCase();
+    const digitsOnly = rawInput.replace(/\D/g, "");
+
+    // 1. Check if input contains @ = email
+    if (cleanLower.includes("@")) {
+      return res.json({ success: true, email: cleanLower, identifierType: "email" });
     }
 
-    if (inMemoryUsernameCache[username]) {
-      return res.json({ success: true, email: inMemoryUsernameCache[username], username });
+    // 2. Check in-memory cache directly (handles username, phone, and aliases)
+    if (inMemoryUsernameCache[cleanLower]) {
+      return res.json({ success: true, email: inMemoryUsernameCache[cleanLower], identifierType: "username" });
     }
+    if (digitsOnly && inMemoryUsernameCache[digitsOnly]) {
+      return res.json({ success: true, email: inMemoryUsernameCache[digitsOnly], identifierType: "phone" });
+    }
+
+    // 3. Check if numeric = telephone
+    const isTelephone = /^[0-9+()-\s]+$/.test(rawInput) && digitsOnly.length >= 7;
 
     if (serverSupabase) {
       try {
-        const { data, error } = await serverSupabase
+        if (isTelephone) {
+          // Query Supabase profiles table by phone
+          const { data: phoneMatch } = await serverSupabase
+            .from("profiles")
+            .select("email, username, phone")
+            .ilike("phone", `%${digitsOnly.slice(-7)}%`)
+            .limit(1)
+            .maybeSingle();
+
+          if (phoneMatch?.email) {
+            inMemoryUsernameCache[digitsOnly] = phoneMatch.email.toLowerCase();
+            return res.json({ success: true, email: phoneMatch.email.toLowerCase(), identifierType: "phone" });
+          }
+        }
+
+        // Query Supabase profiles by username or full_name
+        const { data: userMatch } = await serverSupabase
           .from("profiles")
-          .select("email, username")
-          .ilike("username", username)
+          .select("email, username, full_name")
+          .or(`username.ilike.${cleanLower},full_name.ilike.${cleanLower}`)
           .limit(1)
           .maybeSingle();
 
-        if (!error && data?.email) {
-          inMemoryUsernameCache[username] = data.email.toLowerCase();
-          return res.json({ success: true, email: data.email.toLowerCase(), username: data.username });
+        if (userMatch?.email) {
+          inMemoryUsernameCache[cleanLower] = userMatch.email.toLowerCase();
+          return res.json({ success: true, email: userMatch.email.toLowerCase(), identifierType: "username" });
         }
       } catch (err) {
-        console.warn("[ServerAuth] Supabase profiles query error:", err);
+        console.warn("[ServerAuth] Supabase lookup error:", err);
       }
     }
 
-    return res.status(404).json({ success: false, message: `No account found for username: ${username}` });
+    // Fallback for Master Admin phone / username
+    if (cleanLower === "sydney" || digitsOnly.endsWith("5827613")) {
+      return res.json({ success: true, email: "wecareja.bookings@gmail.com", identifierType: isTelephone ? "phone" : "username" });
+    }
+
+    return res.status(404).json({ success: false, message: `No account found for: ${rawInput}` });
   });
 
   // 2. Cache username-to-email mapping for registered users
