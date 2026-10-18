@@ -2,17 +2,17 @@ import { supabase } from '../supabaseClient';
 import { StoreProduct } from '../types';
 
 export const INITIAL_STORE_PRODUCTS: StoreProduct[] = [
-  { id: 'prod-1', name: 'Digital Blood Pressure Monitor', description: 'Automatic BP monitor', category: 'Equipment', price_jmd: 8500, stock_qty: 15, image_url: 'https://images.unsplash.com/photo-1582719471384-894fbb16e074?w=500', is_active: true },
-  { id: 'prod-2', name: 'Disposable Gloves Box', description: 'Box 100 latex gloves', category: 'Supplies', price_jmd: 2500, stock_qty: 30, image_url: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=500', is_active: true },
-  { id: 'prod-3', name: 'First Aid Kit', description: 'Complete home kit', category: 'Kits', price_jmd: 6500, stock_qty: 20, image_url: 'https://images.unsplash.com/photo-1603398938378-e54eab446dde?w=500', is_active: true },
+  { id: 'prod-1', name: 'Digital Blood Pressure Monitor', description: 'Automatic BP monitor', category: 'Equipment', price_jmd: 8500, stock_qty: 15, image_url: '/images/bp_monitor.webp', is_active: true },
+  { id: 'prod-2', name: 'Disposable Gloves Box', description: 'Box 100 latex gloves', category: 'Supplies', price_jmd: 2500, stock_qty: 30, image_url: '/images/gloves.webp', is_active: true },
+  { id: 'prod-3', name: 'First Aid Kit', description: 'Complete home kit', category: 'Kits', price_jmd: 6500, stock_qty: 20, image_url: '/images/first_aid_kit.webp', is_active: true },
   { id: 'prod-4', name: 'Wheelchair', description: 'Foldable wheelchair', category: 'Equipment', price_jmd: 45000, stock_qty: 5, image_url: 'https://images.unsplash.com/photo-1580281658626-ee37972c3d73?w=500', is_active: true },
   { id: 'prod-5', name: 'Walking Cane', description: 'Adjustable cane', category: 'Mobility', price_jmd: 3500, stock_qty: 25, image_url: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=500', is_active: true },
-  { id: 'prod-6', name: 'Adult Diapers Pack', description: 'Pack of 20', category: 'Supplies', price_jmd: 4000, stock_qty: 40, image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500', is_active: true },
-  { id: 'prod-7', name: 'Hand Sanitizer 500ml', description: 'Antibacterial', category: 'Hygiene', price_jmd: 1200, stock_qty: 50, image_url: 'https://images.unsplash.com/photo-1584305574647-0cc949a2bb9f?w=500', is_active: true },
+  { id: 'prod-6', name: 'Adult Diapers Pack', description: 'Pack of 20', category: 'Supplies', price_jmd: 4000, stock_qty: 40, image_url: '/images/diapers.webp', is_active: true },
+  { id: 'prod-7', name: 'Hand Sanitizer 500ml', description: 'Antibacterial', category: 'Hygiene', price_jmd: 1200, stock_qty: 50, image_url: '/images/hand_sanitizer.webp', is_active: true },
   { id: 'prod-8', name: 'Digital Thermometer', description: 'Infrared thermometer', category: 'Equipment', price_jmd: 3000, stock_qty: 20, image_url: 'https://images.unsplash.com/photo-1583947581924-860bda6a26df?w=500', is_active: true },
   { id: 'prod-9', name: 'Bedside Commode', description: 'Portable toilet chair', category: 'Equipment', price_jmd: 18000, stock_qty: 8, image_url: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=500', is_active: true },
   { id: 'prod-10', name: 'Compression Socks', description: 'Medical socks pair', category: 'Supplies', price_jmd: 2000, stock_qty: 35, image_url: 'https://images.unsplash.com/photo-1579154204601-01588f351e67?w=500', is_active: true },
-  { id: 'prod-11', name: 'Wound Dressing Pack', description: 'Sterile dressing kit', category: 'Supplies', price_jmd: 1500, stock_qty: 60, image_url: 'https://images.unsplash.com/photo-1581595220892-b0739db3ba8c?w=500', is_active: true },
+  { id: 'prod-11', name: 'Wound Dressing Pack', description: 'Sterile dressing kit', category: 'Supplies', price_jmd: 1500, stock_qty: 60, image_url: '/images/gauze_dressing.webp', is_active: true },
   { id: 'prod-12', name: 'Pill Organizer', description: 'Weekly pill box', category: 'Supplies', price_jmd: 800, stock_qty: 100, image_url: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500', is_active: true },
 ];
 

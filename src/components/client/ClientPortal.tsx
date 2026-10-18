@@ -18,7 +18,7 @@ import { NurseProximityMap } from './NurseProximityMap';
 import { KingstonCoverageMapView } from './KingstonCoverageMapView';
 import { FindNearbyNurseSection } from './FindNearbyNurseSection';
 import { PatientHistorySection } from './PatientHistorySection';
-import { InvoiceReceiptModal } from '../common/InvoiceReceiptModal';
+const InvoiceReceiptModal = React.lazy(() => import('../common/InvoiceReceiptModal').then(m => ({ default: m.InvoiceReceiptModal })));
 import { MedicalSummaryModal } from '../common/MedicalSummaryModal';
 import { BiometricHealthScanModal } from '../common/BiometricHealthScanModal';
 import { VerifiedNursingCouncilBadge } from '../common/VerifiedNursingCouncilBadge';

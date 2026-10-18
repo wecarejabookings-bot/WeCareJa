@@ -1,5 +1,5 @@
 import { Component, ErrorInfo, ReactNode, StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, hydrateRoot } from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
@@ -75,10 +75,37 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
   }
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <RootErrorBoundary>
-      <App />
-    </RootErrorBoundary>
-  </StrictMode>,
-);
+const rootElement = document.getElementById('root')!;
+const hasPrerenderedContent = 
+  rootElement.innerHTML.includes('Hospital-Grade Nursing Care') || 
+  (rootElement.children.length > 0 && !rootElement.querySelector('.sk-pulse'));
+
+if (hasPrerenderedContent) {
+  try {
+    hydrateRoot(
+      rootElement,
+      <StrictMode>
+        <RootErrorBoundary>
+          <App />
+        </RootErrorBoundary>
+      </StrictMode>
+    );
+  } catch (err) {
+    console.warn('[WeCare Hydration] Falling back to createRoot:', err);
+    createRoot(rootElement).render(
+      <StrictMode>
+        <RootErrorBoundary>
+          <App />
+        </RootErrorBoundary>
+      </StrictMode>
+    );
+  }
+} else {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <RootErrorBoundary>
+        <App />
+      </RootErrorBoundary>
+    </StrictMode>
+  );
+}

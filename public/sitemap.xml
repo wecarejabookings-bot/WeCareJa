@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <!-- Homepage / Public Landing -->
+  <url>
+    <loc>https://wecareja.com/</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://wecareja.com/images/wound_dressing.webp</image:loc>
+      <image:title>WeCare Jamaica Sterile Wound Dressing &amp; Home Healthcare</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://wecareja.com/images/elderly_vitals.webp</image:loc>
+      <image:title>VIP In-Home Nursing Care and Elderly Vitals Jamaica</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://wecareja.com/images/iv_therapy.webp</image:loc>
+      <image:title>In-Home IV Therapy and Clinical Nursing Procedures</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://wecareja.com/images/senior_respite.webp</image:loc>
+      <image:title>Senior Respite Care and Escrow Protection</image:title>
+    </image:image>
+    <image:image>
+      <image:loc>https://wecareja.com/images/bp_monitor.webp</image:loc>
+      <image:title>Digital Blood Pressure Monitor and Medical Supplies</image:title>
+    </image:image>
+  </url>
+
+  <!-- Medical Equipment & Supplies Store -->
+  <url>
+    <loc>https://wecareja.com/store</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://wecareja.com/images/bp_monitor.webp</image:loc>
+      <image:title>WeCare Jamaica Online Medical Equipment Store</image:title>
+    </image:image>
+  </url>
+
+  <!-- Registered Nurse & Caregiver Application Portal -->
+  <url>
+    <loc>https://wecareja.com/nurse-signup</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://wecareja.com/images/gauze_dressing.webp</image:loc>
+      <image:title>Join WeCare Jamaica Healthcare Practitioner Network</image:title>
+    </image:image>
+  </url>
+
+  <!-- About WeCare Jamaica -->
+  <url>
+    <loc>https://wecareja.com/about</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Contact & Emergency 119/110 Dispatch Support -->
+  <url>
+    <loc>https://wecareja.com/contact</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Legal & Terms of Care Service -->
+  <url>
+    <loc>https://wecareja.com/terms</loc>
+    <lastmod>2026-10-17</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

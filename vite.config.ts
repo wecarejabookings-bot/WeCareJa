@@ -36,15 +36,24 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (id.includes('recharts') || id.includes('d3-')) {
+                return 'vendor-charts';
+              }
+              if (id.includes('lucide-react')) {
+                return 'vendor-icons';
+              }
               if (id.includes('@supabase')) {
                 return 'vendor-supabase';
               }
               if (id.includes('leaflet')) {
                 return 'vendor-leaflet';
               }
-              if (id.includes('canvas-confetti') || id.includes('qrcode')) {
+              if (id.includes('canvas-confetti') || id.includes('qrcode') || id.includes('html5-qrcode')) {
                 return 'vendor-fx';
               }
+            }
+            if (id.includes('src/components/admin')) {
+              return 'admin-portal';
             }
           },
         },

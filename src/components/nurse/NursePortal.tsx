@@ -3,9 +3,10 @@ import { NurseProfile, Booking, ClinicalNotes, LogoVariation, InvoiceSummary, Pa
 import { KINGSTON_ZONES, PORTMORE_ZONES, SPANISH_TOWN_ZONES, ALL_SERVICE_ZONES, INITIAL_PAYOUTS } from '../../data/mockData';
 import { VisitTimerWidget } from './VisitTimerWidget';
 import { CallContactModal } from '../common/CallContactModal';
-import { InvoiceReceiptModal } from '../common/InvoiceReceiptModal';
 import { VerifiedNursingCouncilBadge } from '../common/VerifiedNursingCouncilBadge';
 import { NurseProfileModal } from '../common/NurseProfileModal';
+
+const InvoiceReceiptModal = React.lazy(() => import('../common/InvoiceReceiptModal').then(m => ({ default: m.InvoiceReceiptModal })));
 import { NurseQRCodeSignUpModal } from './NurseQRCodeSignUpModal';
 import { NursePayoutHistoryView } from './NursePayoutHistoryView';
 import { NursePeerNetworkView } from './NursePeerNetworkView';
@@ -91,8 +92,9 @@ import { VerifiedWeCareIDCardModal } from './VerifiedWeCareIDCardModal';
 import { NavigateToLocationButton } from '../common/NavigateToLocationButton';
 import { PoliceRecord60DayBanner } from './PoliceRecord60DayBanner';
 import { getProcedureVisual, getClientReputation } from '../../utils/procedureVisuals';
-import { NurseContractAgreementModal } from '../admin/NurseContractAgreementModal';
 import { CaregiverSuppliesChecklistModal } from './CaregiverSuppliesChecklistModal';
+
+const NurseContractAgreementModal = React.lazy(() => import('../admin/NurseContractAgreementModal').then(m => ({ default: m.NurseContractAgreementModal })));
 
 interface NursePortalProps {
   nurses: NurseProfile[];

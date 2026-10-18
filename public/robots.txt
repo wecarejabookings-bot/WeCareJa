@@ -1,0 +1,20 @@
+# Robots.txt for WeCare Jamaica (https://wecareja.com)
+# Enables fast indexing for all public healthcare, store, and nurse registration pages
+
+User-agent: *
+Allow: /
+Allow: /store
+Allow: /nurse-signup
+Allow: /about
+Allow: /contact
+Allow: /terms
+Allow: /images/
+Allow: /assets/
+
+# Restrict private administrative portals
+Disallow: /admin
+Disallow: /admin/*
+Disallow: /api/admin/*
+
+# XML Sitemap
+Sitemap: https://wecareja.com/sitemap.xml

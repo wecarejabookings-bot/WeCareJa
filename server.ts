@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
@@ -691,8 +692,31 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+
+    // Optimized cache-control for assets and static files
+    app.use("/assets", express.static(path.join(distPath, "assets"), {
+      maxAge: "365d",
+      immutable: true
+    }));
+    app.use("/images", express.static(path.join(distPath, "images"), {
+      maxAge: "365d",
+      immutable: true
+    }));
+
+    app.use(express.static(distPath, {
+      maxAge: "1d"
+    }));
+
     app.get("*", (req, res) => {
+      res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800");
+      res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+      const cleanPath = req.path.replace(/^\/|\/$/g, "");
+      const possibleSubRoute = path.join(distPath, cleanPath, "index.html");
+      if (cleanPath && fs.existsSync(possibleSubRoute)) {
+        return res.sendFile(possibleSubRoute);
+      }
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

@@ -56,7 +56,6 @@ import {
   CheckCircle,
   Info
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface AppLandingCoverProps {
   services: ServiceItem[];
@@ -120,7 +119,9 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
   const handleCopyPromo = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
-    confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
+    import('canvas-confetti').then(({ default: confetti }) => {
+      confetti({ particleCount: 50, spread: 70, origin: { y: 0.7 } });
+    }).catch(() => {});
     setTimeout(() => setCopiedCode(null), 3000);
   };
 
@@ -449,6 +450,10 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                     <img
                       src={t.pictureUrl}
                       alt={t.title}
+                      loading="lazy"
+                      decoding="async"
+                      width={280}
+                      height={96}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = t.fallbackUrl;
@@ -506,6 +511,10 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                     <img
                       src={topic.pictureUrl}
                       alt={topic.title}
+                      loading="lazy"
+                      decoding="async"
+                      width={112}
+                      height={96}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = topic.fallbackUrl;
@@ -905,6 +914,10 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                                 <img
                                   src={prod.image_url}
                                   alt={prod.name}
+                                  loading="lazy"
+                                  decoding="async"
+                                  width={200}
+                                  height={96}
                                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500';
@@ -1277,6 +1290,10 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                           <img
                             src={topic.pictureUrl}
                             alt={topic.title}
+                            loading="lazy"
+                            decoding="async"
+                            width={768}
+                            height={288}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = topic.fallbackUrl;

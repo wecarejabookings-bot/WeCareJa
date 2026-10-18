@@ -25,7 +25,6 @@ import {
   INITIAL_NURSING_SCHOOLS,
   INITIAL_VIDEO_MEETINGS
 } from './data/mockData';
-import { getDefaultSkillBadgesForNurse } from './data/skillBadges';
 import { INITIAL_PRACTITIONER_MILESTONES, INITIAL_PATIENT_MILESTONES } from './data/milestonesData';
 import { MilestoneItem } from './types';
 import { Header } from './components/common/Header';
@@ -2167,45 +2166,55 @@ export default function App() {
         onSelectVariation={(v) => setLogoVariation(v)}
       />
 
-      <LaunchKitModal
-        isOpen={isLaunchKitOpen}
-        onClose={() => setIsLaunchKitOpen(false)}
-        logoVariation={logoVariation}
-      />
+      {isLaunchKitOpen && (
+        <LaunchKitModal
+          isOpen={isLaunchKitOpen}
+          onClose={() => setIsLaunchKitOpen(false)}
+          logoVariation={logoVariation}
+        />
+      )}
 
-      {/* Full-Screen SOS Emergency Screen Takeover (Takes up entire screen on both client & nurse screens) */}
-      <FullScreenEmergencySOSOverlay
-        isOpen={isFullScreenSOSOpen && Boolean(activeEmergencySOS)}
-        emergencyData={activeEmergencySOS}
-        currentUserRole={currentRole}
-        onClose={() => setIsFullScreenSOSOpen(false)}
-        onResolveEmergency={handleResolveEmergency}
-      />
+      {/* Full-Screen SOS Emergency Screen Takeover */}
+      {isFullScreenSOSOpen && Boolean(activeEmergencySOS) && (
+        <FullScreenEmergencySOSOverlay
+          isOpen={isFullScreenSOSOpen && Boolean(activeEmergencySOS)}
+          emergencyData={activeEmergencySOS}
+          currentUserRole={currentRole}
+          onClose={() => setIsFullScreenSOSOpen(false)}
+          onResolveEmergency={handleResolveEmergency}
+        />
+      )}
 
-      <PanicModal
-        isOpen={isPanicModalOpen}
-        onClose={() => setIsPanicModalOpen(false)}
-        activeBooking={emergencyActiveBooking}
-        userRole={currentRole}
-      />
+      {isPanicModalOpen && (
+        <PanicModal
+          isOpen={isPanicModalOpen}
+          onClose={() => setIsPanicModalOpen(false)}
+          activeBooking={emergencyActiveBooking}
+          userRole={currentRole}
+        />
+      )}
 
       {/* Share We Care Modal */}
-      <ShareAppModal
-        isOpen={isShareAppOpen}
-        onClose={() => setIsShareAppOpen(false)}
-        logoVariation={logoVariation}
-      />
+      {isShareAppOpen && (
+        <ShareAppModal
+          isOpen={isShareAppOpen}
+          onClose={() => setIsShareAppOpen(false)}
+          logoVariation={logoVariation}
+        />
+      )}
 
       {/* Activity Notifications Live Stream Modal */}
-      <ActivityNotificationModal
-        isOpen={isNotificationsModalOpen}
-        onClose={() => setIsNotificationsModalOpen(false)}
-        notifications={notifications}
-        onMarkAsRead={handleMarkNotificationRead}
-        onMarkAllAsRead={handleMarkAllNotificationsRead}
-        onClearAll={handleClearNotifications}
-        onTriggerDemoAlert={handleTriggerNotification}
-      />
+      {isNotificationsModalOpen && (
+        <ActivityNotificationModal
+          isOpen={isNotificationsModalOpen}
+          onClose={() => setIsNotificationsModalOpen(false)}
+          notifications={notifications}
+          onMarkAsRead={handleMarkNotificationRead}
+          onMarkAllAsRead={handleMarkAllNotificationsRead}
+          onClearAll={handleClearNotifications}
+          onTriggerDemoAlert={handleTriggerNotification}
+        />
+      )}
 
       {/* 30-Minute Pre-Visit Reminder System Manager */}
       <VisitReminderNotificationManager
@@ -2235,27 +2244,29 @@ export default function App() {
       )}
 
       {/* Patient & Family Sign Up Modal */}
-      <PatientSignUpModal
-        isOpen={isPatientSignUpOpen}
-        onClose={() => setIsPatientSignUpOpen(false)}
-        onRegisterPatient={(newAccount) => {
-          setUserAccounts(prev => [newAccount, ...prev]);
-          setCurrentUserId(newAccount.id);
-          setCurrentRole('client');
-          handleTriggerNotification(
-            'booking_confirmed',
-            'Patient Account Created',
-            `Welcome ${newAccount.name}! Your patient profile and trusted family guardian record are now active.`
-          );
-        }}
-        onOpenSignIn={() => {
-          setIsPatientSignUpOpen(false);
-          handleOpenAuthModal('signin');
-        }}
-      />
+      {isPatientSignUpOpen && (
+        <PatientSignUpModal
+          isOpen={isPatientSignUpOpen}
+          onClose={() => setIsPatientSignUpOpen(false)}
+          onRegisterPatient={(newAccount) => {
+            setUserAccounts(prev => [newAccount, ...prev]);
+            setCurrentUserId(newAccount.id);
+            setCurrentRole('client');
+            handleTriggerNotification(
+              'booking_confirmed',
+              'Patient Account Created',
+              `Welcome ${newAccount.name}! Your patient profile and trusted family guardian record are now active.`
+            );
+          }}
+          onOpenSignIn={() => {
+            setIsPatientSignUpOpen(false);
+            handleOpenAuthModal('signin');
+          }}
+        />
+      )}
 
       {/* Patient Profile & Medical Bio Data Modal */}
-      {currentUser && currentUser.role === 'client' && (
+      {currentUser && currentUser.role === 'client' && isPatientProfileOpen && (
         <PatientProfileModal
           isOpen={isPatientProfileOpen}
           onClose={() => setIsPatientProfileOpen(false)}
@@ -2266,40 +2277,44 @@ export default function App() {
       )}
 
       {/* User Authentication & Profile Security Modal */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => {
-          setIsAuthModalOpen(false);
-          if (typeof window !== 'undefined' && window.location.pathname.includes('/auth')) {
-            try { window.history.replaceState({}, '', '/'); } catch {}
-          }
-        }}
-        currentUser={currentUser}
-        allAccounts={userAccounts}
-        isAuthenticated={isAuthenticated}
-        initialTab={authModalTab}
-        initialRole={authModalRole}
-        onSelectUser={handleSelectUser}
-        onUpdateUser={handleUpdateUser}
-        onCreateAccount={handleCreateAccount}
-        onSignOut={handleSignOut}
-        onOpenBiometricAuth={handleOpenBiometricAuth}
-      />
+      {isAuthModalOpen && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => {
+            setIsAuthModalOpen(false);
+            if (typeof window !== 'undefined' && window.location.pathname.includes('/auth')) {
+              try { window.history.replaceState({}, '', '/'); } catch {}
+            }
+          }}
+          currentUser={currentUser}
+          allAccounts={userAccounts}
+          isAuthenticated={isAuthenticated}
+          initialTab={authModalTab}
+          initialRole={authModalRole}
+          onSelectUser={handleSelectUser}
+          onUpdateUser={handleUpdateUser}
+          onCreateAccount={handleCreateAccount}
+          onSignOut={handleSignOut}
+          onOpenBiometricAuth={handleOpenBiometricAuth}
+        />
+      )}
 
-      {/* WebAuthn Biometric Authentication Modal (Fingerprint / Face ID / Windows Hello) */}
-      <BiometricAuthModal
-        isOpen={isBiometricAuthOpen}
-        onClose={() => setIsBiometricAuthOpen(false)}
-        allAccounts={userAccounts}
-        preSelectedUserId={biometricTargetUserId}
-        onAuthenticated={handleBiometricSuccess}
-        onSwitchToPasswordLogin={() => {
-          setIsBiometricAuthOpen(false);
-          handleOpenAuthModal('signin');
-        }}
-      />
+      {/* WebAuthn Biometric Authentication Modal */}
+      {isBiometricAuthOpen && (
+        <BiometricAuthModal
+          isOpen={isBiometricAuthOpen}
+          onClose={() => setIsBiometricAuthOpen(false)}
+          allAccounts={userAccounts}
+          preSelectedUserId={biometricTargetUserId}
+          onAuthenticated={handleBiometricSuccess}
+          onSwitchToPasswordLogin={() => {
+            setIsBiometricAuthOpen(false);
+            handleOpenAuthModal('signin');
+          }}
+        />
+      )}
 
-      {/* Test on Phone (PWA & Private Access Link) Modal */}
+      {/* Test on Phone Modal */}
       {isTestOnPhoneOpen && (
         <TestOnPhoneModal
           isOpen={isTestOnPhoneOpen}
@@ -2321,63 +2336,78 @@ export default function App() {
         />
       )}
 
-      {/* Launch Pack & Platform Disclaimers: Legal Terms (DPA 2020) */}
-      <LegalTermsModal
-        isOpen={isLegalTermsOpen}
-        onClose={() => setIsLegalTermsOpen(false)}
-      />
+      {/* Legal Terms Modal */}
+      {isLegalTermsOpen && (
+        <LegalTermsModal
+          isOpen={isLegalTermsOpen}
+          onClose={() => setIsLegalTermsOpen(false)}
+        />
+      )}
 
-      {/* Help: How It Works & Doorbell / Safety Guide */}
-      <HelpHowItWorksModal
-        isOpen={isHowItWorksOpen}
-        onClose={() => setIsHowItWorksOpen(false)}
-        onOpenSignUp={() => {
-          setIsHowItWorksOpen(false);
-          handleOpenUnifiedSignUp('client');
-        }}
-        onOpenPanic={() => {
-          setIsHowItWorksOpen(false);
-          handleOpenPanic();
-        }}
-      />
+      {/* Help: How It Works & Safety Guide */}
+      {isHowItWorksOpen && (
+        <HelpHowItWorksModal
+          isOpen={isHowItWorksOpen}
+          onClose={() => setIsHowItWorksOpen(false)}
+          onOpenSignUp={() => {
+            setIsHowItWorksOpen(false);
+            handleOpenUnifiedSignUp('client');
+          }}
+          onOpenPanic={() => {
+            setIsHowItWorksOpen(false);
+            handleOpenPanic();
+          }}
+        />
+      )}
 
       {/* Push Notification & Doorbell Sounds Audio Library */}
-      <PushNotificationLibraryModal
-        isOpen={isPushLibraryOpen}
-        onClose={() => setIsPushLibraryOpen(false)}
-      />
+      {isPushLibraryOpen && (
+        <PushNotificationLibraryModal
+          isOpen={isPushLibraryOpen}
+          onClose={() => setIsPushLibraryOpen(false)}
+        />
+      )}
 
-      {/* App Store & Google Play Launch Pack (Section 16 & 17) */}
-      <AppStoreLaunchPackModal
-        isOpen={isLaunchPackOpen}
-        onClose={() => setIsLaunchPackOpen(false)}
-      />
+      {/* App Store & Google Play Launch Pack */}
+      {isLaunchPackOpen && (
+        <AppStoreLaunchPackModal
+          isOpen={isLaunchPackOpen}
+          onClose={() => setIsLaunchPackOpen(false)}
+        />
+      )}
 
-      {/* Splash Onboarding Walkthrough (Screens 1, 2, 3) */}
-      <SplashOnboardingModal
-        isOpen={isOnboardingOpen}
-        onClose={() => setIsOnboardingOpen(false)}
-        onGetStarted={() => {
-          setIsOnboardingOpen(false);
-          handleOpenUnifiedSignUp('client');
-        }}
-      />
+      {/* Splash Onboarding Walkthrough */}
+      {isOnboardingOpen && (
+        <SplashOnboardingModal
+          isOpen={isOnboardingOpen}
+          onClose={() => setIsOnboardingOpen(false)}
+          onGetStarted={() => {
+            setIsOnboardingOpen(false);
+            handleOpenUnifiedSignUp('client');
+          }}
+        />
+      )}
 
-      {/* Official Contact Us Modal with Google Maps Embed */}
-      <ContactUsModal
-        isOpen={isContactUsOpen}
-        onClose={() => setIsContactUsOpen(false)}
-        logoVariation={logoVariation}
-      />
+      {/* Official Contact Us Modal */}
+      {isContactUsOpen && (
+        <ContactUsModal
+          isOpen={isContactUsOpen}
+          onClose={() => setIsContactUsOpen(false)}
+          logoVariation={logoVariation}
+        />
+      )}
 
       {/* Official About Us Modal */}
-      <AboutUsModal
-        isOpen={isAboutUsOpen}
-        onClose={() => setIsAboutUsOpen(false)}
-        logoVariation={logoVariation}
-        onOpenContact={() => setIsContactUsOpen(true)}
-      />
+      {isAboutUsOpen && (
+        <AboutUsModal
+          isOpen={isAboutUsOpen}
+          onClose={() => setIsAboutUsOpen(false)}
+          logoVariation={logoVariation}
+          onOpenContact={() => setIsContactUsOpen(true)}
+        />
+      )}
       </Suspense>
+
     </div>
   );
 }

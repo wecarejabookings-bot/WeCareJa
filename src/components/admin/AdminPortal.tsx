@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NurseProfile, Booking, PayoutRecord, LogoVariation, VideoMeeting, NursingSchool, UserAccount } from '../../types';
 import { KINGSTON_ZONES, PORTMORE_ZONES, SPANISH_TOWN_ZONES, INITIAL_PAYOUTS, ADMIN_PROFILE, INITIAL_NURSING_SCHOOLS, INITIAL_VIDEO_MEETINGS } from '../../data/mockData';
-import { InvoiceReceiptModal } from '../common/InvoiceReceiptModal';
+const InvoiceReceiptModal = React.lazy(() => import('../common/InvoiceReceiptModal').then(m => ({ default: m.InvoiceReceiptModal })));
 import { MedicalSummaryModal } from '../common/MedicalSummaryModal';
 import { ClientArrivalQRCodeModal } from '../common/ClientArrivalQRCodeModal';
 import { VerifiedNursingCouncilBadge } from '../common/VerifiedNursingCouncilBadge';
