@@ -37,6 +37,7 @@ const AppLandingCover = lazy(() => import('./components/cover/AppLandingCover').
 const LogoSelectorModal = lazy(() => import('./components/brand/LogoSelectorModal').then(m => ({ default: m.LogoSelectorModal })));
 const LaunchKitModal = lazy(() => import('./components/brand/LaunchKitModal').then(m => ({ default: m.LaunchKitModal })));
 const PanicModal = lazy(() => import('./components/common/PanicModal').then(m => ({ default: m.PanicModal })));
+const NearestPoliceStationModal = lazy(() => import('./components/common/NearestPoliceStationModal').then(m => ({ default: m.NearestPoliceStationModal })));
 const FullScreenEmergencySOSOverlay = lazy(() => import('./components/common/FullScreenEmergencySOSOverlay').then(m => ({ default: m.FullScreenEmergencySOSOverlay })));
 const PersistentEmergencyBanner = lazy(() => import('./components/common/PersistentEmergencyBanner').then(m => ({ default: m.PersistentEmergencyBanner })));
 const ChatModal = lazy(() => import('./components/chat/ChatModal').then(m => ({ default: m.ChatModal })));
@@ -386,6 +387,7 @@ export default function App() {
   const [isLogoStudioOpen, setIsLogoStudioOpen] = useState(false);
   const [isLaunchKitOpen, setIsLaunchKitOpen] = useState(false);
   const [isPanicModalOpen, setIsPanicModalOpen] = useState(false);
+  const [isNearestPoliceModalOpen, setIsNearestPoliceModalOpen] = useState(false);
   const [isNurseSignUpOpen, setIsNurseSignUpOpen] = useState(false);
   const [isPatientSignUpOpen, setIsPatientSignUpOpen] = useState(false);
   const [isPatientProfileOpen, setIsPatientProfileOpen] = useState(false);
@@ -1536,6 +1538,7 @@ export default function App() {
   const handleOpenPanic = (booking?: Booking) => {
     const target = booking || bookings.find(b => ['accepted', 'en_route', 'in_progress'].includes(b.status)) || null;
     setEmergencyActiveBooking(target);
+    setIsNearestPoliceModalOpen(true);
     handleTriggerFullScreenSOS(target, currentRole);
   };
 
@@ -1543,6 +1546,8 @@ export default function App() {
   useEffect(() => {
     const handleSosEvent = (e: any) => {
       const detail = e?.detail;
+      setEmergencyActiveBooking(detail?.booking || null);
+      setIsNearestPoliceModalOpen(true);
       handleTriggerFullScreenSOS(detail?.booking, detail?.userRole);
     };
 
@@ -2181,6 +2186,17 @@ export default function App() {
           currentUserRole={currentRole}
           onClose={() => setIsFullScreenSOSOpen(false)}
           onResolveEmergency={handleResolveEmergency}
+        />
+      )}
+
+      {/* Option Popup to Call Nearest Police Station based on exact location */}
+      {isNearestPoliceModalOpen && (
+        <NearestPoliceStationModal
+          isOpen={isNearestPoliceModalOpen}
+          onClose={() => setIsNearestPoliceModalOpen(false)}
+          userAddress={emergencyActiveBooking?.clientAddress || currentUser?.address || 'Kingston & St. Andrew, Jamaica'}
+          initialLat={emergencyActiveBooking ? 18.0125 : null}
+          initialLng={emergencyActiveBooking ? -76.7990 : null}
         />
       )}
 

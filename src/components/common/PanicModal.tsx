@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { ShieldAlert, PhoneCall, AlertTriangle, MapPin, Send, CheckCircle2, User, Heart } from 'lucide-react';
+import { ShieldAlert, PhoneCall, AlertTriangle, MapPin, Send, CheckCircle2, User, Heart, Building2 } from 'lucide-react';
 import { Booking } from '../../types';
 import { ADMIN_PROFILE } from '../../data/mockData';
+import { findNearestPoliceStations } from '../../data/jamaicaPoliceStations';
+import { NearestPoliceStationModal } from './NearestPoliceStationModal';
 
 interface PanicModalProps {
   isOpen: boolean;
@@ -17,7 +19,11 @@ export const PanicModal: React.FC<PanicModalProps> = ({
   userRole
 }) => {
   const [alertSent, setAlertSent] = useState(false);
+  const [isPolicePopupOpen, setIsPolicePopupOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+
+  const address = activeBooking?.clientAddress || 'Trafalgar Road, New Kingston, Jamaica';
+  const nearestPolice = findNearestPoliceStations(null, null, address, 1)[0];
 
   if (!isOpen) return null;
 
@@ -77,6 +83,41 @@ export const PanicModal: React.FC<PanicModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Option: Call Nearest Police Station based on exact location */}
+          {nearestPolice && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/80 via-slate-900 to-blue-950/80 border-2 border-blue-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500/30 text-blue-300 border border-blue-400/30 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
+                    <Building2 className="w-3 h-3" /> Nearest Police Station
+                  </span>
+                  <span className="text-[10px] text-amber-300 font-bold">
+                    ~{nearestPolice.distanceKm} km away • {nearestPolice.division}
+                  </span>
+                </div>
+                <h4 className="text-sm font-black text-white">{nearestPolice.name}</h4>
+                <p className="text-[11px] text-slate-300">{nearestPolice.address}</p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPolicePopupOpen(true)}
+                  className="px-3 py-2 rounded-xl bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-400/40 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  View Option Popup
+                </button>
+                <a
+                  href={`tel:${nearestPolice.primaryPhone.replace(/[^0-9+]/g, '')}`}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer shrink-0"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>Call Station</span>
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Primary 119 Call Action */}
           <div className="flex flex-col sm:flex-row gap-3">
@@ -169,6 +210,14 @@ export const PanicModal: React.FC<PanicModalProps> = ({
           </button>
         </div>
       </div>
+
+      {isPolicePopupOpen && (
+        <NearestPoliceStationModal
+          isOpen={isPolicePopupOpen}
+          onClose={() => setIsPolicePopupOpen(false)}
+          userAddress={address}
+        />
+      )}
     </div>
   );
 };

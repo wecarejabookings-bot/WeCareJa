@@ -22,6 +22,8 @@ import {
 import { Booking, UserRole } from '../../types';
 import { ADMIN_PROFILE } from '../../data/mockData';
 import { soundFX } from '../../utils/soundEffects';
+import { findNearestPoliceStations } from '../../data/jamaicaPoliceStations';
+import { NearestPoliceStationModal } from './NearestPoliceStationModal';
 
 export interface EmergencySOSData {
   id: string;
@@ -70,6 +72,14 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
   const [alertDispatched, setAlertDispatched] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [showResolveConfirm, setShowResolveConfirm] = useState(false);
+  const [isPolicePopupOpen, setIsPolicePopupOpen] = useState(false);
+
+  const nearestPolice = emergencyData ? findNearestPoliceStations(
+    emergencyData.gpsCoordinates?.lat || null,
+    emergencyData.gpsCoordinates?.lng || null,
+    emergencyData.clientAddress || emergencyData.zone || 'Kingston, Jamaica',
+    1
+  )[0] : null;
 
   // Play audio alert loop when opened
   useEffect(() => {
@@ -177,6 +187,41 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
             </span>
           </div>
         </div>
+
+        {/* Nearest Police Station Option Card */}
+        {nearestPolice && (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 border-2 border-blue-400 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-3 py-0.5 rounded-full bg-blue-500 text-white font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md">
+                  👮 Nearest Police Station Option
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-xs font-black">
+                  ~{nearestPolice.distanceKm} km away • {nearestPolice.division}
+                </span>
+              </div>
+              <h3 className="text-xl font-black text-white">{nearestPolice.name}</h3>
+              <p className="text-xs text-slate-300">{nearestPolice.address}</p>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsPolicePopupOpen(true)}
+                className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition flex items-center gap-2 cursor-pointer"
+              >
+                <span>View Stations Popup</span>
+              </button>
+              <a
+                href={`tel:${nearestPolice.primaryPhone.replace(/[^0-9+]/g, '')}`}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-sm font-black transition flex items-center gap-2 shadow-xl shadow-blue-950/80 cursor-pointer border border-blue-400/40"
+              >
+                <PhoneCall className="w-4 h-4 animate-bounce" />
+                <span>Call Station: {nearestPolice.primaryPhone}</span>
+              </a>
+            </div>
+          </div>
+        )}
 
         {/* Primary Speed-Dial Bar - Ultra Large Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -482,6 +527,16 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
           )}
         </div>
       </div>
+
+      {isPolicePopupOpen && (
+        <NearestPoliceStationModal
+          isOpen={isPolicePopupOpen}
+          onClose={() => setIsPolicePopupOpen(false)}
+          userAddress={emergencyData.clientAddress || emergencyData.zone || 'Kingston, Jamaica'}
+          initialLat={emergencyData.gpsCoordinates?.lat || null}
+          initialLng={emergencyData.gpsCoordinates?.lng || null}
+        />
+      )}
     </div>
   );
 };
