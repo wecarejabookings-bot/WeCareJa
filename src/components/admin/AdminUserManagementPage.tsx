@@ -143,143 +143,73 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
     status: 'approved' as AdminUserRecord['status']
   });
 
-  // Load all users from Supabase and local storage
+  // Load all users ONLY from Supabase profiles table
   const fetchAllUsers = async () => {
     setLoading(true);
-    const combinedUsersMap = new Map<string, AdminUserRecord>();
 
-    // 1. Gather local accounts from localStorage
     try {
-      const rawAccounts = localStorage.getItem('wecare_user_accounts');
-      if (rawAccounts) {
-        const parsed = JSON.parse(rawAccounts);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((acc: any) => {
-            if (acc.id) {
-              combinedUsersMap.set(acc.id, {
-                id: acc.id,
-                fullName: acc.name || acc.full_name || 'User',
-                username: acc.username || acc.email?.split('@')[0],
-                email: acc.email || '',
-                phone: acc.phone || '',
-                role: (acc.role as UserRole) || 'client',
-                address: acc.address || acc.zone || 'Kingston, Jamaica',
-                trn: acc.trn || '',
-                dateOfBirth: acc.patientBioData?.dateOfBirth || acc.dateOfBirth || '',
-                gender: acc.patientBioData?.gender || acc.gender || 'female',
-                emergencyContactName: acc.emergencyContact?.name || '',
-                emergencyContactPhone: acc.emergencyContact?.phone || '',
-                emergencyContactRelation: acc.emergencyContact?.relation || 'Next of Kin',
-                repName: acc.accountHolder?.name || '',
-                repPhone: acc.accountHolder?.phone || '',
-                repRelation: acc.accountHolder?.relationshipToPatient || '',
-                knownIllnesses: acc.patientBioData?.knownIllnesses || [],
-                allergies: acc.patientBioData?.allergies || [],
-                department: acc.department || 'Clinical Operations',
-                title: acc.title || '',
-                ncjLicense: acc.ncjLicense || acc.nursingCouncilLicense || '',
-                driversLicenseNumber: acc.driversLicenseNumber || '',
-                specialty: acc.specialty || acc.specialties?.[0] || '',
-                hourlyRate: acc.hourlyRate || acc.hourlyRateJMD || 7500,
-                bio: acc.bio || '',
-                createdAt: acc.createdAt || new Date().toISOString(),
-                status: acc.approvalStatus === 'approved' ? 'approved' : 'active',
-                source: 'local'
-              });
-            }
-          });
-        }
+      // Purge any stale mock accounts from localStorage
+      try {
+        localStorage.removeItem('wecare_user_accounts');
+      } catch {}
+
+      const { data: profiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error fetching profiles from Supabase:', error);
+        setToastMessage({ type: 'error', text: `Failed to load profiles: ${error.message}` });
+        setLoading(false);
+        return;
       }
-    } catch (e) {
-      console.warn('Error reading local user accounts:', e);
-    }
 
-    // 2. Gather nurses roster from localStorage
-    try {
-      const rawNurses = localStorage.getItem('wecare_nurses');
-      if (rawNurses) {
-        const parsedNurses = JSON.parse(rawNurses);
-        if (Array.isArray(parsedNurses)) {
-          parsedNurses.forEach((nurse: NurseProfile) => {
-            if (nurse.id) {
-              const existing = combinedUsersMap.get(nurse.id);
-              combinedUsersMap.set(nurse.id, {
-                id: nurse.id,
-                fullName: nurse.name || existing?.fullName || 'Nurse Practitioner',
-                email: nurse.email || existing?.email || '',
-                phone: nurse.phone || existing?.phone || '(876) 555-0199',
-                role: 'nurse',
-                address: nurse.zones?.[0] || existing?.address || 'Kingston',
-                trn: nurse.trnNumber || existing?.trn || '',
-                ncjLicense: nurse.nursingCouncilLicense || existing?.ncjLicense || 'NCJ-RN-ACTIVE',
-                specialty: nurse.specialties?.[0] || existing?.specialty || 'General Home Care',
-                hourlyRate: nurse.hourlyRateJMD || existing?.hourlyRate || 7500,
-                bio: nurse.bio || existing?.bio || '',
-                createdAt: existing?.createdAt || new Date().toISOString(),
-                status: nurse.status === 'approved' ? 'approved' : 'active',
-                source: 'local'
-              });
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading local nurses list:', e);
-    }
+      if (Array.isArray(profiles)) {
+        const mappedUsers: AdminUserRecord[] = profiles
+          .filter((p: any) => p && p.id && p.id !== 'admin-001' && p.id !== 'user-admin-01')
+          .map((p: any) => {
+            // Treat 'master_admin' as Admin so Sydney 2e9a3a25... shows as Admin not Client
+            const isMasterAdmin = 
+              p.role === 'master_admin' || 
+              p.username === 'sydney' || 
+              p.id === '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7';
 
-    // 3. Query Supabase profiles table
-    try {
-      const { data: profiles, error } = await supabase.from('profiles').select('*');
-      if (!error && Array.isArray(profiles)) {
-        profiles.forEach((p: any) => {
-          if (p.id) {
-            const existing = combinedUsersMap.get(p.id);
-            combinedUsersMap.set(p.id, {
+            const resolvedRole: UserRole = isMasterAdmin 
+              ? 'admin' 
+              : (p.role === 'admin' ? 'admin' : (p.role === 'nurse' ? 'nurse' : 'client'));
+
+            const displayName = 
+              p.full_name || 
+              (isMasterAdmin ? 'Sydney Mattis' : (p.username || p.email?.split('@')[0] || 'Registered User'));
+
+            return {
               id: p.id,
-              fullName: p.full_name || existing?.fullName || 'Registered User',
-              email: existing?.email || '',
-              phone: p.phone || existing?.phone || '',
-              role: (p.role as UserRole) || existing?.role || 'client',
-              address: p.address || existing?.address || 'Kingston, Jamaica',
-              trn: p.trn || existing?.trn || '',
-              ncjLicense: existing?.ncjLicense || '',
-              specialty: existing?.specialty || '',
-              hourlyRate: existing?.hourlyRate || 7500,
-              bio: existing?.bio || '',
-              createdAt: p.created_at || existing?.createdAt || new Date().toISOString(),
-              status: existing?.status || 'active',
-              source: 'supabase'
-            });
-          }
-        });
-      } else if (error) {
-        console.warn('Supabase profiles query note (RLS):', error.message);
+              fullName: displayName,
+              username: p.username || (isMasterAdmin ? 'sydney' : (p.email ? p.email.split('@')[0] : '')),
+              email: p.email || (isMasterAdmin ? 'sydney@wecareja.com' : ''),
+              phone: p.phone || (isMasterAdmin ? '+1876582-7613' : ''),
+              role: resolvedRole,
+              address: p.address || (isMasterAdmin ? '4 Claudette Drive St. Catherine' : 'Kingston, Jamaica'),
+              trn: p.trn || (isMasterAdmin ? '119-695-855' : ''),
+              department: isMasterAdmin ? 'Executive Clinical Leadership & Registry Audit' : (resolvedRole === 'admin' ? 'Administration' : undefined),
+              title: isMasterAdmin ? 'Lead Operations Director & Master Administrator' : (resolvedRole === 'admin' ? 'System Administrator' : (resolvedRole === 'nurse' ? 'Licensed Nurse Practitioner' : 'Registered Client')),
+              status: 'approved',
+              source: 'supabase',
+              createdAt: p.created_at || new Date().toISOString()
+            };
+          });
+
+        setUsers(mappedUsers);
+      } else {
+        setUsers([]);
       }
     } catch (err: any) {
-      console.warn('Supabase query note:', err?.message);
+      console.error('Unexpected error querying Supabase profiles:', err);
+      setToastMessage({ type: 'error', text: 'Error retrieving user records from Supabase' });
+    } finally {
+      setLoading(false);
     }
-
-    // Default Baseline Master Admin if empty
-    if (!combinedUsersMap.has('admin-001') && !combinedUsersMap.has('sydney-admin')) {
-      combinedUsersMap.set('admin-001', {
-        id: 'admin-001',
-        fullName: 'Sydney Mattis',
-        email: 'wecareja.bookings@gmail.com',
-        phone: '+1 (876) 582-7613',
-        role: 'admin',
-        address: 'Kingston 6, Jamaica',
-        createdAt: '2026-01-01T00:00:00.000Z',
-        status: 'approved',
-        source: 'local'
-      });
-    }
-
-    const resultList = Array.from(combinedUsersMap.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
-
-    setUsers(resultList);
-    setLoading(false);
   };
 
   useEffect(() => {

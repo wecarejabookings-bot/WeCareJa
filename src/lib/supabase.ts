@@ -611,22 +611,22 @@ export async function fetchCurrentProfile(userId: string, authUser?: any): Promi
   } catch {}
 
   // 4. Special fallback for Master Admin Sydney Mattis
-  if (userId === 'user-admin-01' || authUser?.email?.toLowerCase() === 'wecareja.bookings@gmail.com') {
+  if (userId === '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7' || authUser?.email?.toLowerCase() === 'wecareja.bookings@gmail.com' || authUser?.email?.toLowerCase() === 'sydney@wecareja.com') {
     return {
-      id: 'user-admin-01',
+      id: '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7',
       username: 'sydney',
       name: 'Sydney Mattis',
       full_name: 'Sydney Mattis',
-      email: 'wecareja.bookings@gmail.com',
-      phone: '(876) 582-7613',
+      email: 'sydney@wecareja.com',
+      phone: '+1876582-7613',
       role: 'admin',
       approvalStatus: 'approved',
       title: 'Lead Operations Director & Master Administrator',
       department: 'Executive Clinical Leadership & Registry Audit',
       avatarUrl: 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400',
       zone: 'St. Catherine & Kingston',
-      address: '4 Claudete Drive, St. Catherine, Jamaica',
-      createdAt: '2026-01-01T08:00:00.000Z'
+      address: '4 Claudette Drive St. Catherine',
+      createdAt: '2026-10-01T09:38:39.057275+00:00'
     };
   }
 

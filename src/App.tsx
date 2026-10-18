@@ -292,24 +292,23 @@ export default function App() {
   // State for user accounts & auth - Cleaned for launch: only Master Admin Sydney Mattis
   const [userAccounts, setUserAccounts] = useState<UserAccount[]>(() => {
     const masterAdmin: UserAccount = {
-      id: 'user-admin-01',
+      id: '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7',
       name: 'Sydney Mattis',
       username: 'sydney',
-      email: 'wecareja.bookings@gmail.com',
-      phone: '(876) 582-7613',
+      email: 'sydney@wecareja.com',
+      phone: '+1876582-7613',
       role: 'admin',
       title: 'Lead Operations Director & Master Administrator',
       department: 'Executive Clinical Leadership & Registry Audit',
       avatarUrl: 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400',
       zone: 'St. Catherine & Kingston',
-      address: '4 Claudete Drive, St. Catherine, Jamaica',
+      address: '4 Claudette Drive St. Catherine',
       password: '12345678',
       approvalStatus: 'approved',
-      createdAt: '2026-01-01T08:00:00.000Z',
-      lastLoginAt: '2026-09-30T03:30:00.000Z'
+      createdAt: '2026-10-01T09:38:39.057275+00:00',
+      lastLoginAt: '2026-10-01T09:38:39.057275+00:00'
     };
 
-    // Ready for launch: no users must be on app except master admin
     const finalAccounts = [masterAdmin];
     try {
       localStorage.setItem('wecare_user_accounts', JSON.stringify(finalAccounts));

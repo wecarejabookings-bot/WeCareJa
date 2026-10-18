@@ -21,14 +21,15 @@ export function isOwnerUser(currentUser: any): boolean {
   const email = String(currentUser.email || '').toLowerCase();
   const name = String(currentUser.name || currentUser.full_name || currentUser.fullName || '').toLowerCase();
   const id = String(currentUser.id || '').toLowerCase();
+  const role = String(currentUser.role || '').toLowerCase();
 
   return (
     username === 'sydney' ||
     email === 'wecareja.bookings@gmail.com' ||
+    email === 'sydney@wecareja.com' ||
     name.includes('sydney') ||
-    id === 'user-admin-01' ||
-    id === 'admin-sydney' ||
-    id === 'admin-001'
+    id === '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7' ||
+    role === 'master_admin'
   );
 }
 
@@ -42,14 +43,15 @@ export function isMasterAdminProfile(profile: any): boolean {
   const email = String(profile.email || '').toLowerCase();
   const name = String(profile.name || profile.full_name || profile.fullName || '').toLowerCase();
   const id = String(profile.id || '').toLowerCase();
+  const role = String(profile.role || '').toLowerCase();
 
   return (
     username === 'sydney' ||
     email === 'wecareja.bookings@gmail.com' ||
+    email === 'sydney@wecareja.com' ||
     name.includes('sydney') ||
-    id === 'user-admin-01' ||
-    id === 'admin-sydney' ||
-    id === 'admin-001'
+    id === '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7' ||
+    role === 'master_admin'
   );
 }
 
