@@ -22,6 +22,8 @@ export interface EmergencyVoiceScriptResult {
   phoneticCoordinates: string;
   smsBody: string;
   roleDescription: string;
+  resolvedName: string;
+  resolvedAddress: string;
 }
 
 /**
@@ -55,9 +57,11 @@ export function formatPhoneticCoordinates(lat: number, lng: number): string {
 /**
  * Build the full emergency police dispatch script conforming strictly to requirements:
  * 1. Specifies WeCareJa.care (w-e-c-a-r-e-j-a dot c-a-r-e)
- * 2. Specifies the exact user role (Patient / Registered Nurse / Administrator)
- * 3. States that they are in distress and need the urgent assistance of the police
- * 4. States their location according to their exact coordinates
+ * 2. Specifies the user's name registered on the app
+ * 3. Specifies the user's address registered on the app
+ * 4. Specifies the exact user role (Patient / Registered Nurse / Administrator)
+ * 5. States that they are in distress and need the urgent assistance of the police
+ * 6. States their location according to their exact GPS coordinates
  */
 export function buildPoliceVoiceEmergencyScript(params: EmergencyVoiceScriptParams): EmergencyVoiceScriptResult {
   const { userRole, userName, lat, lng, address, nearestStationName, nearestStationDistanceKm } = params;
@@ -75,38 +79,44 @@ export function buildPoliceVoiceEmergencyScript(params: EmergencyVoiceScriptPara
   const roundedLat = lat.toFixed(4);
   const roundedLng = lng.toFixed(4);
   const phoneticCoords = formatPhoneticCoordinates(lat, lng);
-  const userIdent = userName ? `${userName}, a ${roleDescription}` : `a ${roleDescription}`;
+
+  const resolvedName = userName?.trim() || (userRole === 'nurse' ? 'Nurse Healthcare Provider' : userRole === 'admin' ? 'Lead Administrator' : 'Patient Client');
+  const resolvedAddress = address?.trim() || 'Kingston & St. Andrew, Jamaica';
 
   const stationRef = nearestStationName 
-    ? `Reference station: ${nearestStationName}${nearestStationDistanceKm !== undefined ? ` located approximately ${nearestStationDistanceKm} kilometers away` : ''}. `
+    ? `Reference police station: ${nearestStationName}${nearestStationDistanceKm !== undefined ? ` located approximately ${nearestStationDistanceKm} kilometers away` : ''}. `
     : '';
-
-  const addressRef = address ? `Near address: ${address}. ` : '';
 
   const fullText = 
     `Attention Jamaica Constabulary Force 119 and Emergency Police Dispatch. ` +
     `This is an automated emergency distress broadcast from WeCareJa.care, spelled W-E-C-A-R-E-J-A dot C-A-R-E. ` +
-    `The reporting user is ${userIdent} in the We Care Jamaica care network. ` +
     `The user is in distress, unable to speak, and needs the urgent assistance of the police immediately. ` +
-    `Their exact location according to GPS coordinates is: Latitude ${roundedLat} degrees North, Longitude ${roundedLng} degrees West. ` +
+    `The reporting user's name on the app is: ${resolvedName}. ` +
+    `User account role: ${roleDescription}. ` +
+    `The user's registered address on the app is: ${resolvedAddress}. ` +
+    `Their exact location according to real-time GPS coordinates is: Latitude ${roundedLat} degrees North, Longitude ${roundedLng} degrees West. ` +
     `${phoneticCoords}. ` +
-    `${addressRef}` +
     `${stationRef}` +
-    `Repeating distress message: This is WeCareJa.care. The ${shortRole} is in acute distress and requires urgent police tactical intervention at coordinates ${roundedLat}, ${roundedLng}. ` +
-    `Please dispatch an emergency police response unit to these exact coordinates now.`;
+    `Repeating emergency identification for police units: ` +
+    `User name on the app: ${resolvedName}. ` +
+    `Address on the app: ${resolvedAddress}. ` +
+    `The ${shortRole} is in acute distress and requires urgent police tactical intervention at coordinates ${roundedLat}, ${roundedLng}. ` +
+    `Please dispatch an emergency police response unit to ${resolvedName} at ${resolvedAddress} immediately.`;
 
   const shortText = 
-    `Automated Emergency Distress Broadcast from WeCareJa.care: A ${roleDescription} (${userName || 'User'}) is in severe distress and unable to speak. Urgent police assistance required at Coordinates: ${roundedLat}, ${roundedLng} (${address || 'Jamaica'}).`;
+    `Automated Emergency Distress Broadcast from WeCareJa.care: User Name: "${resolvedName}" (${roleDescription}) at registered app address "${resolvedAddress}" is in severe distress and unable to speak. Urgent police assistance required at Coordinates: ${roundedLat}, ${roundedLng}.`;
 
   const smsBody = 
-    `🚨 WECAREJA.CARE EMERGENCY POLICE ALERT: A ${roleDescription} (${userName || 'User'}) is in distress and needs urgent police response! GPS: ${roundedLat}, ${roundedLng}. Map: https://maps.google.com/?q=${roundedLat},${roundedLng} Ref: ${address || 'Kingston, Jamaica'}`;
+    `🚨 WECAREJA.CARE EMERGENCY POLICE ALERT: ${resolvedName} (${roleDescription}) is in severe distress and needs urgent police response! Address on app: ${resolvedAddress}. GPS: ${roundedLat}, ${roundedLng}. Map: https://maps.google.com/?q=${roundedLat},${roundedLng}`;
 
   return {
     fullText,
     shortText,
     phoneticCoordinates: phoneticCoords,
     smsBody,
-    roleDescription
+    roleDescription,
+    resolvedName,
+    resolvedAddress
   };
 }
 

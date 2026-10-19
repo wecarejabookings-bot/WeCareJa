@@ -11,20 +11,25 @@ interface PanicModalProps {
   onClose: () => void;
   activeBooking?: Booking | null;
   userRole: 'client' | 'nurse' | 'admin';
+  userName?: string;
+  userAddress?: string;
 }
 
 export const PanicModal: React.FC<PanicModalProps> = ({
   isOpen,
   onClose,
   activeBooking,
-  userRole
+  userRole,
+  userName,
+  userAddress
 }) => {
   const [alertSent, setAlertSent] = useState(false);
   const [isPolicePopupOpen, setIsPolicePopupOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  const address = activeBooking?.clientAddress || 'Trafalgar Road, New Kingston, Jamaica';
-  const nearestPolice = findNearestPoliceStations(null, null, address, 1)[0];
+  const effectiveAddress = userAddress || activeBooking?.clientAddress || 'Trafalgar Road, New Kingston, Jamaica';
+  const effectiveName = userName || (userRole === 'nurse' ? (activeBooking?.nurseName || 'Nurse on Duty') : (activeBooking?.clientName || 'Patient / Family'));
+  const nearestPolice = findNearestPoliceStations(null, null, effectiveAddress, 1)[0];
 
   if (!isOpen) return null;
 
@@ -123,10 +128,10 @@ export const PanicModal: React.FC<PanicModalProps> = ({
           {/* AI Voice Police Dispatcher (30s Failsafe Countdown when unable to speak) */}
           <AIEmergencyVoicePoliceDispatch
             userRole={userRole}
-            userName={userRole === 'nurse' ? (activeBooking?.nurseName || 'Nurse on Duty') : (activeBooking?.clientName || 'Patient / Family')}
+            userName={effectiveName}
             lat={null}
             lng={null}
-            address={address}
+            address={effectiveAddress}
             nearestStationName={nearestPolice?.name}
             nearestStationPhone={nearestPolice?.primaryPhone}
             nearestStationDistanceKm={nearestPolice?.distanceKm}
@@ -229,9 +234,9 @@ export const PanicModal: React.FC<PanicModalProps> = ({
         <NearestPoliceStationModal
           isOpen={isPolicePopupOpen}
           onClose={() => setIsPolicePopupOpen(false)}
-          userAddress={address}
+          userAddress={effectiveAddress}
           userRole={userRole}
-          userName={userRole === 'nurse' ? (activeBooking?.nurseName || 'Nurse on Duty') : (activeBooking?.clientName || 'Patient / Family')}
+          userName={effectiveName}
         />
       )}
     </div>

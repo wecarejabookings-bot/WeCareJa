@@ -1480,15 +1480,16 @@ export default function App() {
     const targetBooking = bookingContext || emergencyActiveBooking || bookings.find(b => ['accepted', 'en_route', 'in_progress'].includes(b.status)) || bookings[0];
     const role = triggeredByRole || currentRole;
     const triggererName = currentUser ? getDisplayName(currentUser, currentUser) : (role === 'nurse' ? (targetBooking?.nurseName || 'Nurse on Duty') : role === 'admin' ? 'Lead Administrator' : (targetBooking?.clientName || 'Patient / Family'));
+    const userAddressOnApp = currentUser?.address?.trim() || targetBooking?.clientAddress || '14 Hope Road, Kingston 6, Jamaica';
 
     const emergencyData: EmergencySOSData = {
       id: `sos-${Date.now()}`,
       triggeredBy: role === 'nurse' ? 'nurse' : role === 'admin' ? 'admin' : 'client',
       triggererName,
-      clientName: targetBooking?.clientName || 'Mrs. Marjorie Simpson',
-      clientPhone: targetBooking?.clientPhone || '+1 (876) 555-0182',
-      clientAddress: targetBooking?.clientAddress || '14 Hope Road, Kingston 6',
-      zone: targetBooking?.zone || 'Liguanea',
+      clientName: targetBooking?.clientName || (currentUser ? getDisplayName(currentUser, currentUser) : 'Mrs. Marjorie Simpson'),
+      clientPhone: targetBooking?.clientPhone || currentUser?.phone || '+1 (876) 555-0182',
+      clientAddress: userAddressOnApp,
+      zone: targetBooking?.zone || currentUser?.zone || 'Liguanea',
       serviceName: targetBooking?.serviceName || 'Geriatric Vital Signs & Fall Monitoring',
       nurseName: targetBooking?.nurseName || 'Nurse Keisha Brown, RN',
       nursePhone: targetBooking?.nursePhone || '+1 (876) 555-0199',
@@ -2217,7 +2218,7 @@ export default function App() {
         <NearestPoliceStationModal
           isOpen={isNearestPoliceModalOpen}
           onClose={() => setIsNearestPoliceModalOpen(false)}
-          userAddress={emergencyActiveBooking?.clientAddress || currentUser?.address || 'Kingston & St. Andrew, Jamaica'}
+          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || '14 Hope Road, Kingston 6, Jamaica'}
           initialLat={emergencyActiveBooking ? 18.0125 : null}
           initialLng={emergencyActiveBooking ? -76.7990 : null}
           userRole={currentRole}
@@ -2231,6 +2232,8 @@ export default function App() {
           onClose={() => setIsPanicModalOpen(false)}
           activeBooking={emergencyActiveBooking}
           userRole={currentRole}
+          userName={currentUser ? getDisplayName(currentUser, currentUser) : undefined}
+          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || '14 Hope Road, Kingston 6, Jamaica'}
         />
       )}
 

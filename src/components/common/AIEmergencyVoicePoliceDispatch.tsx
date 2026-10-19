@@ -294,7 +294,7 @@ export const AIEmergencyVoicePoliceDispatch: React.FC<AIEmergencyVoicePoliceDisp
                   30-Second Silent Failsafe Running
                 </span>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  If you are unable to speak to the police after 30 seconds, an automated AI voice will start telling the police you are in distress with your exact coordinates.
+                  If you are unable to speak to the police after 30 seconds, an automated AI voice will start telling the police that you are in distress, stating your name ({scriptData.resolvedName}), registered address ({scriptData.resolvedAddress}), and exact coordinates.
                 </p>
               </div>
             </div>
@@ -378,6 +378,25 @@ export const AIEmergencyVoicePoliceDispatch: React.FC<AIEmergencyVoicePoliceDisp
             <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans bg-slate-950/70 p-3 rounded-xl border border-white/10 select-text">
               &ldquo;{scriptData.fullText}&rdquo;
             </p>
+
+            {/* Registered App Credentials & Coordinates Pills */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-white/10 text-[11px]">
+              <div className="flex items-center gap-2 text-blue-300 font-bold bg-blue-950/50 p-2.5 rounded-xl border border-blue-500/30">
+                <UserCheck className="w-4 h-4 text-blue-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] text-blue-400 block uppercase tracking-wider font-extrabold">Name on App</span>
+                  <span className="text-white font-black truncate block">{scriptData.resolvedName}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-amber-300 font-bold bg-amber-950/50 p-2.5 rounded-xl border border-amber-500/30">
+                <MapPin className="w-4 h-4 text-amber-400 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] text-amber-400 block uppercase tracking-wider font-extrabold">Address on App</span>
+                  <span className="text-white font-black truncate block">{scriptData.resolvedAddress}</span>
+                </div>
+              </div>
+            </div>
 
             {/* Exact GPS Coordinates Pill */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px]">
