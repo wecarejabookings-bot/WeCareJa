@@ -24,6 +24,7 @@ import { ADMIN_PROFILE } from '../../data/mockData';
 import { soundFX } from '../../utils/soundEffects';
 import { findNearestPoliceStations } from '../../data/jamaicaPoliceStations';
 import { NearestPoliceStationModal } from './NearestPoliceStationModal';
+import { AIEmergencyVoicePoliceDispatch } from './AIEmergencyVoicePoliceDispatch';
 
 export interface EmergencySOSData {
   id: string;
@@ -222,6 +223,19 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
             </div>
           </div>
         )}
+
+        {/* AI Voice Police Dispatcher (30s Failsafe Countdown when unable to speak) */}
+        <AIEmergencyVoicePoliceDispatch
+          userRole={emergencyData.triggeredBy || currentUserRole}
+          userName={emergencyData.triggererName || emergencyData.clientName}
+          lat={emergencyData.gpsCoordinates?.lat ?? null}
+          lng={emergencyData.gpsCoordinates?.lng ?? null}
+          address={emergencyData.clientAddress || emergencyData.zone || 'Kingston, Jamaica'}
+          nearestStationName={nearestPolice?.name}
+          nearestStationPhone={nearestPolice?.primaryPhone}
+          nearestStationDistanceKm={nearestPolice?.distanceKm}
+          autoStartCountdown={true}
+        />
 
         {/* Primary Speed-Dial Bar - Ultra Large Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -535,6 +549,8 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
           userAddress={emergencyData.clientAddress || emergencyData.zone || 'Kingston, Jamaica'}
           initialLat={emergencyData.gpsCoordinates?.lat || null}
           initialLng={emergencyData.gpsCoordinates?.lng || null}
+          userRole={emergencyData.triggeredBy || currentUserRole}
+          userName={emergencyData.triggererName || emergencyData.clientName}
         />
       )}
     </div>

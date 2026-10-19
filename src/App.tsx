@@ -1514,6 +1514,29 @@ export default function App() {
     localStorage.setItem('wecare_active_emergency_sos', JSON.stringify(emergencyData));
     soundFX.playQuickSOSTone();
 
+    // Query live GPS coordinates immediately to provide exact coordinates to police dispatch
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const liveLat = pos.coords.latitude;
+          const liveLng = pos.coords.longitude;
+          setActiveEmergencySOS(prev => {
+            if (!prev) return prev;
+            const updated = {
+              ...prev,
+              gpsCoordinates: { lat: liveLat, lng: liveLng }
+            };
+            try {
+              localStorage.setItem('wecare_active_emergency_sos', JSON.stringify(updated));
+            } catch {}
+            return updated;
+          });
+        },
+        (err) => console.warn('Emergency GPS lock note:', err.message),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+      );
+    }
+
     handleTriggerNotification(
       'sos_emergency',
       '🚨 119 EMERGENCY TAKEOVER TRIGGERED',
@@ -2197,6 +2220,8 @@ export default function App() {
           userAddress={emergencyActiveBooking?.clientAddress || currentUser?.address || 'Kingston & St. Andrew, Jamaica'}
           initialLat={emergencyActiveBooking ? 18.0125 : null}
           initialLng={emergencyActiveBooking ? -76.7990 : null}
+          userRole={currentRole}
+          userName={currentUser ? getDisplayName(currentUser, currentUser) : undefined}
         />
       )}
 

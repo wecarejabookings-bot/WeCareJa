@@ -20,6 +20,7 @@ import {
   PoliceStation 
 } from '../../data/jamaicaPoliceStations';
 import { formatCoordinates } from '../../utils/locationDetector';
+import { AIEmergencyVoicePoliceDispatch } from './AIEmergencyVoicePoliceDispatch';
 
 interface NearestPoliceStationModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ interface NearestPoliceStationModalProps {
   userAddress?: string;
   initialLat?: number | null;
   initialLng?: number | null;
+  userRole?: 'client' | 'nurse' | 'admin';
+  userName?: string;
 }
 
 export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps> = ({
@@ -34,7 +37,9 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
   onClose,
   userAddress = 'Kingston & St. Andrew, Jamaica',
   initialLat = null,
-  initialLng = null
+  initialLng = null,
+  userRole = 'client',
+  userName
 }) => {
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(() => {
     if (initialLat && initialLng) {
@@ -163,6 +168,19 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
               </span>
             )}
           </div>
+
+          {/* AI Voice Police Dispatcher (30s Failsafe Countdown when unable to speak) */}
+          <AIEmergencyVoicePoliceDispatch
+            userRole={userRole}
+            userName={userName}
+            lat={gpsCoords?.lat ?? initialLat}
+            lng={gpsCoords?.lng ?? initialLng}
+            address={userAddress}
+            nearestStationName={nearestStation?.name}
+            nearestStationPhone={nearestStation?.primaryPhone}
+            nearestStationDistanceKm={nearestStation?.distanceKm}
+            autoStartCountdown={true}
+          />
 
           {/* Featured #1 Closest Police Station */}
           {nearestStation && (

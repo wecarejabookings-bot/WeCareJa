@@ -4,6 +4,7 @@ import { Booking } from '../../types';
 import { ADMIN_PROFILE } from '../../data/mockData';
 import { findNearestPoliceStations } from '../../data/jamaicaPoliceStations';
 import { NearestPoliceStationModal } from './NearestPoliceStationModal';
+import { AIEmergencyVoicePoliceDispatch } from './AIEmergencyVoicePoliceDispatch';
 
 interface PanicModalProps {
   isOpen: boolean;
@@ -119,6 +120,19 @@ export const PanicModal: React.FC<PanicModalProps> = ({
             </div>
           )}
 
+          {/* AI Voice Police Dispatcher (30s Failsafe Countdown when unable to speak) */}
+          <AIEmergencyVoicePoliceDispatch
+            userRole={userRole}
+            userName={userRole === 'nurse' ? (activeBooking?.nurseName || 'Nurse on Duty') : (activeBooking?.clientName || 'Patient / Family')}
+            lat={null}
+            lng={null}
+            address={address}
+            nearestStationName={nearestPolice?.name}
+            nearestStationPhone={nearestPolice?.primaryPhone}
+            nearestStationDistanceKm={nearestPolice?.distanceKm}
+            autoStartCountdown={true}
+          />
+
           {/* Primary 119 Call Action */}
           <div className="flex flex-col sm:flex-row gap-3">
             <a
@@ -216,6 +230,8 @@ export const PanicModal: React.FC<PanicModalProps> = ({
           isOpen={isPolicePopupOpen}
           onClose={() => setIsPolicePopupOpen(false)}
           userAddress={address}
+          userRole={userRole}
+          userName={userRole === 'nurse' ? (activeBooking?.nurseName || 'Nurse on Duty') : (activeBooking?.clientName || 'Patient / Family')}
         />
       )}
     </div>
