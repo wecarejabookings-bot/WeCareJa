@@ -26,6 +26,7 @@ import { soundFX } from '../../utils/soundEffects';
 import { saveNurseProfile } from '../../services/qrFirebaseStore';
 import { supabase, saveNurseProfileToSupabase } from '../../lib/supabase';
 import { NurseProfile } from '../../types';
+import { AgreementSignatureBox, SignatureData } from '../common/AgreementSignatureBox';
 
 export interface NurseOnboardingFormProps {
   onSuccess?: (newNurse: NurseProfile) => void;
@@ -92,6 +93,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
   const [selectedHourlyRate, setSelectedHourlyRate] = useState<number>(7500);
 
   // Submission State & Feedback
+  const [signatureData, setSignatureData] = useState<SignatureData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [errorToast, setErrorToast] = useState<string | null>(null);
@@ -167,6 +169,12 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
     if (!fullName.trim()) {
       setErrorToast('Please enter your full legal name.');
+      soundFX.playWarningSound();
+      return;
+    }
+
+    if (!signatureData || !signatureData.signed) {
+      setErrorToast('Please read, digitally sign, and accept the Healthcare Practitioner Agreement in the signature box below.');
       soundFX.playWarningSound();
       return;
     }
@@ -258,6 +266,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       if (ncjLicense.trim()) parts.push(ncjLicense.trim());
       if (trn.trim()) parts.push(`TRN: ${trn.trim()}`);
       if (finalDocUrl) parts.push(`DOC: ${finalDocUrl}`);
+      if (signatureData?.signed) parts.push('SIGNED: YES');
 
       const trnCombined = parts.join(' | ') || (finalDocUrl ? `DOC: ${finalDocUrl}` : (trn.trim() || ''));
 
@@ -728,15 +737,25 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                   </select>
                 </div>
 
+                {/* Mandatory Agreement Information & Digital Signature Box */}
+                <AgreementSignatureBox
+                  roleType="nurse"
+                  signerName={fullName || 'Nurse Applicant'}
+                  onSignatureChange={setSignatureData}
+                  required={true}
+                />
+
                 {/* Submit Action */}
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !signatureData?.signed}
                   className="w-full mt-3 py-3.5 rounded-2xl text-xs font-black text-[#1E1B4B] shadow-xl transition flex items-center justify-center gap-2 cursor-pointer hover:opacity-95 disabled:opacity-50"
                   style={{ backgroundColor: '#F59E0B' }}
                 >
                   {isSubmitting ? (
                     <span>Registering Practitioner...</span>
+                  ) : !signatureData?.signed ? (
+                    <span>Sign Agreement Above to Complete Registration</span>
                   ) : (
                     <>
                       <span>Complete Free Practitioner Registration</span>

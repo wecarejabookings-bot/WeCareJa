@@ -45,6 +45,7 @@ import { CameraCaptureModal } from '../common/CameraCaptureModal';
 import { compressImageFile } from '../../utils/imageCompression';
 import { supabase } from '../../lib/supabase';
 import confetti from 'canvas-confetti';
+import { AgreementSignatureBox, SignatureData } from '../common/AgreementSignatureBox';
 
 const JAMAICAN_PARISHES = [
   'Kingston',
@@ -232,6 +233,10 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const [adminDepartment, setAdminDepartment] = useState('Clinical Operations');
   const [adminStaffId, setAdminStaffId] = useState(`ADM-WC-${new Date().getFullYear()}-01`);
   const [adminPasskey, setAdminPasskey] = useState('12345678');
+
+  // SIGNATURE STATES FOR NURSE & ADMIN AGREEMENTS
+  const [nurseSignature, setNurseSignature] = useState<SignatureData | null>(null);
+  const [adminSignature, setAdminSignature] = useState<SignatureData | null>(null);
 
   // File Upload Handlers with compression
   const handleFileUpload = async (
@@ -423,9 +428,25 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       return;
     }
 
-    if (role === 'admin' && adminPasskey !== '12345678' && adminPasskey.toLowerCase() !== 'wecareadmin') {
-      setErrorMsg('Invalid administrator security passkey. (Hint: default code is 12345678).');
-      return;
+    if (role === 'nurse') {
+      if (!nurseSignature || !nurseSignature.signed) {
+        setErrorMsg('Please read, digitally sign, and accept the Healthcare Practitioner Independent Contractor Agreement in Step 5 before submitting.');
+        setNurseStep(5);
+        soundFX.playWarningSound();
+        return;
+      }
+    }
+
+    if (role === 'admin') {
+      if (adminPasskey !== '12345678' && adminPasskey.toLowerCase() !== 'wecareadmin') {
+        setErrorMsg('Invalid administrator security passkey. (Hint: default code is 12345678).');
+        return;
+      }
+      if (!adminSignature || !adminSignature.signed) {
+        setErrorMsg('Please read, digitally sign, and accept the Administrator Data Governance & Clinical Oversight Agreement before registering.');
+        soundFX.playWarningSound();
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -440,6 +461,10 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
 
     try {
       let userId = `user-${role}-${Date.now()}`;
+      const dbRole = role === 'nurse' ? 'nurse_pending' : role;
+      const trnValue = role === 'nurse'
+        ? `${nurseTrn.trim()}${trnCertUrl ? ` | DOC: ${trnCertUrl}` : ''}${nurseSignature?.signed ? ' | SIGNED: YES' : ''}`
+        : (role === 'admin' && adminSignature?.signed ? `ADMIN-SIGNED-${adminStaffId}` : '');
 
       // 1. Supabase Auth registration attempt
       try {
@@ -449,10 +474,10 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           options: {
             data: {
               full_name: cleanFullName,
-              role: role,
+              role: dbRole,
               phone: cleanPhone,
               address: cleanAddress,
-              trn: (role === 'nurse' ? nurseTrn : '').trim()
+              trn: trnValue
             }
           }
         });
@@ -477,10 +502,10 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         await supabase.from('profiles').upsert({
           id: userId,
           full_name: cleanFullName,
-          role: role,
+          role: dbRole,
           phone: cleanPhone,
           address: cleanAddress,
-          trn: role === 'nurse' ? nurseTrn.trim() : ''
+          trn: trnValue
         }, { onConflict: 'id' });
       } catch (profErr) {
         console.warn('Profiles table note:', profErr);
@@ -1987,6 +2012,14 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 </div>
               </div>
 
+              {/* Mandatory Agreement Information & Digital Signature Box */}
+              <AgreementSignatureBox
+                roleType="nurse"
+                signerName={fullName || 'Nurse Applicant'}
+                onSignatureChange={setNurseSignature}
+                required={true}
+              />
+
               <div className="flex items-center justify-between pt-2">
                 <button
                   type="button"
@@ -1997,12 +2030,18 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !nurseSignature?.signed}
                   onClick={() => handleFinalSubmit()}
                   className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-[#1E1B4B] hover:opacity-95 text-white font-black transition flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-950/60 disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-                  <span>{isSubmitting ? 'Submitting Application...' : 'Submit Credentials for Admin Review'}</span>
+                  <span>
+                    {isSubmitting 
+                      ? 'Submitting Application...' 
+                      : !nurseSignature?.signed 
+                      ? 'Sign Agreement Above to Submit' 
+                      : 'Submit Credentials for Admin Review'}
+                  </span>
                 </button>
               </div>
             </div>
@@ -2175,15 +2214,29 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             </div>
           </div>
 
+          {/* Mandatory Agreement Information & Digital Signature Box */}
+          <AgreementSignatureBox
+            roleType="admin"
+            signerName={fullName || 'Administrator Applicant'}
+            onSignatureChange={setAdminSignature}
+            required={true}
+          />
+
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !adminSignature?.signed}
               onClick={() => handleFinalSubmit()}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-[#1E1B4B] hover:opacity-95 text-white font-black transition flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-950/60 disabled:opacity-50"
             >
               <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              <span>{isSubmitting ? 'Creating Profile...' : 'Register Administrator Account'}</span>
+              <span>
+                {isSubmitting 
+                  ? 'Creating Profile...' 
+                  : !adminSignature?.signed 
+                  ? 'Sign Agreement Above to Register' 
+                  : 'Register Administrator Account'}
+              </span>
             </button>
           </div>
         </div>
