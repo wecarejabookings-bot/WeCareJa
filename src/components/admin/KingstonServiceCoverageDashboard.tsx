@@ -37,7 +37,7 @@ import { ALL_ZONES_GEO, ZoneGeo } from '../../data/geoData';
 import { KINGSTON_ZONES } from '../../data/mockData';
 import { formatJMD } from '../../utils/currency';
 import { soundFX } from '../../utils/soundEffects';
-import { CaregiverPayoutChart } from './CaregiverPayoutChart';
+const CaregiverPayoutChart = React.lazy(() => import('./CaregiverPayoutChart').then(m => ({ default: m.CaregiverPayoutChart })));
 
 interface KingstonServiceCoverageDashboardProps {
   bookings: Booking[];
@@ -931,14 +931,16 @@ export const KingstonServiceCoverageDashboard: React.FC<KingstonServiceCoverageD
           {/* If Split mode, display Caregiver Payout Chart side-by-side */}
           {activeViewMode === 'split' && (
             <div>
-              <CaregiverPayoutChart
-                nurses={nurses}
-                bookings={bookings}
-                payouts={payouts}
-                onTriggerBatchPayout={onTriggerBatchPayout}
-                onOpenExportModal={onOpenExportModal}
-                compactMode={true}
-              />
+              <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading payout chart...</div>}>
+                <CaregiverPayoutChart
+                  nurses={nurses}
+                  bookings={bookings}
+                  payouts={payouts}
+                  onTriggerBatchPayout={onTriggerBatchPayout}
+                  onOpenExportModal={onOpenExportModal}
+                  compactMode={true}
+                />
+              </React.Suspense>
             </div>
           )}
         </div>
@@ -946,14 +948,16 @@ export const KingstonServiceCoverageDashboard: React.FC<KingstonServiceCoverageD
 
       {/* FULL CAREGIVER PAYOUT CHART VIEW */}
       {activeViewMode === 'payout_chart' && (
-        <CaregiverPayoutChart
-          nurses={nurses}
-          bookings={bookings}
-          payouts={payouts}
-          onTriggerBatchPayout={onTriggerBatchPayout}
-          onOpenExportModal={onOpenExportModal}
-          compactMode={false}
-        />
+        <React.Suspense fallback={<div className="p-8 text-center text-xs text-slate-400">Loading payout chart...</div>}>
+          <CaregiverPayoutChart
+            nurses={nurses}
+            bookings={bookings}
+            payouts={payouts}
+            onTriggerBatchPayout={onTriggerBatchPayout}
+            onOpenExportModal={onOpenExportModal}
+            compactMode={false}
+          />
+        </React.Suspense>
       )}
     </div>
   );

@@ -50,7 +50,8 @@ import {
   signInWithUsername, 
   signUpClientUser, 
   updateProfileData, 
-  softDeleteAccount 
+  softDeleteAccount,
+  saveNurseProfileToSupabase
 } from '../../lib/supabase';
 
 interface AuthModalProps {
@@ -572,21 +573,37 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         } catch {}
       }
 
-      // Upsert into profiles table using ONLY existing columns: id, full_name, role, phone, address, trn
+      // Upsert into profiles table with all valid columns: id, email, username, full_name, role, phone, address, trn
+      const targetRole = regRole === 'nurse' ? 'nurse_pending' : regRole;
+      const trnCombined = regNcjLicense.trim() 
+        ? `${regNcjLicense.trim()} | TRN: ${regTrn.trim()}` 
+        : regTrn.trim();
+
       try {
         await supabase.from('profiles').upsert({
           id: userId,
+          email: cleanEmail,
+          username: cleanUsername,
           full_name: cleanFullName,
-          role: regRole, // EXACT ROLE (nurse, client, or admin)
+          role: targetRole,
           phone: cleanPhone,
           address: fullAddress,
-          trn: regTrn.trim() || ''
+          trn: trnCombined || ''
         }, { onConflict: 'id' });
       } catch (upErr) {
         console.warn('profiles upsert note:', upErr);
       }
 
-      // If Nurse: Create and save NurseProfile to wecare_nurses roster
+      // Backup credentials locally so user can always sign back in even if Supabase confirms or rate limits
+      try {
+        const rawCreds = localStorage.getItem('wecare_auth_passwords') || '{}';
+        const creds = JSON.parse(rawCreds);
+        creds[cleanEmail] = regPassword.trim();
+        creds[cleanUsername] = regPassword.trim();
+        localStorage.setItem('wecare_auth_passwords', JSON.stringify(creds));
+      } catch {}
+
+      // If Nurse: Create and save NurseProfile to wecare_nurses roster in 'pending_approval' for Admin Review
       if (regRole === 'nurse') {
         const newNurseProfile: NurseProfile = {
           id: userId,
@@ -594,21 +611,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           phone: cleanPhone || '(876) 555-0199',
           email: cleanEmail,
           photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-          nursingCouncilLicense: regNcjLicense.trim() || 'NCJ-RN-ACTIVE',
+          nursingCouncilLicense: regNcjLicense.trim() || 'NCJ-RN-PENDING',
           trnNumber: regTrn.trim() || '',
-          licenseVerified: true,
-          status: 'approved',
+          trn: regTrn.trim() || '',
+          licenseVerified: false,
+          status: 'pending_approval',
           rating: 5.0,
-          reviewCount: 1,
+          reviewCount: 0,
           yearsExperience: 4,
           specialties: [regSpecialty.trim() || 'Elderly & Geriatric Home Care', 'Vitals Monitoring'],
           zones: [regParish, 'New Kingston', 'St. Andrew'],
           hourlyRateJMD: Number(regHourlyRate) || 7500,
-          bio: regBio.trim() || `Licensed Healthcare Practitioner serving ${regParish} and surrounding areas.`,
+          bio: regBio.trim() || `Licensed Healthcare Practitioner serving ${regParish} and surrounding areas. Status: Pending NCJ & Admin Vetting.`,
           totalEarningsJMD: 0,
           pendingPayoutJMD: 0,
           completedVisitsCount: 0
         };
+
+        // Push nurse profile to Supabase
+        saveNurseProfileToSupabase(newNurseProfile).catch(() => {});
 
         try {
           const rawNurses = localStorage.getItem('wecare_nurses');
@@ -627,7 +648,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         email: cleanEmail,
         phone: cleanPhone,
         role: regRole, // EXACT ROLE (nurse, client, or admin)
-        approvalStatus: 'approved',
+        approvalStatus: regRole === 'nurse' ? 'pending_approval' : 'approved',
         nurseProfileId: regRole === 'nurse' ? userId : undefined,
         title: regRole === 'admin' ? 'Administrator' : regRole === 'nurse' ? 'Registered Healthcare Practitioner' : 'Family Client',
         zone: regParish,

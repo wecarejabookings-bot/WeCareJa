@@ -2,15 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { NurseProfile, Booking, PayoutRecord, LogoVariation, VideoMeeting, NursingSchool, UserAccount } from '../../types';
 import { KINGSTON_ZONES, PORTMORE_ZONES, SPANISH_TOWN_ZONES, INITIAL_PAYOUTS, ADMIN_PROFILE, INITIAL_NURSING_SCHOOLS, INITIAL_VIDEO_MEETINGS } from '../../data/mockData';
 const InvoiceReceiptModal = React.lazy(() => import('../common/InvoiceReceiptModal').then(m => ({ default: m.InvoiceReceiptModal })));
-import { MedicalSummaryModal } from '../common/MedicalSummaryModal';
-import { ClientArrivalQRCodeModal } from '../common/ClientArrivalQRCodeModal';
+const MedicalSummaryModal = React.lazy(() => import('../common/MedicalSummaryModal').then(m => ({ default: m.MedicalSummaryModal })));
+const ClientArrivalQRCodeModal = React.lazy(() => import('../common/ClientArrivalQRCodeModal').then(m => ({ default: m.ClientArrivalQRCodeModal })));
 import { VerifiedNursingCouncilBadge } from '../common/VerifiedNursingCouncilBadge';
-import { MonthlyEarningsReport } from './MonthlyEarningsReport';
-import { NurseQRCodeSignUpModal } from '../nurse/NurseQRCodeSignUpModal';
-import { NurseContractAgreementModal } from './NurseContractAgreementModal';
-import { NursePerformanceAnalyticsDashboard } from './NursePerformanceAnalyticsDashboard';
-import { NursingSchoolsLearningDatabaseManager } from './NursingSchoolsLearningDatabaseManager';
-import { AdminVideoMeetingSchedulerModal } from './AdminVideoMeetingSchedulerModal';
+const MonthlyEarningsReport = React.lazy(() => import('./MonthlyEarningsReport').then(m => ({ default: m.MonthlyEarningsReport })));
+const NurseQRCodeSignUpModal = React.lazy(() => import('../nurse/NurseQRCodeSignUpModal').then(m => ({ default: m.NurseQRCodeSignUpModal })));
+const NurseContractAgreementModal = React.lazy(() => import('./NurseContractAgreementModal').then(m => ({ default: m.NurseContractAgreementModal })));
+const NursePerformanceAnalyticsDashboard = React.lazy(() => import('./NursePerformanceAnalyticsDashboard').then(m => ({ default: m.NursePerformanceAnalyticsDashboard })));
+const NursingSchoolsLearningDatabaseManager = React.lazy(() => import('./NursingSchoolsLearningDatabaseManager').then(m => ({ default: m.NursingSchoolsLearningDatabaseManager })));
+const AdminVideoMeetingSchedulerModal = React.lazy(() => import('./AdminVideoMeetingSchedulerModal').then(m => ({ default: m.AdminVideoMeetingSchedulerModal })));
 import { soundFX } from '../../utils/soundEffects';
 import { 
   createNurseInviteQR, 
@@ -65,28 +65,40 @@ import {
   Edit2,
   X,
   Percent,
-  ShoppingBag
+  ShoppingBag,
+  RefreshCw
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
-import { SkillBadgeAdminPipeline } from './SkillBadgeAdminPipeline';
-import { DataExportPrintModal, ExportEntityType } from '../common/DataExportPrintModal';
+const SkillBadgeAdminPipeline = React.lazy(() => import('./SkillBadgeAdminPipeline').then(m => ({ default: m.SkillBadgeAdminPipeline })));
+const DataExportPrintModal = React.lazy(() => import('../common/DataExportPrintModal').then(m => ({ default: m.DataExportPrintModal })));
 import { SmartBookingSearch } from '../common/SmartBookingSearch';
 import { NurseSearchFilter } from '../common/NurseSearchFilter';
-import { UserAccountsManager } from './UserAccountsManager';
-import { ClientReviewDashboard } from '../client/ClientReviewDashboard';
-import { KingstonServiceCoverageDashboard } from './KingstonServiceCoverageDashboard';
-import { CaregiverPayoutChart } from './CaregiverPayoutChart';
-import { WhatsAppTemplatesManagerModal } from '../whatsapp/WhatsAppTemplatesManagerModal';
-import { AdminPayrollAccountabilitySystem } from './AdminPayrollAccountabilitySystem';
-import { AdminBusinessSettingsModal } from './AdminBusinessSettingsModal';
-import { AdminNurseEditModal } from './AdminNurseEditModal';
-import { AdminBookingActionModal } from './AdminBookingActionModal';
-import { AdminSupplyOrdersManager } from './AdminSupplyOrdersManager';
-import { AdminRatesPricingManager } from './AdminRatesPricingManager';
-import { AdminStoreInventoryManager } from './AdminStoreInventoryManager';
-import { AdminTopicsDirectoryManager } from './AdminTopicsDirectoryManager';
-import { updateBookingPriceInSupabase } from '../../lib/supabase';
+const UserAccountsManager = React.lazy(() => import('./UserAccountsManager').then(m => ({ default: m.UserAccountsManager })));
+const ClientReviewDashboard = React.lazy(() => import('../client/ClientReviewDashboard').then(m => ({ default: m.ClientReviewDashboard })));
+const KingstonServiceCoverageDashboard = React.lazy(() => import('./KingstonServiceCoverageDashboard').then(m => ({ default: m.KingstonServiceCoverageDashboard })));
+const CaregiverPayoutChart = React.lazy(() => import('./CaregiverPayoutChart').then(m => ({ default: m.CaregiverPayoutChart })));
+const WhatsAppTemplatesManagerModal = React.lazy(() => import('../whatsapp/WhatsAppTemplatesManagerModal').then(m => ({ default: m.WhatsAppTemplatesManagerModal })));
+const AdminPayrollAccountabilitySystem = React.lazy(() => import('./AdminPayrollAccountabilitySystem').then(m => ({ default: m.AdminPayrollAccountabilitySystem })));
+const AdminBusinessSettingsModal = React.lazy(() => import('./AdminBusinessSettingsModal').then(m => ({ default: m.AdminBusinessSettingsModal })));
+const AdminNurseEditModal = React.lazy(() => import('./AdminNurseEditModal').then(m => ({ default: m.AdminNurseEditModal })));
+const AdminBookingActionModal = React.lazy(() => import('./AdminBookingActionModal').then(m => ({ default: m.AdminBookingActionModal })));
+const AdminSupplyOrdersManager = React.lazy(() => import('./AdminSupplyOrdersManager').then(m => ({ default: m.AdminSupplyOrdersManager })));
+const AdminRatesPricingManager = React.lazy(() => import('./AdminRatesPricingManager').then(m => ({ default: m.AdminRatesPricingManager })));
+const AdminStoreInventoryManager = React.lazy(() => import('./AdminStoreInventoryManager').then(m => ({ default: m.AdminStoreInventoryManager })));
+const AdminTopicsDirectoryManager = React.lazy(() => import('./AdminTopicsDirectoryManager').then(m => ({ default: m.AdminTopicsDirectoryManager })));
+import { supabase, updateBookingPriceInSupabase } from '../../lib/supabase';
 import { getDisplayName } from '../../utils/privacy';
+
+export interface PendingNurseProfile {
+  id: string;
+  username?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  role: string;
+  phone?: string | null;
+  address?: string | null;
+  trn?: string | null;
+  created_at?: string | null;
+}
 
 interface AdminPortalProps {
   nurses: NurseProfile[];
@@ -269,6 +281,159 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     return unsub;
   }, []);
 
+  // Live Nurse Vetting Pipeline from Supabase public.profiles (role='nurse_pending')
+  const [pendingProfiles, setPendingProfiles] = useState<PendingNurseProfile[]>([]);
+  const [isLoadingPendingProfiles, setIsLoadingPendingProfiles] = useState(false);
+  const [pendingActionLoadingId, setPendingActionLoadingId] = useState<string | null>(null);
+  const [pendingActionToast, setPendingActionToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [pendingSearchQuery, setPendingSearchQuery] = useState('');
+
+  const fetchPendingNurseProfiles = async () => {
+    setIsLoadingPendingProfiles(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'nurse_pending')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('[AdminPortal] Error querying profiles for nurse_pending:', error.message);
+      } else if (data) {
+        setPendingProfiles(data);
+      }
+    } catch (err) {
+      console.warn('[AdminPortal] Exception fetching pending profiles:', err);
+    } finally {
+      setIsLoadingPendingProfiles(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingNurseProfiles();
+
+    // Subscribe to live database updates on profiles table
+    const channel = supabase
+      .channel('admin-profiles-vetting-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        fetchPendingNurseProfiles();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const handleApproveNurseProfile = async (profileId: string, nurseName?: string | null) => {
+    try {
+      setPendingActionLoadingId(profileId);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: 'nurse' })
+        .eq('id', profileId);
+
+      if (error) throw error;
+
+      onApproveNurse(profileId);
+      setPendingProfiles(prev => prev.filter(p => p.id !== profileId));
+      setPendingActionToast({
+        type: 'success',
+        message: `Approved ${nurseName || 'Practitioner'}! Updated role to 'nurse' in Supabase.`
+      });
+      setTimeout(() => setPendingActionToast(null), 5000);
+      soundFX.playSuccessPing();
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({
+          particleCount: 75,
+          spread: 65,
+          origin: { y: 0.6 },
+          colors: ['#1E1B4B', '#10B981', '#F59E0B']
+        });
+      }).catch(() => {});
+    } catch (err: any) {
+      console.error('Error approving nurse:', err);
+      setPendingActionToast({
+        type: 'error',
+        message: `Failed to approve: ${err?.message || 'Database error'}`
+      });
+      setTimeout(() => setPendingActionToast(null), 6000);
+    } finally {
+      setPendingActionLoadingId(null);
+    }
+  };
+
+  const handleRejectNurseProfile = async (profileId: string, nurseName?: string | null) => {
+    try {
+      setPendingActionLoadingId(profileId);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: 'client' })
+        .eq('id', profileId);
+
+      if (error) throw error;
+
+      onRejectNurse(profileId);
+      setPendingProfiles(prev => prev.filter(p => p.id !== profileId));
+      setPendingActionToast({
+        type: 'success',
+        message: `Application rejected for ${nurseName || 'Practitioner'}. Updated role to 'client' in Supabase.`
+      });
+      setTimeout(() => setPendingActionToast(null), 5000);
+      soundFX.playStepComplete();
+    } catch (err: any) {
+      console.error('Error rejecting nurse:', err);
+      setPendingActionToast({
+        type: 'error',
+        message: `Failed to reject: ${err?.message || 'Database error'}`
+      });
+      setTimeout(() => setPendingActionToast(null), 6000);
+    } finally {
+      setPendingActionLoadingId(null);
+    }
+  };
+
+  const parseProfileCredentials = (rawTrn?: string | null) => {
+    if (!rawTrn) return { trnNumber: '—', documentUrls: [] as string[], ncjLicense: null as string | null };
+
+    const urls: string[] = [];
+    let trnNumber = '';
+    let ncjLicense: string | null = null;
+
+    // Look for any http/https URLs inside the trn string
+    const urlMatches = rawTrn.match(/https?:\/\/[^\s|]+/g);
+    if (urlMatches) {
+      urls.push(...urlMatches);
+    }
+
+    const parts = rawTrn.split('|').map(p => p.trim());
+    for (const part of parts) {
+      if (part.toUpperCase().startsWith('NCJ') || part.toUpperCase().startsWith('RN')) {
+        ncjLicense = part;
+      } else if (part.toUpperCase().startsWith('TRN:')) {
+        trnNumber = part.replace(/^TRN:\s*/i, '').trim();
+      } else if (part.toUpperCase().startsWith('DOC:')) {
+        const doc = part.replace(/^DOC:\s*/i, '').trim();
+        if (doc && !urls.includes(doc)) {
+          urls.push(doc);
+        }
+      } else if (!trnNumber && /^[0-9\-\s]{5,15}$/.test(part)) {
+        trnNumber = part;
+      }
+    }
+
+    if (!trnNumber && !urls.includes(rawTrn) && rawTrn.length < 30) {
+      trnNumber = rawTrn;
+    }
+
+    return {
+      trnNumber: trnNumber || (rawTrn.startsWith('http') ? 'Document Attached' : rawTrn),
+      documentUrls: urls,
+      ncjLicense
+    };
+  };
+
+  const pendingNurseCount = pendingProfiles.length;
   const pendingNurses = nurses.filter(n => n.status === 'pending_approval');
   const approvedNurses = nurses.filter(n => n.status === 'approved');
   const disputedBookings = bookings.filter(b => b.status === 'disputed' || b.status === 'cancelled');
@@ -282,12 +447,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const nursePool85JMD = bookings.reduce((acc, b) => acc + b.nurseEarningsJMD, 0);
 
   const handleBatchPayout = () => {
-    confetti({
-      particleCount: 90,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ['#1E1B4B', '#10B981', '#F59E0B']
-    });
+    import('canvas-confetti').then(({ default: confetti }) => {
+      confetti({
+        particleCount: 90,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#1E1B4B', '#10B981', '#F59E0B']
+      });
+    }).catch(() => {});
     setPayoutsList(prev => prev.map(p => ({ ...p, status: 'completed' })));
     setPayoutSuccessMsg(true);
     setTimeout(() => setPayoutSuccessMsg(false), 3000);
@@ -519,7 +686,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
           <div className="bg-white/5 border border-white/10 p-3.5 rounded-2xl backdrop-blur-md">
             <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Pending Nurse Vetting</span>
-            <span className="text-lg font-black text-amber-400 mt-0.5 block">{pendingNurses.length} Applications</span>
+            <span className="text-lg font-black text-amber-400 mt-0.5 block">{pendingNurseCount} Applications</span>
             <span className="text-[10px] text-slate-400">Manual review &amp; verification</span>
           </div>
 
@@ -546,9 +713,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             >
               <UserCheck className="w-4 h-4 text-purple-300" />
               <span>Nurse Directory &amp; Vetting</span>
-              {pendingNurses.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-                  {pendingNurses.length}
+              {pendingNurseCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-[#1E1B4B] text-[10px] font-black">
+                  {pendingNurseCount}
                 </span>
               )}
             </button>
@@ -708,9 +875,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               }`}
             >
               <UserCheck className="w-4 h-4 text-purple-300" /> Nurse Vetting &amp; NCJ
-              {pendingNurses.length > 0 && (
-                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
-                  {pendingNurses.length}
+              {pendingNurseCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-500 text-[#1E1B4B] text-[10px] font-black">
+                  {pendingNurseCount}
                 </span>
               )}
             </button>
@@ -820,6 +987,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         )}
       </div>
 
+      <React.Suspense fallback={
+        <div className="p-8 text-center text-xs text-slate-400 bg-white/[0.02] rounded-3xl border border-white/5">
+          <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <span>Loading management module...</span>
+        </div>
+      }>
       {/* TAB 0: ADMIN PAYROLL & ACCOUNTABILITY SYSTEM (Master Admin) */}
       {activeTab === 'payroll' && effectiveMasterAdmin && (
         <AdminPayrollAccountabilitySystem
@@ -887,7 +1060,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <span>Register New Nurse</span>
                 </button>
               )}
-              <span className="text-xs text-purple-300 font-bold bg-purple-950/40 border border-purple-500/30 px-3 py-1.5 rounded-xl">{pendingNurses.length} Pending Review</span>
+              <span className="text-xs text-purple-300 font-bold bg-purple-950/40 border border-purple-500/30 px-3 py-1.5 rounded-xl">{pendingNurseCount} Pending Review</span>
             </div>
           </div>
 
@@ -1028,279 +1201,266 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </button>
           </div>
 
-          {pendingNurses.length === 0 ? (
-            <div className="p-8 rounded-3xl bg-white/[0.04] backdrop-blur-xl border border-white/10 text-center space-y-2">
-              <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-              <h4 className="font-bold text-white text-sm">All Nurse Applications Cleared</h4>
-              <p className="text-xs text-slate-400">All registered nurses are approved and taking visits in Kingston, St. Andrew, Portmore &amp; Spanish Town.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {pendingNurses.map((nurse) => (
-                <div
-                  key={nurse.id}
-                  className="p-5 rounded-3xl bg-white/[0.04] backdrop-blur-xl border border-amber-500/30 shadow-xl space-y-4 hover:border-purple-400 transition text-white"
-                >
-                  {/* Nurse Header & Photo */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div 
-                        onClick={() => setSelectedDocModal({
-                          title: `Professional Nurse Photo - ${nurse.name}`,
-                          docUrl: nurse.photoUrl,
-                          nurseName: nurse.name,
-                          licenseNo: nurse.nursingCouncilLicense,
-                          docType: 'photo'
-                        })}
-                        className="relative group cursor-pointer"
-                        title="Click to view full resolution photo"
-                      >
-                        <img loading="lazy" decoding="async"
-                          src={nurse.photoUrl}
-                          alt={nurse.name}
-                          className="w-16 h-16 rounded-2xl object-cover border-2 border-amber-400/80 shadow-md group-hover:opacity-90 transition"
-                        />
-                        <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                          <Eye className="w-4 h-4 text-white" />
-                        </div>
-                      </div>
-                      <div>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          Awaiting NCJ Verification
-                        </span>
-                        <h4 className="font-bold text-white text-base mt-1">{nurse.name}</h4>
-                        <span className="text-xs text-slate-400 block">{nurse.phone} • {nurse.email}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* General Profile Details */}
-                  <div className="p-3 rounded-2xl bg-white/5 border border-white/10 text-xs space-y-1 font-mono">
-                    <p className="text-slate-300">
-                      <strong>Experience:</strong> {nurse.yearsExperience} years clinical practice
-                    </p>
-                    <p className="text-slate-300">
-                      <strong>Coverage Zones:</strong> {(nurse?.zones || []).slice(0, 3).join(', ')}{((nurse?.zones || []).length > 3) ? ` +${(nurse?.zones?.length || 0) - 3} more` : ''}
-                    </p>
-                    <p className="text-slate-300">
-                      <strong>Bank Payout:</strong> {(nurse.bankDetails?.bankName || 'National Commercial Bank').split(' ')[0]} ({nurse.bankDetails?.accountNumber || 'Pending'})
-                    </p>
-                  </div>
-
-                  {/* STRICTLY CONFIDENTIAL DOCUMENTS (ADMIN EYES ONLY) */}
-                  <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-950/60 via-black/50 to-emerald-950/30 border border-purple-500/40 space-y-3">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
-                        <Lock className="w-3.5 h-3.5" />
-                        <span>Confidential Clinical Credentials (Admin Only)</span>
-                      </div>
-                      <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 bg-black/50 px-2 py-0.5 rounded-full">
-                        Hidden from Client
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      {/* NCJ License Certificate Scan */}
-                      <div className="bg-black/40 p-2.5 rounded-xl border border-white/10 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-purple-300 flex items-center gap-1">
-                            <FileText className="w-3 h-3 text-[#C77DFF]" /> NCJ Certificate Scan
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-mono">
-                            Exp: {nurse.licenseExpiryDate || '2027-12-31'}
-                          </span>
-                        </div>
-                        
-                        <div className="relative group rounded-lg overflow-hidden h-20 bg-slate-900 border border-white/10">
-                          <img loading="lazy" decoding="async"
-                            src={nurse.licenseDocumentUrl || 'https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=800'}
-                            alt="NCJ License Scan"
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocModal({
-                              title: `Nursing Council Practicing Certificate - ${nurse.name}`,
-                              docUrl: nurse.licenseDocumentUrl || 'https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=800',
-                              nurseName: nurse.name,
-                              licenseNo: nurse.nursingCouncilLicense,
-                              docType: 'certificate',
-                              expiryDate: nurse.licenseExpiryDate || '2027-12-31'
-                            })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-purple-300" /> Inspect Certificate
-                          </button>
-                        </div>
-
-                        <div className="text-[11px] font-mono text-slate-200">
-                          License: <strong className="text-purple-300">{nurse.nursingCouncilLicense}</strong>
-                        </div>
-                      </div>
-
-                      {/* Government ID Scan & TRN */}
-                      <div className="bg-black/40 p-2.5 rounded-xl border border-white/10 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-emerald-300 flex items-center gap-1">
-                            <CreditCard className="w-3 h-3 text-emerald-400" /> Government ID Scan
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-mono">
-                            TRN: {nurse.trnNumber || '219-440-983'}
-                          </span>
-                        </div>
-
-                        <div className="relative group rounded-lg overflow-hidden h-20 bg-slate-900 border border-white/10">
-                          <img loading="lazy" decoding="async"
-                            src={nurse.governmentIdUrl || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800'}
-                            alt="Government ID Scan"
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocModal({
-                              title: `Government ID & TRN Scan - ${nurse.name}`,
-                              docUrl: nurse.governmentIdUrl || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-                              nurseName: nurse.name,
-                              licenseNo: nurse.nursingCouncilLicense,
-                              docType: 'govid',
-                              trn: nurse.trnNumber || '219-440-983'
-                            })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-emerald-300" /> Inspect ID &amp; TRN
-                          </button>
-                        </div>
-
-                        <div className="text-[11px] font-mono text-slate-200">
-                          ID: <strong>{nurse.governmentIdType || 'Passport / National ID'}</strong>
-                        </div>
-                      </div>
-
-                      {/* Driver's License Front */}
-                      <div className="bg-black/40 p-2.5 rounded-xl border border-amber-500/30 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-amber-300 flex items-center gap-1">
-                            <CreditCard className="w-3 h-3 text-amber-400" /> Driver's License (Front)
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-mono">
-                            Front Side
-                          </span>
-                        </div>
-                        <div className="relative group rounded-lg overflow-hidden h-20 bg-slate-900 border border-white/10">
-                          <img loading="lazy" decoding="async"
-                            src={nurse.driversLicenseFrontUrl || nurse.governmentIdUrl || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800'}
-                            alt="Driver License Front"
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocModal({
-                              title: `Driver's License (Front Side) - ${nurse.name}`,
-                              docUrl: nurse.driversLicenseFrontUrl || nurse.governmentIdUrl || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-                              nurseName: nurse.name,
-                              licenseNo: nurse.driversLicenseNumber || nurse.nursingCouncilLicense,
-                              docType: 'govid'
-                            })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-amber-300" /> Inspect DL Front
-                          </button>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-200 truncate">
-                          DL#: <strong className="text-amber-300">{nurse.driversLicenseNumber || 'DL-JAM-98214-A'}</strong>
-                        </div>
-                      </div>
-
-                      {/* Driver's License Back */}
-                      <div className="bg-black/40 p-2.5 rounded-xl border border-amber-500/30 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-amber-300 flex items-center gap-1">
-                            <CreditCard className="w-3 h-3 text-amber-400" /> Driver's License (Back)
-                          </span>
-                          <span className="text-[9px] text-emerald-400 font-mono">
-                            Endorsement
-                          </span>
-                        </div>
-                        <div className="relative group rounded-lg overflow-hidden h-20 bg-slate-900 border border-white/10">
-                          <img loading="lazy" decoding="async"
-                            src={nurse.driversLicenseBackUrl || nurse.governmentIdBackUrl || nurse.governmentIdUrl || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800'}
-                            alt="Driver License Back"
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setSelectedDocModal({
-                              title: `Driver's License (Back Side) - ${nurse.name}`,
-                              docUrl: nurse.driversLicenseBackUrl || nurse.governmentIdBackUrl || nurse.governmentIdUrl || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-                              nurseName: nurse.name,
-                              licenseNo: nurse.driversLicenseNumber || nurse.nursingCouncilLicense,
-                              docType: 'govid'
-                            })}
-                            className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1 text-[11px] font-bold text-white transition"
-                          >
-                            <Eye className="w-3.5 h-3.5 text-amber-300" /> Inspect DL Back
-                          </button>
-                        </div>
-                        <div className="text-[11px] font-mono text-slate-200 truncate">
-                          Status: <strong className="text-emerald-400">Back Side Verified</strong>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Independent Contractor Agreement File Preview Button (ADMIN ONLY) */}
-                    <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-400/30 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-purple-300 shrink-0" />
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[11px] font-bold text-white">Signed Contractor Agreement</span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                              {nurse.signedContract?.status === 'countersigned_active' ? 'Active & Counter-Signed' : 'Signed by Nurse'}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-300 block">
-                            Includes 5 Attached Compliance Files • Jamaican Law Ref
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => setSelectedNurseForContractModal(nurse)}
-                        className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-emerald-600 hover:opacity-95 text-white text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-sm"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Inspect Contract File</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Verification Actions */}
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      onClick={() => onRejectNurse(nurse.id)}
-                      className="flex-1 py-2.5 rounded-xl border border-red-500/30 text-red-300 hover:bg-red-500/10 font-bold text-xs transition"
-                    >
-                      Reject Application
-                    </button>
-                    <button
-                      onClick={() => {
-                        onApproveNurse(nurse.id);
-                        confetti({
-                          particleCount: 70,
-                          spread: 60,
-                          origin: { y: 0.6 }
-                        });
-                      }}
-                      className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-1.5"
-                    >
-                      <CheckCircle2 className="w-4 h-4" /> Approve &amp; Activate License
-                    </button>
-                  </div>
-                </div>
-              ))}
+          {/* Action toast feedback */}
+          {pendingActionToast && (
+            <div className={`p-4 rounded-2xl border text-xs flex items-center justify-between gap-3 shadow-xl animate-fadeIn ${
+              pendingActionToast.type === 'success'
+                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-200'
+                : 'bg-red-950/60 border-red-500/50 text-red-200'
+            }`}>
+              <div className="flex items-center gap-2">
+                {pendingActionToast.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                )}
+                <span className="font-medium">{pendingActionToast.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingActionToast(null)}
+                className="text-slate-400 hover:text-white text-xs underline cursor-pointer"
+              >
+                Dismiss
+              </button>
             </div>
           )}
+
+          {/* Pending Nurse Vetting Master Table from public.profiles */}
+          <div className="p-5 rounded-3xl bg-[#0f0a26] border-2 border-[#1E1B4B] space-y-4 shadow-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3.5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-base font-black text-white">
+                    Nurse Vetting &amp; NCJ Applications ({pendingProfiles.length})
+                  </h4>
+                  <span 
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase text-[#1E1B4B]"
+                    style={{ backgroundColor: '#F59E0B' }}
+                  >
+                    Supabase: public.profiles
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Realtime applicant queue with role='nurse_pending'. Inspect submitted credentials, TRN number, and document scans before decision.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Filter by name, email, phone, TRN..."
+                  value={pendingSearchQuery}
+                  onChange={(e) => setPendingSearchQuery(e.target.value)}
+                  className="px-3.5 py-2 rounded-xl bg-black/40 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B] w-full sm:w-64"
+                />
+                <button
+                  type="button"
+                  onClick={() => fetchPendingNurseProfiles()}
+                  disabled={isLoadingPendingProfiles}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shrink-0"
+                  title="Refresh live applications from Supabase"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${isLoadingPendingProfiles ? 'animate-spin' : ''}`} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {isLoadingPendingProfiles && pendingProfiles.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 space-y-2">
+                <RefreshCw className="w-8 h-8 text-amber-400 animate-spin mx-auto" />
+                <p className="text-xs">Loading live pending applications from Supabase profiles...</p>
+              </div>
+            ) : pendingProfiles.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-white/[0.02] border border-white/10 text-center space-y-2">
+                <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                <h4 className="font-bold text-white text-sm">All Nurse Applications Cleared</h4>
+                <p className="text-xs text-slate-400">
+                  Zero pending applicants in Supabase profiles (role='nurse_pending'). All approved practitioners are active in Kingston, St. Andrew, Portmore &amp; Spanish Town.
+                </p>
+              </div>
+            ) : (
+              /* Horizontally scrollable table */
+              <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/30">
+                <table className="w-full min-w-[960px] text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/15 bg-white/[0.04] text-[11px] font-bold text-slate-300 uppercase tracking-wider font-mono">
+                      <th className="py-3 px-3.5">Practitioner Name</th>
+                      <th className="py-3 px-3">Email Address</th>
+                      <th className="py-3 px-3">Phone</th>
+                      <th className="py-3 px-3">Operating Address</th>
+                      <th className="py-3 px-3">TRN Number</th>
+                      <th className="py-3 px-3">Document URLs &amp; Scans</th>
+                      <th className="py-3 px-3">Registered On</th>
+                      <th className="py-3 px-3 text-center">Admin Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 text-xs">
+                    {pendingProfiles
+                      .filter(p => {
+                        if (!pendingSearchQuery.trim()) return true;
+                        const q = pendingSearchQuery.toLowerCase();
+                        return (
+                          (p.full_name && p.full_name.toLowerCase().includes(q)) ||
+                          (p.username && p.username.toLowerCase().includes(q)) ||
+                          (p.email && p.email.toLowerCase().includes(q)) ||
+                          (p.phone && p.phone.toLowerCase().includes(q)) ||
+                          (p.address && p.address.toLowerCase().includes(q)) ||
+                          (p.trn && p.trn.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((profile) => {
+                        const creds = parseProfileCredentials(profile.trn);
+                        const isActionLoading = pendingActionLoadingId === profile.id;
+                        const matchingLocalNurse = nurses.find(n => n.id === profile.id || n.email === profile.email);
+                        const allDocUrls = [...creds.documentUrls];
+                        if (matchingLocalNurse?.licenseDocumentUrl && !allDocUrls.includes(matchingLocalNurse.licenseDocumentUrl)) {
+                          allDocUrls.push(matchingLocalNurse.licenseDocumentUrl);
+                        }
+                        if (matchingLocalNurse?.governmentIdUrl && !allDocUrls.includes(matchingLocalNurse.governmentIdUrl)) {
+                          allDocUrls.push(matchingLocalNurse.governmentIdUrl);
+                        }
+                        if (matchingLocalNurse?.trnCertificateUrl && !allDocUrls.includes(matchingLocalNurse.trnCertificateUrl)) {
+                          allDocUrls.push(matchingLocalNurse.trnCertificateUrl);
+                        }
+
+                        return (
+                          <tr key={profile.id} className="hover:bg-white/[0.03] transition-colors">
+                            {/* Full Name & Username */}
+                            <td className="py-3 px-3.5">
+                              <div className="font-bold text-white text-sm">
+                                {profile.full_name || profile.username || 'Unspecified Name'}
+                              </div>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  @{profile.username || profile.id.slice(0, 8)}
+                                </span>
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                  nurse_pending
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Email */}
+                            <td className="py-3 px-3 font-mono text-[11px]">
+                              {profile.email ? (
+                                <a 
+                                  href={`mailto:${profile.email}`} 
+                                  className="text-purple-300 hover:text-white underline truncate max-w-[160px] block"
+                                  title={profile.email}
+                                >
+                                  {profile.email}
+                                </a>
+                              ) : (
+                                <span className="text-slate-500 italic">No email</span>
+                              )}
+                            </td>
+
+                            {/* Phone */}
+                            <td className="py-3 px-3 font-mono text-[11px] text-slate-300">
+                              {profile.phone ? (
+                                <a href={`tel:${profile.phone}`} className="hover:text-amber-300">
+                                  {profile.phone}
+                                </a>
+                              ) : (
+                                <span className="text-slate-500 italic">—</span>
+                              )}
+                            </td>
+
+                            {/* Address / Parish */}
+                            <td className="py-3 px-3 text-slate-300 max-w-[140px] truncate" title={profile.address || ''}>
+                              {profile.address || 'Kingston, Jamaica'}
+                            </td>
+
+                            {/* TRN Number */}
+                            <td className="py-3 px-3 font-mono text-slate-200">
+                              <span className="font-bold text-emerald-400 block">{creds.trnNumber}</span>
+                              {creds.ncjLicense && (
+                                <span className="text-[10px] text-purple-300 block">{creds.ncjLicense}</span>
+                              )}
+                            </td>
+
+                            {/* Document URLs & Scans */}
+                            <td className="py-3 px-3">
+                              {allDocUrls.length > 0 ? (
+                                <div className="flex flex-col gap-1.5 max-w-[200px]">
+                                  {allDocUrls.map((url, idx) => (
+                                    <div key={idx} className="flex items-center gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedDocModal({
+                                          title: `Credential Document - ${profile.full_name || profile.username}`,
+                                          docUrl: url,
+                                          nurseName: profile.full_name || 'Nurse Practitioner',
+                                          licenseNo: creds.ncjLicense || creds.trnNumber,
+                                          docType: 'certificate',
+                                          trn: creds.trnNumber
+                                        })}
+                                        className="px-2 py-1 rounded-lg bg-purple-950/60 hover:bg-purple-900 border border-purple-500/40 text-purple-200 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                        title="Inspect document scan in modal"
+                                      >
+                                        <Eye className="w-3 h-3 text-purple-300" />
+                                        <span>Inspect Scan {allDocUrls.length > 1 ? `#${idx + 1}` : ''}</span>
+                                      </button>
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-amber-300 hover:text-white transition"
+                                        title="Open raw document URL in new tab"
+                                      >
+                                        <ExternalLink className="w-3 h-3" />
+                                      </a>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-slate-500 italic text-[11px]">No document scan</span>
+                              )}
+                            </td>
+
+                            {/* Registered On */}
+                            <td className="py-3 px-3 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                              {profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric'
+                              }) : 'Recent'}
+                            </td>
+
+                            {/* Admin Decision Actions */}
+                            <td className="py-3 px-3">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  disabled={isActionLoading}
+                                  onClick={() => handleRejectNurseProfile(profile.id, profile.full_name)}
+                                  className="px-2.5 py-1.5 rounded-xl border border-red-500/40 text-red-300 hover:bg-red-500/15 font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
+                                  title="Reject application and set role='client' in Supabase"
+                                >
+                                  Reject
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isActionLoading}
+                                  onClick={() => handleApproveNurseProfile(profile.id, profile.full_name)}
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition shadow-md shadow-emerald-950/40 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                                  title="Approve applicant and set role='nurse' in Supabase"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Approve</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {/* Nurse Search & Filter Component */}
           <NurseSearchFilter
@@ -2074,7 +2234,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           currentUser={currentUser}
         />
       )}
+      </React.Suspense>
 
+      <React.Suspense fallback={null}>
       {/* Invoice & Duration Audit Modal */}
       {selectedBookingForInvoiceModal && (
         <InvoiceReceiptModal
@@ -2252,16 +2414,21 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       )}
 
       {/* Meta WhatsApp Cloud Templates Approval Manager */}
-      <WhatsAppTemplatesManagerModal
-        isOpen={isWhatsAppTemplatesOpen}
-        onClose={() => setIsWhatsAppTemplatesOpen(false)}
-      />
+      {isWhatsAppTemplatesOpen && (
+        <WhatsAppTemplatesManagerModal
+          isOpen={isWhatsAppTemplatesOpen}
+          onClose={() => setIsWhatsAppTemplatesOpen(false)}
+        />
+      )}
 
       {/* Admin Settings > Business Info Modal */}
-      <AdminBusinessSettingsModal
-        isOpen={isBusinessSettingsOpen}
-        onClose={() => setIsBusinessSettingsOpen(false)}
-      />
+      {isBusinessSettingsOpen && (
+        <AdminBusinessSettingsModal
+          isOpen={isBusinessSettingsOpen}
+          onClose={() => setIsBusinessSettingsOpen(false)}
+        />
+      )}
+      </React.Suspense>
     </div>
   );
 };

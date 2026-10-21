@@ -26,9 +26,7 @@ import {
   Clock
 } from 'lucide-react';
 import { UserRole, NurseProfile, UserAccount } from '../../types';
-import { UnifiedSignupPortal } from './UnifiedSignupPortal';
-import { supabase, lookupEmailFromUsername } from '../../lib/supabase';
-import confetti from 'canvas-confetti';
+import { supabase, lookupEmailFromUsername, signInWithUsername, saveNurseProfileToSupabase } from '../../lib/supabase';
 
 const JAMAICAN_PARISHES = [
   'Kingston',
@@ -155,63 +153,23 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
     try {
       if (mode === 'signin') {
         const cleanIdent = email.trim();
-        let targetEmail = await lookupEmailFromUsername(cleanIdent);
-        if (!targetEmail && cleanIdent.includes('@')) {
-          targetEmail = cleanIdent.toLowerCase();
-        }
-        if (!targetEmail && (cleanIdent.toLowerCase() === 'sydney' || cleanIdent.replace(/\D/g, '').endsWith('5827613'))) {
-          targetEmail = 'wecareja.bookings@gmail.com';
-        }
-        if (!targetEmail) {
-          throw new Error(`No account found for "${cleanIdent}". Please check your email, username, or phone.`);
-        }
+        const { user, profile } = await signInWithUsername(cleanIdent, cleanPassword);
 
-        // Sign In Flow
-        const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-          email: targetEmail,
-          password: cleanPassword
-        });
-
-        if (authError) {
-          throw new Error(authError.message || 'Invalid email or password');
-        }
-
-        const user = authData.user;
-        if (user) {
-          // Check profile
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
-
-          const activeRole: UserRole = (profile?.role as UserRole) || (user.user_metadata?.role as UserRole) || 'client';
-          
+        if (user && profile) {
           // Save to localStorage
           try {
             localStorage.setItem('wecare_current_user_id', user.id);
-            const userObj: UserAccount = {
-              id: user.id,
-              username: cleanUsername,
-              name: profile?.full_name || user.user_metadata?.full_name || cleanFullName || 'User',
-              email: cleanEmail,
-              role: activeRole,
-              phone: profile?.phone || cleanPhone,
-              address: profile?.address || cleanAddress,
-              trn: profile?.trn || '',
-              createdAt: profile?.created_at || new Date().toISOString()
-            };
             const existingRaw = localStorage.getItem('wecare_user_accounts');
             const list = existingRaw ? JSON.parse(existingRaw) : [];
-            localStorage.setItem('wecare_user_accounts', JSON.stringify([userObj, ...list.filter((u: any) => u.id !== user.id)]));
+            localStorage.setItem('wecare_user_accounts', JSON.stringify([profile, ...list.filter((u: any) => u.id !== user.id)]));
           } catch {}
 
           setIsSuccess(true);
-          setSuccessNotice(`Signed in successfully as ${profile?.full_name || cleanEmail}!`);
+          setSuccessNotice(`Signed in successfully as ${profile.name || profile.full_name || cleanIdent}!`);
           confetti({ particleCount: 50, spread: 70, origin: { y: 0.6 } });
           
           setTimeout(() => {
-            if (onComplete) onComplete(user);
+            if (onComplete) onComplete(profile);
             else if (typeof window !== 'undefined') window.location.href = '/';
           }, 1000);
         }
@@ -227,16 +185,19 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
 
       // 1. Supabase Auth Sign Up
       try {
+        const dbRole = role === 'nurse' ? 'nurse_pending' : role;
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: cleanPassword,
           options: {
             data: {
+              username: cleanUsername,
               full_name: cleanFullName,
-              role: role, // NEVER default to client! Use selected role
+              role: dbRole,
               phone: cleanPhone,
               address: cleanAddress,
-              trn: trn.trim()
+              trn: trn.trim(),
+              ncj_license: ncjLicense.trim()
             }
           }
         });
@@ -264,18 +225,35 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
       }
 
       // 3. Upsert profiles table in Supabase
+      const trnCombined = ncjLicense.trim() 
+        ? `${ncjLicense.trim()} | TRN: ${trn.trim()}` 
+        : trn.trim();
+
+      const targetRole = role === 'nurse' ? 'nurse_pending' : role;
+
       try {
         await supabase.from('profiles').upsert({
           id: userId,
+          email: cleanEmail,
+          username: cleanUsername,
           full_name: cleanFullName,
-          role: role, // CRITICAL: Preserve exact selected role (nurse, client, admin)
+          role: targetRole,
           phone: cleanPhone,
           address: cleanAddress,
-          trn: trn.trim() || ''
+          trn: trnCombined || ''
         }, { onConflict: 'id' });
       } catch (profErr) {
         console.warn('profiles upsert note:', profErr);
       }
+
+      // Backup credentials locally so user can always sign back in even if Supabase confirms or rate limits
+      try {
+        const rawCreds = localStorage.getItem('wecare_auth_passwords') || '{}';
+        const creds = JSON.parse(rawCreds);
+        creds[cleanEmail] = cleanPassword;
+        creds[cleanUsername] = cleanPassword;
+        localStorage.setItem('wecare_auth_passwords', JSON.stringify(creds));
+      } catch {}
 
       // 4. If Nurse, create and append NurseProfile to roster in 'pending_approval' for Admin Review
       if (role === 'nurse') {
@@ -300,7 +278,6 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
           zones: [parish, 'New Kingston', 'St. Andrew', 'Portmore'],
           hourlyRateJMD: Number(hourlyRate) || 7500,
           bio: bio.trim() || `Licensed Healthcare Practitioner serving ${parish} and surrounding areas.`,
-          // Uploaded credential documents for Admin review
           governmentIdType: "Driver's License & National ID",
           governmentIdUrl: govIdFrontUrl || undefined,
           governmentIdBackUrl: govIdBackUrl || undefined,
@@ -332,6 +309,9 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
           pendingPayoutJMD: 0,
           completedVisitsCount: 0
         };
+
+        // Push to Supabase profiles
+        saveNurseProfileToSupabase(newNurseProfile).catch(() => {});
 
         try {
           const rawNurses = localStorage.getItem('wecare_nurses');

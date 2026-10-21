@@ -36,6 +36,9 @@ export default defineConfig(() => {
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
+              if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+                return 'vendor-react';
+              }
               if (id.includes('recharts') || id.includes('d3-')) {
                 return 'vendor-charts';
               }
@@ -51,9 +54,6 @@ export default defineConfig(() => {
               if (id.includes('canvas-confetti') || id.includes('qrcode') || id.includes('html5-qrcode')) {
                 return 'vendor-fx';
               }
-            }
-            if (id.includes('src/components/admin')) {
-              return 'admin-portal';
             }
           },
         },

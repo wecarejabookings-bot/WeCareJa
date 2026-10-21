@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { compressImageFile } from '../../utils/imageCompression';
+import { saveNurseProfileToSupabase } from '../../lib/supabase';
 
 export interface ProviderRoleOption {
   id: NurseCareLevel;
@@ -988,6 +989,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       completedVisitsCount: 0
     };
 
+    saveNurseProfileToSupabase(newNurse).catch(() => {});
     onRegisterNurse(newNurse);
     setRegisteredNurseId(newNurseId);
     soundFX.playBookingConfirmed();

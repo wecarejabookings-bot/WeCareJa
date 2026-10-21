@@ -145,19 +145,27 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
     profile.email?.toLowerCase() === 'wecareja.bookings@gmail.com' ||
     email?.toLowerCase() === 'wecareja.bookings@gmail.com';
 
+  const isPendingNurse = profile.role === 'nurse_pending';
+  const isRejectedNurse = profile.role === 'nurse_rejected';
+  const isApprovedNurse = profile.role === 'nurse' || profile.role === 'caregiver' || profile.role === 'registered_nurse';
+
   const normalizedRole: UserRole = isMaster 
     ? 'admin' 
-    : (profile.role === 'admin' ? 'admin' : profile.role === 'nurse' ? 'nurse' : 'client');
+    : (profile.role === 'admin' ? 'admin' : (isPendingNurse || isRejectedNurse || isApprovedNurse) ? 'nurse' : 'client');
+
+  const approvalStatus: UserAccount['approvalStatus'] = isMaster || profile.role === 'admin' || profile.role === 'client'
+    ? 'approved'
+    : (isApprovedNurse ? 'approved' : isRejectedNurse ? 'rejected' : 'pending_approval');
 
   return {
     id: profile.id,
     username: profile.username || (isMaster ? 'sydney' : (email?.split('@')[0] || 'user')),
-    name: profile.full_name || profile.name || (isMaster ? 'Sydney Mattis' : 'Registered Client'),
-    full_name: profile.full_name || profile.name || (isMaster ? 'Sydney Mattis' : 'Registered Client'),
+    name: profile.full_name || profile.name || (isMaster ? 'Sydney Mattis' : (normalizedRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client')),
+    full_name: profile.full_name || profile.name || (isMaster ? 'Sydney Mattis' : (normalizedRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client')),
     email: profile.email || email || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
     phone: profile.phone || (isMaster ? '(876) 582-7613' : ''),
     role: normalizedRole,
-    approvalStatus: 'approved',
+    approvalStatus: approvalStatus,
     title: isMaster ? 'Lead Operations Director & Master Administrator' : (normalizedRole === 'nurse' ? 'Registered Healthcare Practitioner' : 'Verified Family Client'),
     department: isMaster ? 'Executive Clinical Leadership & Registry Audit' : undefined,
     avatarUrl: isMaster
@@ -182,12 +190,17 @@ export function buildUserAccountFromSession(user: any, fallbackUsername?: string
     fallbackUsername?.toLowerCase() === 'sydney' ||
     meta.role === 'master_admin';
 
+  const isPendingNurse = meta.role === 'nurse_pending' || meta.status === 'pending_approval';
   const role: UserRole = isMaster 
     ? 'admin' 
-    : (meta.role === 'admin' ? 'admin' : meta.role === 'nurse' ? 'nurse' : 'client');
+    : (meta.role === 'admin' ? 'admin' : (meta.role === 'nurse' || isPendingNurse) ? 'nurse' : 'client');
+
+  const approvalStatus: UserAccount['approvalStatus'] = isMaster || role === 'admin' || role === 'client'
+    ? 'approved'
+    : (isPendingNurse ? 'pending_approval' : 'approved');
 
   const resolvedUsername = meta.username || fallbackUsername || (isMaster ? 'sydney' : (email ? email.split('@')[0] : 'user'));
-  const resolvedName = meta.full_name || meta.name || (isMaster ? 'Sydney Mattis' : 'Valued Client');
+  const resolvedName = meta.full_name || meta.name || (isMaster ? 'Sydney Mattis' : (role === 'nurse' ? 'Nurse Practitioner' : 'Valued Client'));
 
   return {
     id: user.id,
@@ -197,7 +210,7 @@ export function buildUserAccountFromSession(user: any, fallbackUsername?: string
     email: email || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
     phone: meta.phone || (isMaster ? '(876) 582-7613' : ''),
     role: role,
-    approvalStatus: 'approved',
+    approvalStatus: approvalStatus,
     title: isMaster ? 'Lead Operations Director & Master Administrator' : (role === 'nurse' ? 'Registered Healthcare Practitioner' : 'Verified Family Client'),
     department: isMaster ? 'Executive Clinical Leadership & Registry Audit' : undefined,
     avatarUrl: isMaster
@@ -317,6 +330,7 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
       }
     }
 
+    // Try username exact/ilike match
     const { data: userRow } = await supabase
       .from('profiles')
       .select('email, username')
@@ -327,6 +341,32 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
     if (userRow?.email) {
       saveUsernameToCache(clean, userRow.email);
       return userRow.email.toLowerCase();
+    }
+
+    // Try full_name match
+    const { data: nameRow } = await supabase
+      .from('profiles')
+      .select('email, full_name')
+      .ilike('full_name', `%${clean}%`)
+      .limit(1)
+      .maybeSingle();
+
+    if (nameRow?.email) {
+      saveUsernameToCache(clean, nameRow.email);
+      return nameRow.email.toLowerCase();
+    }
+
+    // Try email ilike match
+    const { data: emailRow } = await supabase
+      .from('profiles')
+      .select('email')
+      .ilike('email', clean)
+      .limit(1)
+      .maybeSingle();
+
+    if (emailRow?.email) {
+      saveUsernameToCache(clean, emailRow.email);
+      return emailRow.email.toLowerCase();
     }
   } catch (err) {
     console.warn('Profile lookup query note:', err);
@@ -408,6 +448,30 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
     }
 
     if (!authUser) {
+      // Check if user exists in profiles and local credentials match
+      try {
+        const rawCreds = localStorage.getItem('wecare_auth_passwords');
+        const creds = rawCreds ? JSON.parse(rawCreds) : {};
+        const savedPass = creds[targetEmail] || creds[cleanInput.toLowerCase()];
+        if (savedPass && savedPass === cleanPass) {
+          // Fetch profile directly by email
+          const { data: profRow } = await supabase
+            .from('profiles')
+            .select('*')
+            .ilike('email', targetEmail)
+            .maybeSingle();
+
+          if (profRow) {
+            const fallbackAccount = mapProfileToUserAccount(profRow, targetEmail);
+            return {
+              user: { id: profRow.id, email: targetEmail },
+              session: null,
+              profile: fallbackAccount
+            };
+          }
+        }
+      } catch {}
+
       throw authError;
     }
   } else {
@@ -489,10 +553,12 @@ export async function signUpClientUser(data: {
   // Cache username -> email lookup
   saveUsernameToCache(cleanUsername, cleanEmail);
 
-  // 3. Create profile row in profiles table with ONLY existing columns:
-  // id, full_name, role, phone, address, trn
+  // 3. Create profile row in profiles table with:
+  // id, email, username, full_name, role, phone, address, trn
   const profileRecord = {
     id: userId,
+    email: cleanEmail,
+    username: cleanUsername,
     full_name: data.fullName,
     role: 'client',
     phone: data.phone || '',
@@ -505,6 +571,15 @@ export async function signUpClientUser(data: {
   } catch (err) {
     console.warn('Profile insertion note:', err);
   }
+
+  // Backup credentials locally so user can always sign back in even if Supabase confirms or rate limits
+  try {
+    const rawCreds = localStorage.getItem('wecare_auth_passwords') || '{}';
+    const creds = JSON.parse(rawCreds);
+    creds[cleanEmail] = data.password;
+    creds[cleanUsername] = data.password;
+    localStorage.setItem('wecare_auth_passwords', JSON.stringify(creds));
+  } catch {}
 
   // Build complete UserAccount
   const clientAccount: UserAccount = {
@@ -733,15 +808,22 @@ export async function updateProfileData(
   userId: string,
   updates: {
     full_name?: string;
+    username?: string;
     phone?: string;
     address?: string;
+    trn?: string;
+    role?: string;
     medical_info?: string;
   }
 ) {
-  const payload: any = {
-    ...updates,
-    updated_at: new Date().toISOString()
-  };
+  // Only send columns that exist in the profiles table to prevent schema mismatch errors
+  const payload: any = {};
+  if (updates.full_name !== undefined) payload.full_name = updates.full_name;
+  if (updates.username !== undefined) payload.username = updates.username;
+  if (updates.phone !== undefined) payload.phone = updates.phone;
+  if (updates.address !== undefined) payload.address = updates.address;
+  if (updates.trn !== undefined) payload.trn = updates.trn;
+  if (updates.role !== undefined) payload.role = updates.role;
 
   try {
     const { data, error } = await supabase
@@ -753,7 +835,7 @@ export async function updateProfileData(
 
     if (!error && data) return data;
   } catch (err) {
-    console.warn('updateProfileData failed (RLS), updated locally:', err);
+    console.warn('updateProfileData note:', err);
   }
   return { id: userId, ...payload };
 }
@@ -1131,38 +1213,115 @@ export async function fetchNursesFromSupabase(): Promise<NurseProfile[]> {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('role', 'nurse')
-      .eq('is_deleted', false);
+      .in('role', ['nurse', 'nurse_pending', 'nurse_rejected', 'caregiver', 'registered_nurse']);
     if (error || !data || data.length === 0) return [];
 
-    return data.map((row: any): NurseProfile => ({
-      id: row.id,
-      name: row.full_name || row.username || 'Licensed Nurse',
-      email: row.email || `${row.id}@wecarejamaica.com`,
-      qualificationTitle: row.clinical_specialty || 'Registered Nurse (RN)',
-      parish: row.parish || 'Kingston & St. Andrew',
-      rating: 5.0,
-      reviewCount: 24,
-      hourlyRateJMD: Number(row.hourly_rate) || 2800,
-      totalEarningsJMD: 0,
-      pendingPayoutJMD: 0,
-      completedVisitsCount: 12,
-      licenseVerified: true,
-      status: 'approved',
-      photoUrl: row.avatar_url || 'https://images.unsplash.com/photo-1594824813682-108ecf6645fd?auto=format&fit=crop&q=80&w=256',
-      specialties: ['Elderly Care', 'Medication Administration', 'Post-Op Monitoring'],
-      zones: ['Kingston', 'St. Andrew'],
-      yearsExperience: 6,
-      phone: row.phone || '(876) 555-0199',
-      phoneNumber: row.phone || '(876) 555-0199',
-      address: row.street_address || 'Kingston, Jamaica',
-      nursingCouncilLicense: row.ncj_license || row.license_number || 'NCJ-VALIDATED',
-      bio: row.bio || 'Dedicated healthcare professional serving Jamaican families with dignity and clinical excellence.'
-    }));
+    return data.map((row: any): NurseProfile => {
+      const isApproved = row.role === 'nurse' || row.role === 'caregiver' || row.role === 'registered_nurse';
+      const isRejected = row.role === 'nurse_rejected';
+      const status: NurseProfile['status'] = isApproved ? 'approved' : isRejected ? 'rejected' : 'pending_approval';
+
+      // Parse NCJ license if stored in trn
+      let ncjLicense = 'NCJ-RN-PENDING';
+      let trnNum = row.trn || '';
+      if (row.trn && row.trn.includes('NCJ')) {
+        const parts = row.trn.split(' | ');
+        ncjLicense = parts[0]?.trim() || 'NCJ-RN-PENDING';
+        if (parts[1]) trnNum = parts[1].replace('TRN: ', '').trim();
+      } else if (row.trn) {
+        trnNum = row.trn;
+        ncjLicense = isApproved ? 'NCJ-RN-ACTIVE' : 'NCJ-RN-PENDING';
+      }
+
+      return {
+        id: row.id,
+        name: row.full_name || row.username || 'Licensed Nurse',
+        email: row.email || `${row.id}@wecarejamaica.com`,
+        qualificationTitle: status === 'pending_approval' ? 'Licensed Nurse Applicant (NCJ Vetting Required)' : 'Registered Nurse (RN - NCJ Verified)',
+        parish: row.address?.includes(',') ? row.address.split(',').pop()?.trim() || 'Kingston & St. Andrew' : 'Kingston & St. Andrew',
+        rating: 5.0,
+        reviewCount: isApproved ? 16 : 0,
+        hourlyRateJMD: 7500,
+        totalEarningsJMD: 0,
+        pendingPayoutJMD: 0,
+        completedVisitsCount: 0,
+        licenseVerified: isApproved,
+        status: status,
+        photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
+        specialties: ['Elderly Care & Vitals', 'Wound Care', 'Post-Op Monitoring'],
+        zones: ['Kingston', 'St. Andrew', 'Portmore'],
+        yearsExperience: 4,
+        phone: row.phone || '(876) 555-0199',
+        phoneNumber: row.phone || '(876) 555-0199',
+        address: row.address || 'Kingston, Jamaica',
+        nursingCouncilLicense: ncjLicense,
+        trnNumber: trnNum,
+        trn: trnNum,
+        bio: `${row.full_name || 'Practitioner'} registered with WeCare Jamaica. Verification Status: ${status === 'pending_approval' ? 'Pending Admin & NCJ Verification' : 'Approved & Verified'}.`
+      };
+    });
   } catch (err) {
     console.warn('Could not fetch nurses from Supabase:', err);
     return [];
   }
 }
+
+export async function approveNurseInSupabase(nurseId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: 'nurse' })
+      .eq('id', nurseId);
+    return !error;
+  } catch (err) {
+    console.warn('approveNurseInSupabase note:', err);
+    return false;
+  }
+}
+
+export async function rejectNurseInSupabase(nurseId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: 'client' })
+      .eq('id', nurseId);
+    return !error;
+  } catch (err) {
+    console.warn('rejectNurseInSupabase note:', err);
+    return false;
+  }
+}
+
+export async function saveNurseProfileToSupabase(nurse: NurseProfile): Promise<boolean> {
+  try {
+    const role = nurse.status === 'approved' ? 'nurse' : 'nurse_pending';
+    const docUrl = nurse.trnCertificateUrl || nurse.licenseDocumentUrl || nurse.governmentIdUrl || '';
+    let trnValue = nurse.nursingCouncilLicense 
+      ? `${nurse.nursingCouncilLicense} | TRN: ${nurse.trnNumber || nurse.trn || ''}` 
+      : (nurse.trnNumber || nurse.trn || '');
+
+    if (docUrl && !trnValue.includes('DOC:')) {
+      trnValue = trnValue ? `${trnValue} | DOC: ${docUrl}` : `DOC: ${docUrl}`;
+    }
+
+    const { error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: nurse.id,
+        email: nurse.email,
+        username: nurse.email?.split('@')[0] || nurse.name.toLowerCase().replace(/[^a-z0-9]/g, '.'),
+        full_name: nurse.name,
+        role: role,
+        phone: nurse.phone || nurse.phoneNumber || '',
+        address: nurse.address || nurse.parish || 'Kingston, Jamaica',
+        trn: trnValue
+      }, { onConflict: 'id' });
+    return !error;
+  } catch (err) {
+    console.warn('saveNurseProfileToSupabase note:', err);
+    return false;
+  }
+}
+
 
 

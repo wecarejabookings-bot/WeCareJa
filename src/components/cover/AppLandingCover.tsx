@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, Suspense, lazy } from 'react';
 import { ServiceItem, NurseProfile, LogoVariation } from '../../types';
-import { HealthNewsFeed } from '../client/HealthNewsFeed';
+const HealthNewsFeed = lazy(() => import('../client/HealthNewsFeed').then(m => ({ default: m.HealthNewsFeed })));
 import { Logo } from '../common/Logo';
 import { ServiceLogo } from '../common/ServiceLogo';
 import { INITIAL_STORE_PRODUCTS } from '../../services/storeProductsService';
@@ -1039,7 +1039,14 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                         <span className="text-xs text-slate-400">Official Ministry guidelines accessible to all visitors</span>
                       </div>
                       
-                      <HealthNewsFeed onBookService={() => onOpenSignIn()} />
+                      <Suspense fallback={
+                        <div className="p-8 text-center text-xs text-slate-400 bg-white/[0.02] rounded-2xl border border-white/5">
+                          <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                          <span>Loading Jamaica Ministry health advisories...</span>
+                        </div>
+                      }>
+                        <HealthNewsFeed onBookService={() => onOpenSignIn()} />
+                      </Suspense>
                     </div>
                   )}
 
