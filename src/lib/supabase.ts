@@ -160,8 +160,8 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
   return {
     id: profile.id,
     username: profile.username || (isMaster ? 'sydney' : (email?.split('@')[0] || 'user')),
-    name: profile.full_name || profile.name || (isMaster ? 'Sydney Mattis' : (normalizedRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client')),
-    full_name: profile.full_name || profile.name || (isMaster ? 'Sydney Mattis' : (normalizedRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client')),
+    name: profile.full_name || profile.name || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client')),
+    full_name: profile.full_name || profile.name || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client')),
     email: profile.email || email || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
     phone: profile.phone || (isMaster ? '(876) 582-7613' : ''),
     role: normalizedRole,
@@ -200,7 +200,7 @@ export function buildUserAccountFromSession(user: any, fallbackUsername?: string
     : (isPendingNurse ? 'pending_approval' : 'approved');
 
   const resolvedUsername = meta.username || fallbackUsername || (isMaster ? 'sydney' : (email ? email.split('@')[0] : 'user'));
-  const resolvedName = meta.full_name || meta.name || (isMaster ? 'Sydney Mattis' : (role === 'nurse' ? 'Nurse Practitioner' : 'Valued Client'));
+  const resolvedName = meta.full_name || meta.name || (isMaster ? 'Lead Administrator' : (role === 'nurse' ? 'Nurse Practitioner' : 'Valued Client'));
 
   return {
     id: user.id,
@@ -433,8 +433,8 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
           password: cleanPass,
           options: {
             data: {
-              username: 'sydney',
-              full_name: 'Sydney Mattis',
+              username: 'admin',
+              full_name: 'Lead Administrator',
               role: 'master_admin',
               phone: '(876) 582-7613'
             }
@@ -489,12 +489,12 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
   // Fetch or build profile with RLS-safe fallback
   const userAccount = await fetchCurrentProfile(authUser.id, authUser);
 
-  // Ensure Master Admin identity if logging in as Sydney
-  if (cleanInput.toLowerCase() === 'sydney' || targetEmail === 'wecareja.bookings@gmail.com') {
+  // Ensure Master Admin identity if logging in as Admin
+  if (cleanInput.toLowerCase() === 'sydney' || cleanInput.toLowerCase() === 'admin' || targetEmail === 'wecareja.bookings@gmail.com') {
     userAccount.role = 'admin';
-    userAccount.username = 'sydney';
-    userAccount.name = 'Sydney Mattis';
-    userAccount.full_name = 'Sydney Mattis';
+    userAccount.username = 'admin';
+    userAccount.name = userAccount.name || 'Lead Administrator';
+    userAccount.full_name = userAccount.full_name || 'Lead Administrator';
   }
 
   return { user: authUser, session: authSession, profile: userAccount };
@@ -690,8 +690,8 @@ export async function fetchCurrentProfile(userId: string, authUser?: any): Promi
     return {
       id: '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7',
       username: 'sydney',
-      name: 'Sydney Mattis',
-      full_name: 'Sydney Mattis',
+      name: 'Lead Administrator',
+      full_name: 'Lead Administrator',
       email: 'sydney@wecareja.com',
       phone: '+1876582-7613',
       role: 'admin',
@@ -1304,19 +1304,85 @@ export async function saveNurseProfileToSupabase(nurse: NurseProfile): Promise<b
       trnValue = trnValue ? `${trnValue} | DOC: ${docUrl}` : `DOC: ${docUrl}`;
     }
 
-    const { error } = await supabase
-      .from('profiles')
-      .upsert({
-        id: nurse.id,
-        email: nurse.email,
-        username: nurse.email?.split('@')[0] || nurse.name.toLowerCase().replace(/[^a-z0-9]/g, '.'),
-        full_name: nurse.name,
-        role: role,
-        phone: nurse.phone || nurse.phoneNumber || '',
-        address: nurse.address || nurse.parish || 'Kingston, Jamaica',
-        trn: trnValue
-      }, { onConflict: 'id' });
-    return !error;
+    const cleanEmail = (nurse.email || '').trim().toLowerCase();
+    const cleanName = (nurse.name || '').trim();
+    const cleanUsername = cleanEmail ? cleanEmail.split('@')[0] : cleanName.toLowerCase().replace(/[^a-z0-9]/g, '.');
+
+    // 1. Check if nurse.id is already a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    let targetId: string | null = uuidRegex.test(nurse.id) ? nurse.id : null;
+
+    // 2. If targetId is not a valid UUID, search if profile exists by email
+    if (!targetId && cleanEmail) {
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+      if (existing?.id) {
+        targetId = existing.id;
+      }
+    }
+
+    // 3. If still no valid UUID targetId, create user in Supabase auth to get a real foreign key UUID
+    if (!targetId && cleanEmail) {
+      try {
+        const { data: authData } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: 'NursePassword2026!',
+          options: {
+            data: {
+              full_name: cleanName,
+              role: role,
+              trn: trnValue
+            }
+          }
+        });
+        if (authData?.user?.id) {
+          targetId = authData.user.id;
+        }
+      } catch (authErr) {
+        console.warn('[saveNurseProfileToSupabase] auth signUp attempt notice:', authErr);
+      }
+    }
+
+    // 4. Perform the upsert / update
+    if (targetId) {
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: targetId,
+          email: cleanEmail || null,
+          username: cleanUsername,
+          full_name: cleanName,
+          role: role,
+          phone: nurse.phone || nurse.phoneNumber || '',
+          address: nurse.address || nurse.parish || 'Kingston, Jamaica',
+          trn: trnValue
+        }, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('[saveNurseProfileToSupabase] upsert error:', error.message);
+        return false;
+      }
+      return true;
+    } else if (cleanEmail) {
+      // Fallback update by email
+      const { error: updateErr } = await supabase
+        .from('profiles')
+        .update({
+          full_name: cleanName,
+          role: role,
+          phone: nurse.phone || nurse.phoneNumber || '',
+          address: nurse.address || nurse.parish || 'Kingston, Jamaica',
+          trn: trnValue
+        })
+        .eq('email', cleanEmail);
+
+      return !updateErr;
+    }
+
+    return false;
   } catch (err) {
     console.warn('saveNurseProfileToSupabase note:', err);
     return false;

@@ -350,8 +350,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (trimmedInput.toLowerCase() === 'sydney' && enteredPassword === '12345678') {
         const fallbackAdmin: UserAccount = allAccounts.find(a => a.username.toLowerCase() === 'sydney') || {
           id: '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7',
-          name: 'Sydney Mattis',
-          full_name: 'Sydney Mattis',
+          name: 'Lead Administrator',
+          full_name: 'Lead Administrator',
           username: 'sydney',
           email: 'sydney@wecareja.com',
           phone: '+1876582-7613',

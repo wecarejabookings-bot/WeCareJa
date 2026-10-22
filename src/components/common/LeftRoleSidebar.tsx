@@ -105,14 +105,6 @@ export const LeftRoleSidebar: React.FC<LeftRoleSidebarProps> = ({
             {!isCollapsed && <span className="truncate">Admin Centre</span>}
           </button>
         </div>
-
-        {/* Bottom subtle indicator */}
-        {!isCollapsed && isMasterAdmin && (
-          <div className="pt-1.5 border-t border-white/10 text-[9px] text-blue-200/80 px-1 truncate flex items-center gap-1">
-            <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
-            <span className="truncate font-mono">{userName}</span>
-          </div>
-        )}
       </div>
     </aside>
   );

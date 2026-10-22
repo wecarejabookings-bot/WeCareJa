@@ -43,7 +43,7 @@ import {
 import { soundFX } from '../../utils/soundEffects';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
 import { compressImageFile } from '../../utils/imageCompression';
-import { supabase } from '../../lib/supabase';
+import { supabase, saveNurseProfileToSupabase } from '../../lib/supabase';
 import confetti from 'canvas-confetti';
 import { AgreementSignatureBox, SignatureData } from '../common/AgreementSignatureBox';
 
@@ -485,9 +485,34 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           userId = authData.user.id;
         } else if (authError) {
           console.warn('Supabase auth notice:', authError.message);
+          if (authError.message?.toLowerCase().includes('already registered')) {
+            try {
+              const { data: signInData } = await supabase.auth.signInWithPassword({
+                email: cleanEmail,
+                password: password.trim()
+              });
+              if (signInData?.user?.id) {
+                userId = signInData.user.id;
+              }
+            } catch {}
+          }
         }
       } catch (authErr) {
         console.warn('Supabase auth error:', authErr);
+      }
+
+      // If userId is still a generated placeholder, check if profile exists by email to get real UUID
+      if (!userId || userId.startsWith('user-')) {
+        try {
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', cleanEmail)
+            .maybeSingle();
+          if (existingProfile?.id) {
+            userId = existingProfile.id;
+          }
+        } catch {}
       }
 
       // Auto confirm edge function if available
@@ -498,17 +523,31 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       }
 
       // 2. Upsert profile table
-      try {
-        await supabase.from('profiles').upsert({
-          id: userId,
-          full_name: cleanFullName,
-          role: dbRole,
-          phone: cleanPhone,
-          address: cleanAddress,
-          trn: trnValue
-        }, { onConflict: 'id' });
-      } catch (profErr) {
-        console.warn('Profiles table note:', profErr);
+      if (userId && !userId.startsWith('user-')) {
+        try {
+          await supabase.from('profiles').upsert({
+            id: userId,
+            email: cleanEmail,
+            username: cleanUsername,
+            full_name: cleanFullName,
+            role: dbRole,
+            phone: cleanPhone,
+            address: cleanAddress,
+            trn: trnValue
+          }, { onConflict: 'id' });
+        } catch (profErr) {
+          console.warn('Profiles table note:', profErr);
+        }
+      } else {
+        try {
+          await supabase.from('profiles').update({
+            full_name: cleanFullName,
+            role: dbRole,
+            phone: cleanPhone,
+            address: cleanAddress,
+            trn: trnValue
+          }).eq('email', cleanEmail);
+        } catch {}
       }
 
       // 3. Role specific objects
@@ -642,6 +681,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email !== cleanEmail)];
           localStorage.setItem('wecare_nurses', JSON.stringify(updatedList));
         } catch {}
+
+        // Persist to Supabase public.profiles
+        saveNurseProfileToSupabase(newNurseProfile).catch(() => {});
 
         newAccount = {
           id: userId,

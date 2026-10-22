@@ -181,17 +181,19 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
 
             const displayName = 
               p.full_name || 
-              (isMasterAdmin ? 'Sydney Mattis' : (p.username || p.email?.split('@')[0] || 'Registered User'));
+              p.username || 
+              (p.email ? p.email.split('@')[0] : '') || 
+              (isMasterAdmin ? 'Lead Administrator' : 'Registered User');
 
             return {
               id: p.id,
               fullName: displayName,
-              username: p.username || (isMasterAdmin ? 'sydney' : (p.email ? p.email.split('@')[0] : '')),
-              email: p.email || (isMasterAdmin ? 'sydney@wecareja.com' : ''),
+              username: p.username || (p.email ? p.email.split('@')[0] : (isMasterAdmin ? 'admin' : 'user')),
+              email: p.email || (isMasterAdmin ? 'wecareja.bookings@gmail.com' : ''),
               phone: p.phone || (isMasterAdmin ? '+1876582-7613' : ''),
               role: resolvedRole,
-              address: p.address || (isMasterAdmin ? '4 Claudette Drive St. Catherine' : 'Kingston, Jamaica'),
-              trn: p.trn || (isMasterAdmin ? '119-695-855' : ''),
+              address: p.address || (isMasterAdmin ? 'Kingston, Jamaica' : 'Kingston, Jamaica'),
+              trn: p.trn || '',
               department: isMasterAdmin ? 'Executive Clinical Leadership & Registry Audit' : (resolvedRole === 'admin' ? 'Administration' : undefined),
               title: isMasterAdmin ? 'Lead Operations Director & Master Administrator' : (resolvedRole === 'admin' ? 'System Administrator' : (resolvedRole === 'nurse' ? 'Licensed Nurse Practitioner' : 'Registered Client')),
               status: 'approved',

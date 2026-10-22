@@ -294,11 +294,12 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_PAYOUTS;
   });
 
-  // State for user accounts & auth - Cleaned for launch: only Master Admin Sydney Mattis
+  // State for user accounts & auth - Cleaned for launch: Lead Administrator
   const [userAccounts, setUserAccounts] = useState<UserAccount[]>(() => {
     const masterAdmin: UserAccount = {
       id: '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7',
-      name: 'Sydney Mattis',
+      name: 'Lead Administrator',
+      full_name: 'Lead Administrator',
       username: 'sydney',
       email: 'sydney@wecareja.com',
       phone: '+1876582-7613',
@@ -356,15 +357,26 @@ export default function App() {
   // Derived current user account & authentication status
   const currentUser = userAccounts.find(u => u.id === currentUserId) || null;
   const isAuthenticated = Boolean(currentUser);
-  const isMasterAdmin = Boolean(
+  const isAdmin = Boolean(
     currentUser && (
       currentUser.role === 'admin' ||
       currentUser.username === 'sydney' ||
       currentUser.username === 'admin' ||
-      currentUser.name.toLowerCase().includes('sydney mattis') ||
       currentUser.email?.toLowerCase() === 'wecareja.bookings@gmail.com'
     )
   );
+  const isMasterAdmin = isAdmin;
+
+  // Security auto-lock: non-admin users must be strictly locked to their designated portal
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.role === 'nurse' && currentRole !== 'nurse') {
+        setCurrentRole('nurse');
+      } else if (currentUser.role === 'client' && currentRole !== 'client') {
+        setCurrentRole('client');
+      }
+    }
+  }, [currentUser, currentRole]);
 
   // State for nurse peer collaboration messages
   const [peerMessages, setPeerMessages] = useState<NursePeerChatMessage[]>(() => {
@@ -906,35 +918,19 @@ export default function App() {
     }
   };
 
-  // Handle role switch from UI - Master Admin Sydney Mattis has an All-Access Pass to ANY dashboard
+  // Handle role switch from UI - Restricted strictly to administrators
   const handleRoleChange = (newRole: UserRole) => {
-    if (!isAuthenticated || !currentUser) {
-      setCurrentRole(newRole);
-      handleOpenAuthModal('signin');
-      return;
+    if (!isAdmin) {
+      return; // Non-admins cannot switch roles
     }
 
-    // Master Admin All-Access Pass: Unrestricted switching between Client, Nurse & Admin
-    if (isMasterAdmin) {
-      setCurrentRole(newRole);
-      soundFX.playToggleClick();
-      handleTriggerNotification(
-        'system_alert',
-        `Switched to ${newRole.toUpperCase()} Dashboard`,
-        `All-Access Pass Active: You are now viewing the ${newRole.toUpperCase()} dashboard as ${getDisplayName(currentUser, currentUser)}.`
-      );
-      return;
-    }
-
-    if (currentUser && currentUser.role !== newRole) {
-      handleTriggerNotification(
-        'system_alert',
-        'Sign Out Required',
-        `You are currently signed in as ${getDisplayName(currentUser, currentUser)} (${currentUser.role.toUpperCase()}). Please sign out first before switching users or roles, or sign in as Master Admin.`
-      );
-      return;
-    }
     setCurrentRole(newRole);
+    soundFX.playToggleClick();
+    handleTriggerNotification(
+      'system_alert',
+      `Switched to ${newRole.toUpperCase()} Dashboard`,
+      `All-Access Pass Active: You are now viewing the ${newRole.toUpperCase()} dashboard as ${currentUser?.full_name || currentUser?.name || 'Administrator'}.`
+    );
   };
 
   // User Auth Handlers
@@ -1786,13 +1782,13 @@ export default function App() {
         />
       )}
 
-      {/* Left Role Switcher Sidebar (Client / Nurse / Admin) */}
-      {isAuthenticated && currentView === 'portal' && (
+      {/* Left Role Switcher Sidebar (Client / Nurse / Admin) - Strictly restricted to Administrators */}
+      {isAdmin && currentView === 'portal' && (
         <LeftRoleSidebar
           currentRole={currentRole}
           onChangeRole={handleRoleChange}
           isMasterAdmin={isMasterAdmin}
-          userName={currentUser ? getDisplayName(currentUser, currentUser) : 'Master Admin'}
+          userName={currentUser?.full_name || currentUser?.name || 'Administrator'}
         />
       )}
 

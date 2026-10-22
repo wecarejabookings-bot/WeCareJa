@@ -80,8 +80,8 @@ export const AdminPayrollAccountabilitySystem: React.FC<AdminPayrollAccountabili
     });
     return liveList.length > 0 ? liveList : [
       {
-        id: 'admin-sydney',
-        fullName: 'Sydney Mattis',
+        id: 'admin-lead',
+        fullName: currentUser?.full_name || currentUser?.name || 'Lead Administrator',
         email: OWNER_EMAIL,
         role: 'Manager',
         weeklySalaryJMD: 8500,

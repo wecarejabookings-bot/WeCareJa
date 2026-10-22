@@ -261,6 +261,20 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         } catch {}
       }
 
+      // If authenticatedUserId is still a placeholder, lookup existing user ID by email
+      if (!authenticatedUserId || authenticatedUserId.startsWith('nurse-reg-')) {
+        try {
+          const { data: existingProfile } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('email', cleanEmail)
+            .maybeSingle();
+          if (existingProfile?.id) {
+            authenticatedUserId = existingProfile.id;
+          }
+        } catch {}
+      }
+
       // 4. Upsert into profiles table with TRN and Document URLs
       const parts: string[] = [];
       if (ncjLicense.trim()) parts.push(ncjLicense.trim());
@@ -270,20 +284,58 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
       const trnCombined = parts.join(' | ') || (finalDocUrl ? `DOC: ${finalDocUrl}` : (trn.trim() || ''));
 
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: authenticatedUserId,
-        email: cleanEmail,
-        username: cleanEmail.split('@')[0],
-        full_name: fullName.trim(),
-        role: 'nurse_pending',
-        phone: phone.trim() || '',
-        address: parish || '',
-        trn: trnCombined
-      }, { onConflict: 'id' });
+      if (authenticatedUserId && !authenticatedUserId.startsWith('nurse-reg-')) {
+        const { error: profileError } = await supabase.from('profiles').upsert({
+          id: authenticatedUserId,
+          email: cleanEmail,
+          username: cleanEmail.split('@')[0],
+          full_name: fullName.trim(),
+          role: 'nurse_pending',
+          phone: phone.trim() || '',
+          address: parish || '',
+          trn: trnCombined
+        }, { onConflict: 'id' });
 
-      if (profileError) {
-        console.warn('[Profiles upsert note]:', profileError.message);
+        if (profileError) {
+          console.warn('[Profiles upsert note]:', profileError.message);
+        }
+      } else {
+        try {
+          await supabase.from('profiles').update({
+            full_name: fullName.trim(),
+            role: 'nurse_pending',
+            phone: phone.trim() || '',
+            address: parish || '',
+            trn: trnCombined
+          }).eq('email', cleanEmail);
+        } catch {}
       }
+
+      // Synchronize with saveNurseProfileToSupabase
+      saveNurseProfileToSupabase({
+        id: authenticatedUserId,
+        name: fullName.trim(),
+        email: cleanEmail,
+        phone: phone.trim(),
+        address: parish,
+        parish,
+        nursingCouncilLicense: ncjLicense.trim(),
+        trnNumber: trn.trim(),
+        trn: trn.trim(),
+        trnCertificateUrl: finalDocUrl,
+        licenseVerified: false,
+        status: 'pending_approval',
+        rating: 5.0,
+        reviewCount: 0,
+        yearsExperience: experienceYears,
+        specialties: [serviceType],
+        zones: [parish],
+        hourlyRateJMD: selectedHourlyRate,
+        bio: `${fullName.trim()} - Practitioner in ${parish}`,
+        totalEarningsJMD: 0,
+        pendingPayoutJMD: 0,
+        completedVisitsCount: 0
+      }).catch(() => {});
 
       // Save credential backup locally
       try {

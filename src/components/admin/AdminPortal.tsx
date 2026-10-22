@@ -85,7 +85,7 @@ const AdminSupplyOrdersManager = React.lazy(() => import('./AdminSupplyOrdersMan
 const AdminRatesPricingManager = React.lazy(() => import('./AdminRatesPricingManager').then(m => ({ default: m.AdminRatesPricingManager })));
 const AdminStoreInventoryManager = React.lazy(() => import('./AdminStoreInventoryManager').then(m => ({ default: m.AdminStoreInventoryManager })));
 const AdminTopicsDirectoryManager = React.lazy(() => import('./AdminTopicsDirectoryManager').then(m => ({ default: m.AdminTopicsDirectoryManager })));
-import { supabase, updateBookingPriceInSupabase } from '../../lib/supabase';
+import { supabase, updateBookingPriceInSupabase, saveNurseProfileToSupabase } from '../../lib/supabase';
 import { getDisplayName } from '../../utils/privacy';
 
 export interface PendingNurseProfile {
@@ -171,7 +171,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }));
 
   const ADMIN_STAFF_MEMBERS = [
-    { id: 'admin-sydney', name: 'Sydney Mattis', email: 'wecareja.bookings@gmail.com', role: 'Manager' as const, isMaster: true, phone: '(876) 582-7613', title: 'Lead Operations Director & Master Administrator' },
+    { 
+      id: 'admin-lead', 
+      name: currentUser?.full_name || currentUser?.name || 'Lead Administrator', 
+      email: currentUser?.email || 'wecareja.bookings@gmail.com', 
+      role: 'Manager' as const, 
+      isMaster: true, 
+      phone: currentUser?.phone || '(876) 582-7613', 
+      title: currentUser?.title || 'Lead Operations Director & Master Administrator' 
+    },
     ...registeredAdminStaff
   ];
 
@@ -299,9 +307,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       if (error) {
         console.warn('[AdminPortal] Error querying profiles for nurse_pending:', error.message);
-      } else if (data) {
-        setPendingProfiles(data);
       }
+
+      const list: PendingNurseProfile[] = data ? [...data] : [];
+
+      // Also verify local storage / roster for any pending nurses and ensure they are saved to Supabase
+      try {
+        const rawLocal = localStorage.getItem('wecare_nurses');
+        const localList: any[] = rawLocal ? JSON.parse(rawLocal) : (nurses || []);
+        const pendingLocal = localList.filter((n: any) => n.status === 'pending_approval');
+
+        for (const ln of pendingLocal) {
+          const exists = list.some(p => p.id === ln.id || (p.email && ln.email && p.email.toLowerCase() === ln.email.toLowerCase()));
+          if (!exists) {
+            // Persist to Supabase public.profiles
+            saveNurseProfileToSupabase(ln).catch(() => {});
+            list.push({
+              id: ln.id,
+              full_name: ln.name || ln.fullName || 'Nurse Applicant',
+              username: ln.email ? ln.email.split('@')[0] : 'nurse_pending',
+              email: ln.email || null,
+              role: 'nurse_pending',
+              phone: ln.phone || null,
+              address: ln.address || ln.parish || 'Kingston',
+              trn: ln.trnNumber || ln.trn || (ln.trnCertificateUrl ? `DOC: ${ln.trnCertificateUrl}` : null),
+              created_at: ln.submittedForReviewAt || new Date().toISOString()
+            });
+          }
+        }
+      } catch (lErr) {
+        console.warn('[AdminPortal] Local pending nurses check notice:', lErr);
+      }
+
+      setPendingProfiles(list);
     } catch (err) {
       console.warn('[AdminPortal] Exception fetching pending profiles:', err);
     } finally {
@@ -323,7 +361,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [activeTab]);
 
   const handleApproveNurseProfile = async (profileId: string, nurseName?: string | null) => {
     try {
@@ -998,11 +1036,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <AdminPayrollAccountabilitySystem
           bookings={bookings}
           currentUser={currentUser || { 
-            id: 'admin-sydney', 
+            id: 'admin-lead', 
             email: 'wecareja.bookings@gmail.com', 
-            name: 'Sydney Mattis', 
-            full_name: 'Sydney Mattis',
-            username: 'sydney',
+            name: 'Lead Administrator', 
+            full_name: 'Lead Administrator',
+            username: 'admin',
             phone: '(876) 582-7613',
             role: 'admin', 
             createdAt: new Date().toISOString() 

@@ -79,7 +79,7 @@ export const getDisplayName = (profile: any, currentUser?: any): string => {
 
   if (isSydney) {
     if (isOwner) {
-      return profile.full_name || profile.fullName || profile.name || "Sydney Mattis";
+      return profile.full_name || profile.fullName || profile.name || "Master Admin";
     }
     return "Master Admin";
   }
