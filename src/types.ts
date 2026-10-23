@@ -744,6 +744,7 @@ export interface UserAccount {
   zoneAlertSettings?: ClientZoneAvailabilityAlertSettings;
   dateOfBirth?: string;
   status?: string;
+  welcome_seen?: boolean;
   nursingCouncilLicense?: string;
   driversLicenseNumber?: string;
   staffId?: string;

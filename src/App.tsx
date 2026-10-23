@@ -60,6 +60,7 @@ const AboutUsModal = lazy(() => import('./components/common/AboutUsModal').then(
 const PushNotificationLibraryModal = lazy(() => import('./components/common/PushNotificationLibraryModal').then(m => ({ default: m.PushNotificationLibraryModal })));
 const AppStoreLaunchPackModal = lazy(() => import('./components/brand/AppStoreLaunchPackModal').then(m => ({ default: m.AppStoreLaunchPackModal })));
 const SplashOnboardingModal = lazy(() => import('./components/common/SplashOnboardingModal').then(m => ({ default: m.SplashOnboardingModal })));
+const ApplicantApprovedWelcomeModal = lazy(() => import('./components/common/ApplicantApprovedWelcomeModal').then(m => ({ default: m.ApplicantApprovedWelcomeModal })));
 const MedicalStorePage = lazy(() => import('./components/store/MedicalStorePage').then(m => ({ default: m.MedicalStorePage })));
 const AdminSupplyOrdersManager = lazy(() => import('./components/admin/AdminSupplyOrdersManager').then(m => ({ default: m.AdminSupplyOrdersManager })));
 const AdminStoreInventoryManager = lazy(() => import('./components/admin/AdminStoreInventoryManager').then(m => ({ default: m.AdminStoreInventoryManager })));
@@ -438,6 +439,17 @@ export default function App() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isContactUsOpen, setIsContactUsOpen] = useState(false);
   const [isAboutUsOpen, setIsAboutUsOpen] = useState(false);
+  const [showApprovedWelcomeModal, setShowApprovedWelcomeModal] = useState(false);
+
+  // Show welcome modal once if approved applicant has welcome_seen === false
+  useEffect(() => {
+    if (currentUser && currentUser.welcome_seen === false && (currentUser.role === 'nurse' || currentUser.role === 'admin')) {
+      const email = (currentUser.email || '').toLowerCase().trim();
+      if (email !== 'wecareja.bookings@gmail.com' && email !== 'sydney@wecareja.com') {
+        setShowApprovedWelcomeModal(true);
+      }
+    }
+  }, [currentUser]);
 
   // Sync state to localStorage
   useEffect(() => {
@@ -2598,6 +2610,17 @@ export default function App() {
           onClose={() => setIsAboutUsOpen(false)}
           logoVariation={logoVariation}
           onOpenContact={() => setIsContactUsOpen(true)}
+        />
+      )}
+
+      {/* Applicant Approved Celebration & Welcome Modal */}
+      {showApprovedWelcomeModal && currentUser && (
+        <ApplicantApprovedWelcomeModal
+          user={currentUser}
+          onClose={() => {
+            setShowApprovedWelcomeModal(false);
+            setUserAccounts(prev => prev.map(u => u.id === currentUser.id ? { ...u, welcome_seen: true } : u));
+          }}
         />
       )}
       </Suspense>

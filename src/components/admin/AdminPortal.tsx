@@ -87,6 +87,8 @@ const AdminStoreInventoryManager = React.lazy(() => import('./AdminStoreInventor
 const AdminTopicsDirectoryManager = React.lazy(() => import('./AdminTopicsDirectoryManager').then(m => ({ default: m.AdminTopicsDirectoryManager })));
 import { supabase, updateBookingPriceInSupabase, saveNurseProfileToSupabase } from '../../lib/supabase';
 import { getDisplayName } from '../../utils/privacy';
+import { AdminApplicantInspectionModal } from './AdminApplicantInspectionModal';
+import { AdminRejectApplicantModal } from './AdminRejectApplicantModal';
 
 export interface PendingNurseProfile {
   id: string;
@@ -98,6 +100,10 @@ export interface PendingNurseProfile {
   address?: string | null;
   trn?: string | null;
   created_at?: string | null;
+  status?: string | null;
+  documents?: any;
+  rejection_reason?: string | null;
+  welcome_seen?: boolean;
 }
 
 interface AdminPortalProps {
@@ -289,33 +295,60 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     return unsub;
   }, []);
 
-  // Live Nurse Vetting Pipeline from Supabase public.profiles (role='nurse_pending')
+  // Live Nurse & Admin Vetting Pipeline from Supabase public.profiles
   const [pendingProfiles, setPendingProfiles] = useState<PendingNurseProfile[]>([]);
   const [isLoadingPendingProfiles, setIsLoadingPendingProfiles] = useState(false);
   const [pendingActionLoadingId, setPendingActionLoadingId] = useState<string | null>(null);
   const [pendingActionToast, setPendingActionToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [pendingSearchQuery, setPendingSearchQuery] = useState('');
 
+  // Applicant Inspection & Rejection Modals State
+  const [selectedApplicant, setSelectedApplicant] = useState<any | null>(null);
+  const [showInspectModal, setShowInspectModal] = useState<boolean>(false);
+  const [showRejectModal, setShowRejectModal] = useState<boolean>(false);
+
   const fetchPendingNurseProfiles = async () => {
     setIsLoadingPendingProfiles(true);
     try {
+      let list: PendingNurseProfile[] = [];
+
+      // Query profiles where status = 'pending' or role in ('nurse_pending', 'admin_pending')
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('role', 'nurse_pending')
+        .or('status.eq.pending,status.eq.pending_approval,role.in.(nurse_pending,admin_pending)')
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.warn('[AdminPortal] Error querying profiles for nurse_pending:', error.message);
+        console.warn('[AdminPortal] Error querying profiles with status/role filter, falling back:', error.message);
+        const { data: fallbackData, error: fbError } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('role', ['nurse_pending', 'admin_pending'])
+          .order('created_at', { ascending: false });
+
+        if (!fbError && fallbackData) {
+          list = [...fallbackData];
+        }
+      } else if (data) {
+        list = [...data];
       }
 
-      const list: PendingNurseProfile[] = data ? [...data] : [];
+      // Filter out primary administrator accounts so they don't review themselves
+      list = list.filter(p => {
+        const email = (p.email || '').toLowerCase().trim();
+        const username = (p.username || '').toLowerCase().trim();
+        if (email === 'wecareja.bookings@gmail.com' || username === 'sydney' || email === 'sydney@wecareja.com') {
+          return false;
+        }
+        return true;
+      });
 
       // Also verify local storage / roster for any pending nurses and ensure they are saved to Supabase
       try {
         const rawLocal = localStorage.getItem('wecare_nurses');
         const localList: any[] = rawLocal ? JSON.parse(rawLocal) : (nurses || []);
-        const pendingLocal = localList.filter((n: any) => n.status === 'pending_approval');
+        const pendingLocal = localList.filter((n: any) => n.status === 'pending_approval' || n.status === 'pending');
 
         for (const ln of pendingLocal) {
           const exists = list.some(p => p.id === ln.id || (p.email && ln.email && p.email.toLowerCase() === ln.email.toLowerCase()));
@@ -327,11 +360,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               full_name: ln.name || ln.fullName || 'Nurse Applicant',
               username: ln.email ? ln.email.split('@')[0] : 'nurse_pending',
               email: ln.email || null,
-              role: 'nurse_pending',
+              role: ln.role || 'nurse_pending',
               phone: ln.phone || null,
               address: ln.address || ln.parish || 'Kingston',
               trn: ln.trnNumber || ln.trn || (ln.trnCertificateUrl ? `DOC: ${ln.trnCertificateUrl}` : null),
-              created_at: ln.submittedForReviewAt || new Date().toISOString()
+              created_at: ln.submittedForReviewAt || new Date().toISOString(),
+              status: 'pending',
+              documents: [
+                ln.licenseDocumentUrl,
+                ln.governmentIdUrl,
+                ln.trnCertificateUrl
+              ].filter(Boolean)
             });
           }
         }
@@ -363,15 +402,119 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     };
   }, [activeTab]);
 
+  const handleInspect = (applicant: any) => {
+    soundFX.playToggleClick();
+    setSelectedApplicant(applicant);
+    setShowInspectModal(true);
+  };
+
+  const handleApproveFromModal = async (applicant: any) => {
+    if (!applicant?.id) return;
+    try {
+      setShowInspectModal(false);
+      setPendingActionLoadingId(applicant.id);
+
+      const roleStr = String(applicant.role || '').toLowerCase();
+      const newRole = roleStr.includes('admin') ? 'admin' : 'nurse';
+
+      // 1. Update profiles in Supabase
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          role: newRole,
+          status: 'approved',
+          welcome_seen: false
+        })
+        .eq('id', applicant.id);
+
+      if (updateError) {
+        console.warn('Profiles update status error, fallback to role-only:', updateError.message);
+        await supabase
+          .from('profiles')
+          .update({ role: newRole })
+          .eq('id', applicant.id);
+      }
+
+      // 2. Insert notification into Supabase notifications table
+      try {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: applicant.id,
+            type: 'approval',
+            message: `Congratulations ${applicant.full_name || 'Applicant'}! Your We Care Jamaica ${newRole === 'admin' ? 'Administrator' : 'Nurse Practitioner'} application has been approved.`
+          });
+      } catch (notifErr) {
+        console.warn('Notification insert note:', notifErr);
+        try {
+          const raw = localStorage.getItem('wecare_notifications') || '[]';
+          const notifs = JSON.parse(raw);
+          notifs.push({
+            id: `notif-${Date.now()}`,
+            user_id: applicant.id,
+            type: 'approval',
+            message: `Congratulations ${applicant.full_name || 'Applicant'}! Your application has been approved.`,
+            created_at: new Date().toISOString()
+          });
+          localStorage.setItem('wecare_notifications', JSON.stringify(notifs));
+        } catch (e) {}
+      }
+
+      if (newRole === 'nurse') {
+        onApproveNurse(applicant.id);
+      }
+
+      await fetchPendingNurseProfiles();
+
+      setPendingActionToast({
+        type: 'success',
+        message: `Approved ${applicant.full_name || 'Applicant'} as ${newRole === 'admin' ? 'Administrator' : 'Nurse Practitioner'}! Welcome notification issued.`
+      });
+      setTimeout(() => setPendingActionToast(null), 5000);
+
+      soundFX.playSuccessFanfare();
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({
+          particleCount: 100,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#1E1B4B', '#10B981', '#F59E0B']
+        });
+      }).catch(() => {});
+    } catch (err: any) {
+      console.error('Error approving applicant from modal:', err);
+      setPendingActionToast({
+        type: 'error',
+        message: `Failed to approve applicant: ${err?.message || 'Database error'}`
+      });
+      setTimeout(() => setPendingActionToast(null), 6000);
+    } finally {
+      setPendingActionLoadingId(null);
+      setSelectedApplicant(null);
+    }
+  };
+
+  const handleRejectFromModal = (applicant: any) => {
+    soundFX.playToggleClick();
+    setSelectedApplicant(applicant);
+    setShowInspectModal(false);
+    setShowRejectModal(true);
+  };
+
   const handleApproveNurseProfile = async (profileId: string, nurseName?: string | null) => {
     try {
       setPendingActionLoadingId(profileId);
       const { error } = await supabase
         .from('profiles')
-        .update({ role: 'nurse' })
+        .update({ role: 'nurse', status: 'approved', welcome_seen: false })
         .eq('id', profileId);
 
-      if (error) throw error;
+      if (error) {
+        await supabase
+          .from('profiles')
+          .update({ role: 'nurse' })
+          .eq('id', profileId);
+      }
 
       onApproveNurse(profileId);
       setPendingProfiles(prev => prev.filter(p => p.id !== profileId));
@@ -406,10 +549,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setPendingActionLoadingId(profileId);
       const { error } = await supabase
         .from('profiles')
-        .update({ role: 'client' })
+        .update({ role: 'client', status: 'rejected' })
         .eq('id', profileId);
 
-      if (error) throw error;
+      if (error) {
+        await supabase
+          .from('profiles')
+          .update({ role: 'client' })
+          .eq('id', profileId);
+      }
 
       onRejectNurse(profileId);
       setPendingProfiles(prev => prev.filter(p => p.id !== profileId));
@@ -1374,8 +1522,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 <span className="text-[10px] text-slate-400 font-mono">
                                   @{profile.username || profile.id.slice(0, 8)}
                                 </span>
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                  nurse_pending
+                                <span className={`px-1.5 py-0.2 rounded text-[9px] font-black uppercase border ${
+                                  (profile.role || '').includes('admin')
+                                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                                }`}>
+                                  {profile.role || 'pending'}
                                 </span>
                               </div>
                             </td>
@@ -1469,25 +1621,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                             {/* Admin Decision Actions */}
                             <td className="py-3 px-3">
-                              <div className="flex items-center justify-center gap-1.5">
+                              <div className="flex items-center justify-center">
                                 <button
                                   type="button"
-                                  disabled={isActionLoading}
-                                  onClick={() => handleRejectNurseProfile(profile.id, profile.full_name)}
-                                  className="px-2.5 py-1.5 rounded-xl border border-red-500/40 text-red-300 hover:bg-red-500/15 font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
-                                  title="Reject application and set role='client' in Supabase"
+                                  onClick={() => handleInspect(profile)}
+                                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-amber-500 hover:opacity-95 text-white font-black text-xs transition shadow-md shadow-purple-950/40 flex items-center gap-1.5 cursor-pointer"
+                                  title="Inspect all uploaded documents and vet applicant"
                                 >
-                                  Reject
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={isActionLoading}
-                                  onClick={() => handleApproveNurseProfile(profile.id, profile.full_name)}
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] transition shadow-md shadow-emerald-950/40 flex items-center gap-1 cursor-pointer disabled:opacity-50"
-                                  title="Approve applicant and set role='nurse' in Supabase"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Approve</span>
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Inspect &amp; Vet</span>
                                 </button>
                               </div>
                             </td>
@@ -2464,6 +2606,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         <AdminBusinessSettingsModal
           isOpen={isBusinessSettingsOpen}
           onClose={() => setIsBusinessSettingsOpen(false)}
+        />
+      )}
+
+      {/* Admin Applicant Inspection Modal */}
+      {showInspectModal && selectedApplicant && (
+        <AdminApplicantInspectionModal
+          applicant={selectedApplicant}
+          onClose={() => {
+            setShowInspectModal(false);
+            setSelectedApplicant(null);
+          }}
+          onApprove={handleApproveFromModal}
+          onReject={handleRejectFromModal}
+        />
+      )}
+
+      {/* Admin Reject Applicant Reason Modal */}
+      {showRejectModal && selectedApplicant && (
+        <AdminRejectApplicantModal
+          applicant={selectedApplicant}
+          onClose={() => {
+            setShowRejectModal(false);
+            setSelectedApplicant(null);
+          }}
+          onConfirmed={(_app, _reason) => {
+            setShowRejectModal(false);
+            setSelectedApplicant(null);
+            fetchPendingNurseProfiles();
+            setPendingActionToast({
+              type: 'success',
+              message: 'Applicant rejected and rejection notice issued.'
+            });
+            setTimeout(() => setPendingActionToast(null), 5000);
+          }}
         />
       )}
       </React.Suspense>

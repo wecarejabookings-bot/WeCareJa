@@ -175,6 +175,8 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
     address: profile.address || (isMaster ? '4 Claudete Drive, St. Catherine, Jamaica' : ''),
     medical_info: profile.medical_info || '',
     is_deleted: Boolean(profile.is_deleted),
+    status: profile.status,
+    welcome_seen: profile.welcome_seen,
     createdAt: profile.created_at || new Date().toISOString()
   };
 }

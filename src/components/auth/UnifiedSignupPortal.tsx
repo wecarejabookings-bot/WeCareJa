@@ -461,10 +461,77 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
 
     try {
       let userId = `user-${role}-${Date.now()}`;
-      const dbRole = role === 'nurse' ? 'nurse_pending' : role;
+      const isMasterAdminEmail = cleanEmail === 'wecareja.bookings@gmail.com';
+      const dbRole = role === 'nurse' 
+        ? 'nurse_pending' 
+        : (role === 'admin' && !isMasterAdminEmail ? 'admin_pending' : role);
+
+      // Construct comprehensive dossier payload with all uploaded data & signatures
+      const dossierPayload = role === 'nurse' ? {
+        type: 'nurse',
+        fullName: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish: parish,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        emergencyContact: {
+          name: nurseEmergencyContact,
+          phone: cleanPhone,
+          relation: 'Next of Kin'
+        },
+        trnNumber: nurseTrn.trim(),
+        ncjLicense: nurseNcjLicense.trim(),
+        driversLicenseNumber: driversLicenseNumber.trim(),
+        yearsExperience: 4,
+        hourlyRateJMD: 7500,
+        institutionAttended: 'Accredited Jamaican Nursing Institution',
+        documents: {
+          trnCertificateUrl: trnCertUrl || undefined,
+          driversLicenseFrontUrl: driversLicenseFrontUrl || undefined,
+          driversLicenseBackUrl: driversLicenseBackUrl || undefined,
+          licenseDocumentUrl: licenseDocUrl || undefined,
+          policeRecordUrl: policeRecordUrl || undefined,
+          bankLetterUrl: bankLetterUrl || undefined,
+          proofOfAddressUrl: proofOfAddressUrl || undefined
+        },
+        bankDetails: {
+          bankName: bankName,
+          accountNumber: accountNumber,
+          accountType: 'Savings',
+          lynkWallet: lynkWallet
+        },
+        signature: nurseSignature,
+        submittedAt: new Date().toISOString()
+      } : (role === 'admin' ? {
+        type: 'admin',
+        fullName: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish: parish,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        staffId: adminStaffId,
+        department: adminDepartment,
+        title: adminTitle,
+        clearancePasskey: adminPasskey,
+        signature: adminSignature,
+        submittedAt: new Date().toISOString()
+      } : null);
+
+      const dossierJson = dossierPayload ? JSON.stringify(dossierPayload) : '';
       const trnValue = role === 'nurse'
-        ? `${nurseTrn.trim()}${trnCertUrl ? ` | DOC: ${trnCertUrl}` : ''}${nurseSignature?.signed ? ' | SIGNED: YES' : ''}`
-        : (role === 'admin' && adminSignature?.signed ? `ADMIN-SIGNED-${adminStaffId}` : '');
+        ? `${nurseTrn.trim()}${trnCertUrl ? ` | DOC: ${trnCertUrl}` : ''}${nurseSignature?.signed ? ' | SIGNED: YES' : ''} | DOSSIER:${dossierJson}`
+        : (role === 'admin' ? `ADMIN-STAFF-${adminStaffId} | DEPT:${adminDepartment} | DOSSIER:${dossierJson}` : '');
+
+      if (dossierPayload) {
+        try {
+          localStorage.setItem(`wecare_dossier_${cleanEmail}`, dossierJson);
+          localStorage.setItem(`wecare_dossier_${userId}`, dossierJson);
+        } catch {}
+      }
 
       // 1. Supabase Auth registration attempt
       try {
