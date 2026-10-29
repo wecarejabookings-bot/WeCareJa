@@ -1,0 +1,23 @@
+{
+  "name": "WeCare Track Jamaica - HOME NURSING",
+  "short_name": "WeCare Track",
+  "description": "Licensed in-home nurse tracking, vital monitoring & healthcare platform for Kingston, St. Andrew, Portmore & Spanish Town, Jamaica.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1A1E4E",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app-icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

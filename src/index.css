@@ -1,0 +1,289 @@
+@import "tailwindcss";
+
+:root {
+  --color-brand-navy: #1A1E4E;
+  --color-brand-navy-dark: #121539;
+  --color-brand-navy-light: #242A6B;
+  --color-brand-orange: #F59E0B;
+  --color-brand-orange-hover: #D97706;
+  --color-brand-blue: #3B82F6;
+  --color-brand-blue-glow: #2E8BFF;
+  --color-bg-clean: #FFFFFF;
+  --color-bg-muted: #F8FAFC;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ekgPulse {
+  0% {
+    stroke-dashoffset: 400;
+  }
+  50% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -400;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-ekg {
+  stroke-dasharray: 400;
+  animation: ekgPulse 3s linear infinite;
+}
+
+/* WeCare Track Jamaica Brand Components */
+.btn-primary-wecare {
+  background-color: #1A1E4E;
+  color: #FFFFFF;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.btn-primary-wecare:hover {
+  background-color: #F59E0B;
+  color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-secondary-wecare {
+  background-color: transparent;
+  color: #3B82F6;
+  border: 1.5px solid #3B82F6;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.btn-secondary-wecare:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: #2E8BFF;
+  color: #2E8BFF;
+}
+
+/* Card with subtle Blue EKG line accent at the top border */
+.wecare-card-ekg {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  background: #FFFFFF;
+  box-shadow: 0 4px 20px -2px rgba(26, 30, 78, 0.06);
+}
+.wecare-card-ekg::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #1A1E4E 0%, #3B82F6 40%, #F59E0B 70%, #3B82F6 100%);
+}
+
+/* Frosted glass scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(26, 30, 78, 0.08);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(26, 30, 78, 0.25);
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3B82F6;
+}
+
+/* Glass panel styled with brand navy and blue */
+.glass-panel {
+  background: rgba(26, 30, 78, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-panel-hover {
+  background: rgba(26, 30, 78, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.2s ease-in-out;
+}
+
+.glass-panel-hover:hover {
+  background: rgba(26, 30, 78, 0.85);
+  border-color: #3B82F6;
+  transform: translateY(-1px);
+}
+
+select option {
+  background-color: #1A1E4E;
+  color: #F8FAFC;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 12mm 12mm 15mm 12mm;
+}
+
+@media print {
+  html, body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    line-height: 1.4 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app navigation, buttons, controls and backdrop overlays */
+  nav, header, footer, button, .print\:hidden, .no-print, [role="dialog"] > div:first-child:not(#wecare-printable-document):not(.printable-container) {
+    display: none !important;
+  }
+
+  /* Reset modal containers so the document prints at full page width */
+  .fixed.inset-0 {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .printable-container, #wecare-printable-document, #wecare-medical-summary-doc, #wecare-verified-id-card-doc {
+    display: block !important;
+    position: static !important;
+    box-shadow: none !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+  }
+
+  /* Page break rules */
+  .page-break-inside-avoid {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Clean up text colors for printer */
+  .text-white {
+    color: #0f172a !important;
+  }
+  .text-slate-300, .text-slate-400 {
+    color: #475569 !important;
+  }
+  .bg-black\/40, .bg-white\/5, .bg-white\/10 {
+    background-color: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+  }
+}
+
+/* ==========================================================================
+   AuthModal Mobile Media Query & Accessibility Touch Targets
+   Ensures biometric auth & login forms occupy full screen width on mobile
+   with >= 48px touch targets for WCAG AAA accessibility
+   ========================================================================== */
+@media (max-width: 640px) {
+  .auth-modal-backdrop {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+
+  .auth-modal-dialog {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-height: 100dvh !important;
+    height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-top: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .auth-modal-body {
+    flex: 1 1 auto !important;
+    max-height: none !important;
+    padding: 1rem !important;
+  }
+
+  /* Full-width biometric passkey banner and credential login forms */
+  .auth-modal-biometric-banner,
+  .auth-modal-form,
+  .auth-form-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Accessible high touch targets (>= 48px) & iOS-safe text sizing */
+  .auth-touch-target,
+  .auth-modal-input,
+  .auth-modal-btn,
+  .auth-modal-tabs button {
+    min-height: 48px !important;
+    min-width: 48px !important;
+    box-sizing: border-box !important;
+  }
+
+  .auth-modal-input {
+    font-size: 16px !important; /* Prevents mobile browser auto-zoom on input focus */
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .auth-modal-grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .auth-action-buttons {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.75rem !important;
+  }
+
+  .auth-action-buttons button {
+    width: 100% !important;
+    min-height: 48px !important;
+    justify-content: center !important;
+  }
+}

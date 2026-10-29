@@ -1,0 +1,35 @@
+<svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="softGlow" x="-10%" y="-10%" width="120%" height="120%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#1A1E4E" flood-opacity="0.12" />
+    </filter>
+  </defs>
+  <!-- Background with smooth rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="#FFFFFF" />
+  
+  <g transform="translate(46, 56) scale(0.82)">
+    <!-- House Outline (Navy Blue #1A1E4E) -->
+    <!-- Chimney -->
+    <path d="M 340 160 L 340 96 L 388 96 L 388 205" stroke="#1A1E4E" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+    
+    <!-- Roof and Walls -->
+    <path d="M 70 236 L 256 68 L 442 236 L 442 432 C 442 452 426 468 406 468 L 106 468 C 86 468 70 452 70 432 Z" 
+          stroke="#1A1E4E" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    
+    <!-- EKG Heartbeat Line (Electric Blue #3B82F6) -->
+    <path d="M 12 284 L 118 284 L 138 250 L 158 334 L 186 182 L 214 360 L 236 284 L 276 284 M 356 284 L 384 284 L 398 254 L 412 322 L 426 216 L 442 334 L 456 284 L 500 284" 
+          stroke="#3B82F6" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Nurse Profile Silhouette (Navy Blue #1A1E4E) -->
+    <!-- Nurse Medical Cap -->
+    <path d="M 194 176 L 318 160 C 322 195 324 215 324 234 L 208 248 C 200 216 196 195 194 176 Z" 
+          fill="#1A1E4E" />
+    <!-- Nurse Medical Cross (Vibrant Gold/Orange #F59E0B) -->
+    <rect x="250" y="180" width="16" height="42" rx="4" fill="#F59E0B" />
+    <rect x="237" y="193" width="42" height="16" rx="4" fill="#F59E0B" />
+
+    <!-- Nurse Head, Hair & Neck Silhouette -->
+    <path d="M 218 252 C 200 262 188 282 188 306 C 188 336 210 354 234 354 C 234 366 226 384 206 414 L 286 450 C 290 416 304 380 326 348 C 328 342 332 330 326 322 C 320 314 316 316 314 310 C 310 298 322 284 322 270 C 322 258 316 250 306 248 Z" 
+          fill="#1A1E4E" />
+  </g>
+</svg>
