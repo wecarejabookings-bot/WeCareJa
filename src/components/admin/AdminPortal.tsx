@@ -125,7 +125,8 @@ export interface PendingNurseProfile {
 interface AdminPortalProps {
   nurses: NurseProfile[];
   bookings: Booking[];
-  onApproveNurse: (nurseId: string) => void;
+  onApproveNurse: (nurseId: string, applicantData?: any) => void;
+  onApproveAdmin?: (adminId: string, applicantData?: any) => void;
   onRejectNurse: (nurseId: string) => void;
   onResolveDispute: (bookingId: string, resolution: 'refund_client' | 'pay_nurse') => void;
   onTriggerPayoutBatch: () => void;
@@ -155,6 +156,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   nurses,
   bookings,
   onApproveNurse,
+  onApproveAdmin,
   onRejectNurse,
   onResolveDispute,
   onTriggerPayoutBatch,
@@ -394,9 +396,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       try {
         const rawLocal = localStorage.getItem('wecare_nurses');
         const localList: any[] = rawLocal ? JSON.parse(rawLocal) : (nurses || []);
-        const pendingLocal = localList.filter((n: any) => n.status === 'pending_approval' || n.status === 'pending');
+        const pendingLocal = localList.filter((n: any) => (n.status === 'pending_approval' || n.status === 'pending') && n.status !== 'approved' && !n.licenseVerified);
 
         for (const ln of pendingLocal) {
+          if (ln.status === 'approved' || ln.licenseVerified === true) continue;
           const matchIdx = list.findIndex(p => p.id === ln.id || (p.email && ln.email && p.email.toLowerCase() === ln.email.toLowerCase()));
           if (matchIdx !== -1) {
             list[matchIdx] = {
@@ -466,6 +469,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               if (rawDossier) {
                 const d = JSON.parse(rawDossier);
                 const dEmail = (d.email || '').toLowerCase().trim();
+                // Strictly skip approved or already vetted records
+                if (d.status === 'approved' || d.approvalStatus === 'approved') {
+                  continue;
+                }
                 if (dEmail && dEmail !== 'wecareja.bookings@gmail.com' && dEmail !== 'sydney@wecareja.com') {
                   const matchIdx = list.findIndex(p => (p.email && p.email.toLowerCase() === dEmail) || (p.id && p.id === d.userId));
                   if (matchIdx !== -1) {
@@ -523,6 +530,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       } catch (lErr) {
         console.warn('[AdminPortal] Local pending nurses check notice:', lErr);
       }
+
+      // Safeguard: Ensure no approved or active nurses or admins are ever displayed in pending verification
+      list = list.filter(p => {
+        const pStatus = (p.status || '').toLowerCase().trim();
+        const pRole = (p.role || '').toLowerCase().trim();
+        return pStatus !== 'approved' && pRole !== 'nurse' && pRole !== 'admin';
+      });
 
       setPendingProfiles(list);
     } catch (err) {
@@ -658,8 +672,64 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         } catch (e) {}
       }
 
+      // 1. Immediately filter out approved applicant from pending state
+      setPendingProfiles(prev => prev.filter(p => p.id !== applicant.id && (applicant.email ? p.email?.toLowerCase().trim() !== applicant.email?.toLowerCase().trim() : true)));
+
+      // 2. Update localStorage dossiers and roster so fetchPendingNurseProfiles will never resurrect them
+      try {
+        const applicantEmail = (applicant.email || '').toLowerCase().trim();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('wecare_dossier_')) {
+            const rawD = localStorage.getItem(k);
+            if (rawD) {
+              const d = JSON.parse(rawD);
+              if ((applicantEmail && d.email?.toLowerCase().trim() === applicantEmail) || (d.userId && d.userId === applicant.id)) {
+                d.status = 'approved';
+                d.approvalStatus = 'approved';
+                d.role = newRole;
+                d.approvedAt = new Date().toISOString();
+                localStorage.setItem(k, JSON.stringify(d));
+              }
+            }
+          }
+        }
+        const rawNurses = localStorage.getItem('wecare_nurses');
+        if (rawNurses) {
+          const parsed = JSON.parse(rawNurses);
+          if (Array.isArray(parsed)) {
+            const updated = parsed.map((n: any) => {
+              if (n.id === applicant.id || (applicantEmail && n.email?.toLowerCase().trim() === applicantEmail)) {
+                return { ...n, status: 'approved', licenseVerified: true };
+              }
+              return n;
+            });
+            localStorage.setItem('wecare_nurses', JSON.stringify(updated));
+          }
+        }
+      } catch (e) {}
+
+      // 3. Update parent app state for active nurses and user accounts
       if (newRole === 'nurse') {
-        onApproveNurse(applicant.id);
+        onApproveNurse(applicant.id, applicant);
+      } else {
+        onApproveAdmin?.(applicant.id, applicant);
+      }
+
+      if (onUpdateUserAccount) {
+        onUpdateUserAccount({
+          id: applicant.id,
+          username: applicant.username || (applicant.email ? applicant.email.split('@')[0] : `user_${Date.now()}`),
+          name: applicant.full_name || applicant.name || 'User',
+          full_name: applicant.full_name || applicant.name || 'User',
+          email: applicant.email || '',
+          role: newRole,
+          approvalStatus: 'approved',
+          status: 'active' as any,
+          phone: applicant.phone || '',
+          createdAt: applicant.created_at || new Date().toISOString(),
+          nurseProfileId: newRole === 'nurse' ? applicant.id : undefined
+        });
       }
 
       await fetchPendingNurseProfiles();
@@ -747,13 +817,68 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           .eq('id', profileId);
       }
 
+      // Immediately remove from pending state
+      setPendingProfiles(prev => prev.filter(p => p.id !== profileId && (profile?.email ? p.email?.toLowerCase().trim() !== profile.email?.toLowerCase().trim() : true)));
+
+      // Update localStorage dossiers and nurses
+      try {
+        const applicantEmail = (profile?.email || '').toLowerCase().trim();
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('wecare_dossier_')) {
+            const rawD = localStorage.getItem(k);
+            if (rawD) {
+              const d = JSON.parse(rawD);
+              if ((applicantEmail && d.email?.toLowerCase().trim() === applicantEmail) || (d.userId && d.userId === profileId)) {
+                d.status = 'approved';
+                d.approvalStatus = 'approved';
+                d.role = targetRole;
+                d.approvedAt = new Date().toISOString();
+                localStorage.setItem(k, JSON.stringify(d));
+              }
+            }
+          }
+        }
+        const rawNurses = localStorage.getItem('wecare_nurses');
+        if (rawNurses) {
+          const parsed = JSON.parse(rawNurses);
+          if (Array.isArray(parsed)) {
+            const updated = parsed.map((n: any) => {
+              if (n.id === profileId || (applicantEmail && n.email?.toLowerCase().trim() === applicantEmail)) {
+                return { ...n, status: 'approved', licenseVerified: true };
+              }
+              return n;
+            });
+            localStorage.setItem('wecare_nurses', JSON.stringify(updated));
+          }
+        }
+      } catch (e) {}
+
       if (targetRole === 'nurse') {
-        onApproveNurse(profileId);
+        onApproveNurse(profileId, profile);
+      } else {
+        onApproveAdmin?.(profileId, profile);
       }
-      setPendingProfiles(prev => prev.filter(p => p.id !== profileId));
+
+      if (onUpdateUserAccount && profile) {
+        onUpdateUserAccount({
+          id: profileId,
+          username: profile.username || (profile.email ? profile.email.split('@')[0] : `user_${Date.now()}`),
+          name: profile.full_name || profile.username || 'User',
+          full_name: profile.full_name || profile.username || 'User',
+          email: profile.email || '',
+          role: targetRole,
+          approvalStatus: 'approved',
+          status: 'active' as any,
+          phone: profile.phone || '',
+          createdAt: profile.created_at || new Date().toISOString(),
+          nurseProfileId: targetRole === 'nurse' ? profileId : undefined
+        });
+      }
+
       setPendingActionToast({
         type: 'success',
-        message: `Approved ${nurseName || (isAdminApplicant ? 'Administrator' : 'Practitioner')}! Updated role to '${targetRole}' in Supabase.`
+        message: `Approved ${nurseName || (isAdminApplicant ? 'Administrator' : 'Practitioner')}! Now active in directory and Manage Users.`
       });
       setTimeout(() => setPendingActionToast(null), 5000);
       soundFX.playSuccessPing();
@@ -2023,7 +2148,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               <div className="bg-white/[0.04] backdrop-blur-xl rounded-3xl p-6 border border-white/10 space-y-3 text-white">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <h4 className="font-bold text-white text-sm">
-                    Active Licensed Nurses on We Care ({filteredNursesList.filter(n => n.status === 'approved').length} of {approvedNurses.length})
+                    Active Licensed Nurses on WeCareTrack ({filteredNursesList.filter(n => n.status === 'approved').length} of {approvedNurses.length})
                   </h4>
               <div className="flex items-center gap-2">
                 <button

@@ -205,6 +205,37 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
             };
           });
 
+        // Merge any accounts from localStorage wecare_user_accounts
+        try {
+          const rawLocal = localStorage.getItem('wecare_user_accounts');
+          if (rawLocal) {
+            const parsed = JSON.parse(rawLocal);
+            if (Array.isArray(parsed)) {
+              for (const lu of parsed) {
+                if (!lu || !lu.id) continue;
+                const exists = mappedUsers.some(mu => mu.id === lu.id || (lu.email && mu.email.toLowerCase() === lu.email.toLowerCase()));
+                if (!exists) {
+                  mappedUsers.push({
+                    id: lu.id,
+                    fullName: lu.full_name || lu.name || 'User',
+                    username: lu.username || (lu.email ? lu.email.split('@')[0] : 'user'),
+                    email: lu.email || '',
+                    phone: lu.phone || '',
+                    role: lu.role || 'client',
+                    address: lu.address || lu.zone || 'Kingston, Jamaica',
+                    trn: lu.trn || '',
+                    department: lu.department,
+                    title: lu.title || (lu.role === 'admin' ? 'Administrator' : lu.role === 'nurse' ? 'Licensed Nurse' : 'Client'),
+                    status: 'approved',
+                    source: 'local',
+                    createdAt: lu.createdAt || new Date().toISOString()
+                  });
+                }
+              }
+            }
+          }
+        } catch {}
+
         setUsers(mappedUsers);
       } else {
         setUsers([]);

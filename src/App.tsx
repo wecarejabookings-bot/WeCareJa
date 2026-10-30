@@ -1427,34 +1427,123 @@ export default function App() {
     saveNurseProfileToSupabase(updatedNurse).catch(() => {});
   };
 
-  const handleApproveNurse = (nurseId: string) => {
-    let approvedNurseSchool: string | undefined;
+  const handleApproveNurse = (nurseId: string, applicantData?: any) => {
+    let approvedNurseSchool: string | undefined = applicantData?.institutionAttended || applicantData?.school;
 
     // Push approval to Supabase profiles (role='nurse')
     approveNurseInSupabase(nurseId).catch(() => {});
 
-    setNurses(prev => prev.map(n => {
-      if (n.id === nurseId) {
-        approvedNurseSchool = n.institutionAttended;
-        return {
-          ...n,
-          status: 'approved' as const,
-          licenseVerified: true
-        };
-      }
-      return n;
-    }));
+    setNurses(prev => {
+      const nurseEmail = (applicantData?.email || '').toLowerCase().trim();
+      const existingIdx = prev.findIndex(n => n.id === nurseId || (nurseEmail && n.email?.toLowerCase().trim() === nurseEmail));
 
-    // Approve corresponding UserAccount
-    setUserAccounts(prev => prev.map(acc => {
-      if (acc.nurseProfileId === nurseId || acc.id === `usr-nurse-${nurseId}` || acc.id === nurseId) {
-        return {
-          ...acc,
-          approvalStatus: 'approved' as const
+      let updatedList: NurseProfile[];
+      if (existingIdx !== -1) {
+        if (!approvedNurseSchool) {
+          approvedNurseSchool = prev[existingIdx].institutionAttended;
+        }
+        updatedList = [...prev];
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          status: 'approved' as const,
+          licenseVerified: true,
+          photoUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || updatedList[existingIdx].photoUrl,
+          qualification: applicantData?.qualification || updatedList[existingIdx].qualification || 'Registered General Nurse (RN)'
         };
+      } else {
+        const newNurse: NurseProfile = {
+          id: nurseId || applicantData?.id || `nurse-${Date.now()}`,
+          name: applicantData?.full_name || applicantData?.name || 'Licensed Care Practitioner',
+          email: applicantData?.email || '',
+          phone: applicantData?.phone || '(876) 555-0199',
+          status: 'approved',
+          licenseVerified: true,
+          qualification: applicantData?.qualification || applicantData?.licenseType || 'Registered General Nurse (RN)',
+          nursingCouncilLicense: applicantData?.licenseNumber || applicantData?.nursingCouncilLicense || applicantData?.ncjLicense || `NCJ-${Date.now().toString().slice(-5)}`,
+          institutionAttended: approvedNurseSchool || 'University of the West Indies (Mona) School of Nursing',
+          yearsExperience: Number(applicantData?.yearsExperience || applicantData?.experienceYears || 3),
+          rating: 5.0,
+          reviewCount: 1,
+          hourlyRateJMD: Number(applicantData?.hourlyRateJMD || 4500),
+          specialties: Array.isArray(applicantData?.specialties) && applicantData.specialties.length > 0
+            ? applicantData.specialties
+            : ['General Nursing', 'Post-Op Care', 'Vital Signs Monitoring'],
+          zones: Array.isArray(applicantData?.zones) && applicantData.zones.length > 0
+            ? applicantData.zones
+            : ['Kingston 6 (Liguanea)', 'Kingston 8', 'Spanish Town', 'Portmore'],
+          parish: applicantData?.parish || applicantData?.address || 'Kingston & St. Andrew',
+          address: applicantData?.address || 'Kingston, Jamaica',
+          trnNumber: applicantData?.trnNumber || applicantData?.trn || '',
+          trn: applicantData?.trnNumber || applicantData?.trn || '',
+          photoUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400',
+          driversLicenseFrontUrl: applicantData?.driversLicenseFrontUrl,
+          driversLicenseBackUrl: applicantData?.driversLicenseBackUrl,
+          trnCertificateUrl: applicantData?.trnCertificateUrl,
+          licenseDocumentUrl: applicantData?.licenseDocumentUrl,
+          bio: applicantData?.bio || 'Compassionate licensed nursing professional registered with the Nursing Council of Jamaica (NCJ).',
+          availabilityStatus: 'on_call',
+          reviewedByAdminAt: new Date().toISOString(),
+          submittedForReviewAt: applicantData?.created_at || new Date().toISOString(),
+          totalEarningsJMD: 0,
+          pendingPayoutJMD: 0,
+          completedVisitsCount: 0
+        };
+        updatedList = [newNurse, ...prev];
       }
-      return acc;
-    }));
+      try {
+        localStorage.setItem('wecare_nurses', JSON.stringify(updatedList));
+      } catch {}
+      return updatedList;
+    });
+
+    // Approve corresponding UserAccount or add if not present
+    setUserAccounts(prev => {
+      const nurseEmail = (applicantData?.email || '').toLowerCase().trim();
+      const existingIdx = prev.findIndex(acc =>
+        acc.id === nurseId ||
+        acc.nurseProfileId === nurseId ||
+        acc.id === `usr-nurse-${nurseId}` ||
+        (nurseEmail && acc.email?.toLowerCase().trim() === nurseEmail)
+      );
+
+      let updatedList: UserAccount[];
+      if (existingIdx !== -1) {
+        updatedList = [...prev];
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          role: 'nurse',
+          approvalStatus: 'approved' as const,
+          status: 'active' as any,
+          nurseProfileId: nurseId,
+          ...(applicantData || {})
+        };
+      } else {
+        const newAccount: UserAccount = {
+          id: nurseId || `usr-nurse-${Date.now()}`,
+          name: applicantData?.full_name || applicantData?.name || 'Licensed Care Practitioner',
+          full_name: applicantData?.full_name || applicantData?.name || 'Licensed Care Practitioner',
+          username: applicantData?.username || (nurseEmail ? nurseEmail.split('@')[0] : `nurse_${Date.now()}`),
+          email: applicantData?.email || '',
+          phone: applicantData?.phone || '(876) 555-0199',
+          role: 'nurse',
+          approvalStatus: 'approved' as const,
+          status: 'active' as any,
+          nurseProfileId: nurseId,
+          zone: applicantData?.zone || applicantData?.parish || 'Kingston & St. Andrew',
+          address: applicantData?.address || 'Kingston, Jamaica',
+          trn: applicantData?.trnNumber || applicantData?.trn || '',
+          nursingCouncilLicense: applicantData?.licenseNumber || applicantData?.nursingCouncilLicense || applicantData?.ncjLicense,
+          createdAt: applicantData?.created_at || new Date().toISOString(),
+          avatarUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400',
+          title: applicantData?.qualification || 'Licensed Nurse Practitioner'
+        };
+        updatedList = [newAccount, ...prev];
+      }
+      try {
+        localStorage.setItem('wecare_user_accounts', JSON.stringify(updatedList));
+      } catch {}
+      return updatedList;
+    });
 
     // Learning Registry: If nurse has school attended from "Other" box,
     // approve existing or dynamically create and add it to nursingSchools list permanently!
@@ -1524,6 +1613,65 @@ export default function App() {
       }
       return acc;
     }));
+  };
+
+  const handleApproveAdmin = (adminId: string, applicantData?: any) => {
+    supabase.from('profiles').update({
+      role: 'admin',
+      status: 'approved',
+      welcome_seen: false
+    }).eq('id', adminId).then(() => {}, () => {});
+
+    setUserAccounts(prev => {
+      const adminEmail = (applicantData?.email || '').toLowerCase().trim();
+      const existingIdx = prev.findIndex(acc =>
+        acc.id === adminId ||
+        acc.id === `usr-admin-${adminId}` ||
+        (adminEmail && acc.email?.toLowerCase().trim() === adminEmail)
+      );
+
+      let updatedList: UserAccount[];
+      if (existingIdx !== -1) {
+        updatedList = [...prev];
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          role: 'admin',
+          approvalStatus: 'approved' as const,
+          status: 'active' as any,
+          ...(applicantData || {})
+        };
+      } else {
+        const newAccount: UserAccount = {
+          id: adminId || `usr-admin-${Date.now()}`,
+          name: applicantData?.full_name || applicantData?.name || 'Operations Administrator',
+          full_name: applicantData?.full_name || applicantData?.name || 'Operations Administrator',
+          username: applicantData?.username || (adminEmail ? adminEmail.split('@')[0] : `admin_${Date.now()}`),
+          email: applicantData?.email || '',
+          phone: applicantData?.phone || '(876) 582-7613',
+          role: 'admin',
+          approvalStatus: 'approved' as const,
+          status: 'active' as any,
+          department: applicantData?.department || 'Operations Management',
+          zone: applicantData?.zone || applicantData?.parish || 'Kingston & St. Andrew',
+          address: applicantData?.address || 'Kingston, Jamaica',
+          trn: applicantData?.trnNumber || applicantData?.trn || '',
+          createdAt: applicantData?.created_at || new Date().toISOString(),
+          avatarUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+          title: applicantData?.title || 'System Administrator'
+        };
+        updatedList = [newAccount, ...prev];
+      }
+      try {
+        localStorage.setItem('wecare_user_accounts', JSON.stringify(updatedList));
+      } catch {}
+      return updatedList;
+    });
+
+    handleTriggerNotification(
+      'system_alert',
+      'Administrator Clearance Approved',
+      `Administrator credentials approved for ${applicantData?.full_name || applicantData?.name || 'Staff Member'}. Account is now fully active in Manage Users.`
+    );
   };
 
   // Dispute & Payout Handlers
@@ -2168,6 +2316,7 @@ export default function App() {
                 nurses={nurses}
                 bookings={bookings}
                 onApproveNurse={handleApproveNurse}
+                onApproveAdmin={handleApproveAdmin}
                 onRejectNurse={handleRejectNurse}
                 onResolveDispute={handleResolveDispute}
                 onTriggerPayoutBatch={handleTriggerPayoutBatch}

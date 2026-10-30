@@ -61,9 +61,43 @@ export const UserAccountsManager: React.FC<UserAccountsManagerProps> = ({
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [clientForEdit, setClientForEdit] = useState<UserAccount | null>(null);
 
+  // Combine prop userAccounts with any newly approved accounts in localStorage
+  const allAccounts = useMemo(() => {
+    let localAccs: UserAccount[] = [];
+    try {
+      const raw = localStorage.getItem('wecare_user_accounts');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) localAccs = parsed;
+      }
+    } catch {}
+
+    const accMap = new Map<string, UserAccount>();
+    (userAccounts || []).forEach(acc => {
+      const key = acc.id || acc.email?.toLowerCase();
+      if (key) accMap.set(key, acc);
+    });
+
+    localAccs.forEach(acc => {
+      const key = acc.id || acc.email?.toLowerCase();
+      if (key) {
+        if (!accMap.has(key)) {
+          accMap.set(key, acc);
+        } else {
+          const existing = accMap.get(key)!;
+          if (acc.approvalStatus === 'approved' && existing.approvalStatus !== 'approved') {
+            accMap.set(key, { ...existing, ...acc });
+          }
+        }
+      }
+    });
+
+    return Array.from(accMap.values());
+  }, [userAccounts]);
+
   // Filtering user accounts by Name, Date, or Status
   const filteredUsers = useMemo(() => {
-    return (userAccounts || []).filter((u) => {
+    return allAccounts.filter((u) => {
       // 1. Role Filter
       if (selectedRole !== 'all' && u.role !== selectedRole) {
         return false;
@@ -71,8 +105,12 @@ export const UserAccountsManager: React.FC<UserAccountsManagerProps> = ({
 
       // 2. Status Filter
       if (selectedStatus !== 'all') {
-        const uStatus = (u as any).status || 'active';
-        if (uStatus !== selectedStatus) return false;
+        const uStatus = (u as any).status || ((u as any).approvalStatus === 'approved' ? 'active' : 'active');
+        if (selectedStatus === 'active') {
+          if (uStatus !== 'active' && (u as any).approvalStatus !== 'approved') return false;
+        } else if (uStatus !== selectedStatus) {
+          return false;
+        }
       }
 
       // 3. Date Filter (Created / Join Date)
@@ -87,16 +125,16 @@ export const UserAccountsManager: React.FC<UserAccountsManagerProps> = ({
       if (!query.trim()) return true;
 
       const q = query.toLowerCase().trim();
-      const matchName = u.name.toLowerCase().includes(q);
+      const matchName = (u.name || '').toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q);
       const matchEmail = (u.email || '').toLowerCase().includes(q);
       const matchPhone = (u.phone || '').toLowerCase().includes(q);
       const matchZone = (u.zone || '').toLowerCase().includes(q);
-      const matchRole = u.role.toLowerCase().includes(q);
-      const matchId = u.id.toLowerCase().includes(q);
+      const matchRole = (u.role || '').toLowerCase().includes(q);
+      const matchId = (u.id || '').toLowerCase().includes(q);
 
       return matchName || matchEmail || matchPhone || matchZone || matchRole || matchId;
     });
-  }, [userAccounts, query, selectedRole, selectedStatus, createdAfterDate]);
+  }, [allAccounts, query, selectedRole, selectedStatus, createdAfterDate]);
 
   const handleClear = () => {
     soundFX.playSuccessPing();
@@ -117,7 +155,7 @@ export const UserAccountsManager: React.FC<UserAccountsManagerProps> = ({
             <Users className="w-5 h-5 text-[#C77DFF]" />
             <h3 className="text-base font-bold text-white">User Accounts &amp; Access Directory</h3>
             <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-[10px] font-bold">
-              {(userAccounts || []).length} Total Registered
+              {allAccounts.length} Total Registered
             </span>
           </div>
           <p className="text-xs text-slate-400 mt-1">
