@@ -1082,6 +1082,26 @@ export interface AdminPaymentHistoryItem {
   lynkOrBankInfo?: string;
 }
 
+export interface ProductColorOption {
+  name: string;
+  hex: string;
+  image_url?: string;
+}
+
+export interface ProductSizeOption {
+  id: string;
+  name: string;
+  label: string;
+  price_delta_jmd?: number;
+  in_stock?: boolean;
+}
+
+export interface ProductAngleImage {
+  angle: 'front' | 'side' | 'detail' | 'in_use' | 'packaging';
+  label: string;
+  image_url: string;
+}
+
 export interface MedicalSupplyItem {
   id: string;
   name: string;
@@ -1094,6 +1114,14 @@ export interface MedicalSupplyItem {
   is_active?: boolean;
   requires_prescription?: boolean;
   created_at?: string;
+  brand?: string;
+  rating?: number;
+  review_count?: number;
+  angles?: ProductAngleImage[];
+  colors?: ProductColorOption[];
+  sizes?: ProductSizeOption[];
+  features?: string[];
+  specifications?: Record<string, string>;
 }
 
 export interface StoreProduct {
@@ -1105,6 +1133,14 @@ export interface StoreProduct {
   stock_qty: number;
   image_url: string;
   is_active: boolean;
+  brand?: string;
+  rating?: number;
+  review_count?: number;
+  angles?: ProductAngleImage[];
+  colors?: ProductColorOption[];
+  sizes?: ProductSizeOption[];
+  features?: string[];
+  specifications?: Record<string, string>;
 }
 
 export interface SupplyOrderItem {
@@ -1112,6 +1148,9 @@ export interface SupplyOrderItem {
   name: string;
   price_jmd: number;
   quantity: number;
+  selected_color?: string;
+  selected_size?: string;
+  image_url?: string;
 }
 
 export interface SupplyOrder {

@@ -19,13 +19,28 @@ import {
   Mail, 
   FileText,
   CreditCard,
-  X
+  X,
+  ZoomIn,
+  Eye,
+  Star,
+  Sparkles
 } from 'lucide-react';
 import { MedicalSupplyItem, SupplyOrderItem, UserAccount } from '../../types';
 import { createSupplyOrderRecord } from '../../lib/supabase';
 import { fetchClientStoreProducts } from '../../services/storeProductsService';
+import { enhanceProductWithAmazonDetails } from '../../services/storeProductCatalogService';
+import { ProductDetailModal } from './ProductDetailModal';
 import { soundFX } from '../../utils/soundEffects';
 import confetti from 'canvas-confetti';
+
+export interface StoreCartEntry {
+  variantKey: string;
+  item: MedicalSupplyItem;
+  quantity: number;
+  selectedColor?: string;
+  selectedSize?: string;
+  unitPrice: number;
+}
 
 interface MedicalStorePageProps {
   currentUser?: UserAccount | null;
@@ -43,8 +58,11 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   
-  // Cart state: map of supplyId -> { item, quantity }
-  const [cart, setCart] = useState<Record<string, { item: MedicalSupplyItem; quantity: number }>>({});
+  // Amazon-style Product Detail Modal state
+  const [selectedProductForDetail, setSelectedProductForDetail] = useState<MedicalSupplyItem | null>(null);
+
+  // Cart state: map of variantKey -> StoreCartEntry
+  const [cart, setCart] = useState<Record<string, StoreCartEntry>>({});
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   
@@ -68,13 +86,13 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
     }
   }, [currentUser]);
 
-  // Load active supplies from store_products table (is_active=true)
+  // Load active supplies from store_products table and enhance with Amazon-style multi-angles/specs
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
         const prods = await fetchClientStoreProducts();
-        setSupplies(prods.map(p => ({
+        const enhanced = prods.map(p => enhanceProductWithAmazonDetails({
           id: p.id,
           name: p.name,
           price_jmd: p.price_jmd,
@@ -84,7 +102,8 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
           description: p.description,
           image_url: p.image_url,
           is_active: p.is_active
-        })));
+        }));
+        setSupplies(enhanced);
       } catch (err) {
         console.error('Failed to load supplies:', err);
       } finally {
@@ -106,48 +125,79 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
     return matchesCategory && matchesSearch;
   });
 
-  // Cart operations
-  const addToCart = (item: MedicalSupplyItem) => {
+  // Cart operations supporting Amazon-style colors and sizes
+  const addToCart = (
+    item: MedicalSupplyItem,
+    quantity: number = 1,
+    selectedColor?: string,
+    selectedSize?: string,
+    customPrice?: number
+  ) => {
     soundFX.playToggleClick();
+    const effectivePrice = customPrice !== undefined ? customPrice : item.price_jmd;
+    const colorChoice = selectedColor || (item.colors && item.colors[0]?.name) || 'Standard';
+    const sizeChoice = selectedSize || (item.sizes && item.sizes[0]?.label) || 'Standard';
+    const variantKey = `${item.id}__${colorChoice}__${sizeChoice}`;
+
     setCart(prev => {
-      const existing = prev[item.id];
-      const newQty = existing ? existing.quantity + 1 : 1;
+      const existing = prev[variantKey];
+      const newQty = existing ? existing.quantity + quantity : quantity;
       return {
         ...prev,
-        [item.id]: { item, quantity: newQty }
+        [variantKey]: {
+          variantKey,
+          item,
+          quantity: newQty,
+          selectedColor: colorChoice,
+          selectedSize: sizeChoice,
+          unitPrice: effectivePrice
+        }
       };
     });
   };
 
-  const updateQuantity = (itemId: string, delta: number) => {
+  const handleDirectBuyNow = (
+    item: MedicalSupplyItem,
+    quantity: number = 1,
+    selectedColor?: string,
+    selectedSize?: string,
+    customPrice?: number
+  ) => {
+    addToCart(item, quantity, selectedColor, selectedSize, customPrice);
+    setSelectedProductForDetail(null);
+    setIsCartOpen(true);
+    setIsCheckingOut(true);
+  };
+
+  const updateQuantity = (variantKey: string, delta: number) => {
     setCart(prev => {
-      const existing = prev[itemId];
+      const existing = prev[variantKey];
       if (!existing) return prev;
       const newQty = existing.quantity + delta;
       if (newQty <= 0) {
         const copy = { ...prev };
-        delete copy[itemId];
+        delete copy[variantKey];
         return copy;
       }
       return {
         ...prev,
-        [itemId]: { ...existing, quantity: newQty }
+        [variantKey]: { ...existing, quantity: newQty }
       };
     });
   };
 
-  const removeFromCart = (itemId: string) => {
+  const removeFromCart = (variantKey: string) => {
     soundFX.playCancellation();
     setCart(prev => {
       const copy = { ...prev };
-      delete copy[itemId];
+      delete copy[variantKey];
       return copy;
     });
   };
 
   const cartItems = Object.values(cart);
   const totalItemCount = cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
-  const totalJMD = cartItems.reduce((acc, curr) => acc + curr.item.price_jmd * curr.quantity, 0);
+  const totalJMD = cartItems.reduce((acc, curr) => acc + curr.unitPrice * curr.quantity, 0);
 
   // Submit Order
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -167,13 +217,23 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
 
     setIsSubmitting(true);
     try {
-      const formattedItems: SupplyOrderItem[] = cartItems.map(c => ({
-        supply_id: c.item.id,
-        name: c.item.name,
-        price_jmd: c.item.price_jmd,
-        quantity: c.quantity,
-        image_url: c.item.image_url || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'
-      }));
+      const formattedItems: SupplyOrderItem[] = cartItems.map(c => {
+        const variantSuffix = [c.selectedSize, c.selectedColor]
+          .filter(Boolean)
+          .filter(v => v !== 'Standard')
+          .join(', ');
+        const fullName = variantSuffix ? `${c.item.name} (${variantSuffix})` : c.item.name;
+
+        return {
+          supply_id: c.item.id,
+          name: fullName,
+          price_jmd: c.unitPrice,
+          quantity: c.quantity,
+          selected_color: c.selectedColor,
+          selected_size: c.selectedSize,
+          image_url: c.item.image_url || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'
+        };
+      });
 
       const created = await createSupplyOrderRecord({
         client_id: currentUser?.id,
@@ -308,53 +368,122 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredSupplies.map(item => {
-              const inCartQty = cart[item.id]?.quantity || 0;
+              // Count all items matching this base product in cart
+              const inCartQty = Object.values(cart)
+                .filter(c => c.item.id === item.id)
+                .reduce((sum, c) => sum + c.quantity, 0);
+
+              const angleCount = item.angles?.length || 4;
+              const previewColors = (item.colors || []).slice(0, 4);
+
               return (
                 <div
                   key={item.id}
-                  className="rounded-3xl bg-white/[0.04] backdrop-blur-md border border-white/10 hover:border-emerald-500/40 transition-all flex flex-col overflow-hidden group shadow-lg"
+                  onClick={() => {
+                    soundFX.playToggleClick();
+                    setSelectedProductForDetail(item);
+                  }}
+                  className="rounded-3xl bg-white/[0.04] backdrop-blur-md border border-white/10 hover:border-amber-400/50 hover:shadow-2xl hover:shadow-amber-500/10 transition-all duration-200 flex flex-col overflow-hidden group cursor-pointer"
+                  title="Click to enlarge picture, view angles, colors, sizes and order"
                 >
-                  <div className="h-44 w-full bg-slate-900/80 relative overflow-hidden">
+                  {/* Image Card Top with Hover Zoom Cue & Angle Badges */}
+                  <div className="h-48 w-full bg-slate-900/90 relative overflow-hidden">
                     <img loading="lazy" decoding="async"
                       src={item.image_url || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500'}
                       alt={item.name}
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=500';
                       }}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
                     />
-                    <div className="absolute top-3 left-3">
-                      <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
+
+                    {/* Category Tag */}
+                    <div className="absolute top-3 left-3 z-10">
+                      <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
                         {item.category}
                       </span>
                     </div>
+
+                    {/* Multi-Angle Badge */}
+                    <div className="absolute top-3 right-3 z-10 flex items-center gap-1">
+                      <span className="px-2 py-0.5 rounded-lg bg-black/80 backdrop-blur-md text-amber-300 border border-amber-400/40 text-[10px] font-mono font-bold flex items-center gap-1 shadow-sm">
+                        <Eye className="w-3 h-3 text-amber-400" />
+                        <span>{angleCount} Angles</span>
+                      </span>
+                    </div>
+
+                    {/* Stock Status Badge */}
                     {item.stock > 0 ? (
-                      <div className="absolute bottom-3 right-3">
-                        <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 text-[10px] font-mono border border-emerald-500/40">
+                      <div className="absolute bottom-3 left-3 z-10">
+                        <span className="px-2 py-0.5 rounded bg-emerald-950/90 text-emerald-300 text-[10px] font-mono border border-emerald-500/40 shadow-sm">
                           {item.stock} in stock
                         </span>
                       </div>
                     ) : (
-                      <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center">
+                      <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-10">
                         <span className="px-3 py-1 rounded-lg bg-red-500/20 text-red-300 border border-red-500/40 text-xs font-bold">
                           Out of Stock
                         </span>
                       </div>
                     )}
+
+                    {/* Amazon-Style Hover Zoom Prompt Banner */}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-2.5 text-center transform translate-y-full group-hover:translate-y-0 transition-transform duration-200 flex items-center justify-center gap-1.5 z-10">
+                      <ZoomIn className="w-3.5 h-3.5 text-amber-300" />
+                      <span className="text-[11px] font-black text-amber-300 tracking-wide">
+                        Click to Enlarge &amp; View Angles
+                      </span>
+                    </div>
                   </div>
 
+                  {/* Card Body */}
                   <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3">
                     <div>
-                      <h3 className="text-sm font-bold text-white group-hover:text-emerald-300 transition leading-snug">
+                      {/* Rating & Review Stars */}
+                      <div className="flex items-center gap-1.5 text-[11px] text-amber-400 mb-1">
+                        <div className="flex items-center">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className="w-3 h-3 fill-amber-400" />
+                          ))}
+                        </div>
+                        <span className="font-bold text-white text-xs">{item.rating || 4.9}</span>
+                        <span className="text-slate-400 text-[10px]">({item.review_count || 128})</span>
+                      </div>
+
+                      <h3 className="text-sm font-bold text-white group-hover:text-amber-300 transition leading-snug line-clamp-2">
                         {item.name}
                       </h3>
+
                       {item.description && (
                         <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">
                           {item.description}
                         </p>
                       )}
+
+                      {/* Color Preview Swatches */}
+                      {previewColors.length > 0 && (
+                        <div className="mt-2.5 flex items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400">Colors:</span>
+                          <div className="flex items-center gap-1">
+                            {previewColors.map((col, idx) => (
+                              <span 
+                                key={idx} 
+                                className="w-3 h-3 rounded-full border border-white/40 shadow-xs inline-block"
+                                style={{ backgroundColor: col.hex }}
+                                title={col.name}
+                              />
+                            ))}
+                            {(item.colors?.length || 0) > 4 && (
+                              <span className="text-[9px] font-mono text-slate-400">
+                                +{(item.colors?.length || 0) - 4}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
+                    {/* Price & Action Row */}
                     <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2">
                       <div>
                         <span className="text-[10px] uppercase font-bold text-slate-400 block">Price</span>
@@ -363,36 +492,35 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
                         </span>
                       </div>
 
-                      {inCartQty > 0 ? (
-                        <div className="flex items-center gap-1.5 bg-emerald-500/20 p-1 rounded-xl border border-emerald-500/40">
-                          <button
-                            onClick={() => updateQuantity(item.id, -1)}
-                            className="w-7 h-7 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center transition cursor-pointer"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="w-6 text-center text-xs font-mono font-bold text-white">
-                            {inCartQty}
-                          </span>
-                          <button
-                            onClick={() => updateQuantity(item.id, 1)}
-                            disabled={inCartQty >= item.stock}
-                            className="w-7 h-7 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:bg-white/10 disabled:text-slate-600 disabled:cursor-not-allowed text-slate-950 flex items-center justify-center transition cursor-pointer"
-                            title={inCartQty >= item.stock ? 'Maximum available stock reached' : 'Add one more'}
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
+                      <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => addToCart(item)}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            soundFX.playToggleClick();
+                            setSelectedProductForDetail(item);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition flex items-center gap-1 cursor-pointer"
+                          title="View larger picture, angles, sizes & specifications"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-amber-300" />
+                          <span className="hidden sm:inline">Options</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(item, 1);
+                          }}
                           disabled={item.stock <= 0}
-                          className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 disabled:border disabled:border-white/10 disabled:cursor-not-allowed text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1 cursor-pointer"
+                          title="Quick 1-Click Add to Cart"
                         >
                           <Plus className="w-3.5 h-3.5" />
-                          <span>{item.stock <= 0 ? 'Out of Stock' : 'Add to Cart'}</span>
+                          <span>{inCartQty > 0 ? `(${inCartQty})` : 'Add'}</span>
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -461,9 +589,9 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
                 /* Item list review view */
                 <div className="space-y-3">
                   <div className="space-y-2.5">
-                    {cartItems.map(({ item, quantity }) => (
+                    {cartItems.map(({ variantKey, item, quantity, selectedColor, selectedSize, unitPrice }) => (
                       <div
-                        key={item.id}
+                        key={variantKey}
                         className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3"
                       >
                         <img loading="lazy" decoding="async"
@@ -476,26 +604,38 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
                         />
                         <div className="flex-1 min-w-0">
                           <h4 className="text-xs font-bold text-white truncate">{item.name}</h4>
-                          <span className="text-[11px] font-mono text-amber-300">
-                            ${item.price_jmd.toLocaleString()} JMD
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {selectedSize && selectedSize !== 'Standard' && (
+                              <span className="px-1.5 py-0.5 rounded-md bg-white/10 text-[10px] text-slate-300 font-mono">
+                                {selectedSize}
+                              </span>
+                            )}
+                            {selectedColor && selectedColor !== 'Standard' && (
+                              <span className="text-[10px] text-emerald-400 font-semibold truncate">
+                                {selectedColor}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[11px] font-mono text-amber-300 block mt-0.5">
+                            ${unitPrice.toLocaleString()} JMD
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <button
-                            onClick={() => updateQuantity(item.id, -1)}
+                            onClick={() => updateQuantity(variantKey, -1)}
                             className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
                           >
                             <Minus className="w-3 h-3" />
                           </button>
                           <span className="w-5 text-center text-xs font-mono font-bold">{quantity}</span>
                           <button
-                            onClick={() => updateQuantity(item.id, 1)}
+                            onClick={() => updateQuantity(variantKey, 1)}
                             className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                           </button>
                           <button
-                            onClick={() => removeFromCart(item.id)}
+                            onClick={() => removeFromCart(variantKey)}
                             className="ml-1 p-1.5 rounded-lg text-red-400 hover:bg-red-500/20 transition cursor-pointer"
                             title="Remove item"
                           >
@@ -676,6 +816,21 @@ export const MedicalStorePage: React.FC<MedicalStorePageProps> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {/* Amazon-Style Enlarge Picture & Product Customization Modal */}
+      {selectedProductForDetail && (
+        <ProductDetailModal
+          product={selectedProductForDetail}
+          isOpen={!!selectedProductForDetail}
+          onClose={() => setSelectedProductForDetail(null)}
+          onAddToCart={(item, qty, color, size, price) => {
+            addToCart(item, qty, color, size, price);
+          }}
+          onBuyNow={(item, qty, color, size, price) => {
+            handleDirectBuyNow(item, qty, color, size, price);
+          }}
+        />
       )}
     </div>
   );
