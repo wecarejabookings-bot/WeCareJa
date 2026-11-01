@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { NurseProfile, Booking, ClinicalNotes, LogoVariation, InvoiceSummary, PayoutRecord, NursePeerChatMessage, VisitQRAction, ActivityNotificationType, UserAccount } from '../../types';
+import { NurseProfile, Booking, ClinicalNotes, LogoVariation, InvoiceSummary, PayoutRecord, NursePeerChatMessage, VisitQRAction, ActivityNotificationType, UserAccount, CashPlatformFeeSettlement } from '../../types';
 import { KINGSTON_ZONES, PORTMORE_ZONES, SPANISH_TOWN_ZONES, ALL_SERVICE_ZONES, INITIAL_PAYOUTS } from '../../data/mockData';
 import { VisitTimerWidget } from './VisitTimerWidget';
 import { CallContactModal } from '../common/CallContactModal';
@@ -13,6 +13,7 @@ import { NursePeerNetworkView } from './NursePeerNetworkView';
 import { PatientMedicationReminderCard } from './PatientMedicationReminderCard';
 import { IncomingBookingPromptModal } from './IncomingBookingPromptModal';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
+import { NursePlatformFeeChargeModal } from './NursePlatformFeeChargeModal';
 import { NurseAvailabilityGeofenceCard } from './NurseAvailabilityGeofenceCard';
 import { InProgressVisitTimerBanner } from './InProgressVisitTimerBanner';
 import { NurseArrivalQRScannerModal } from './NurseArrivalQRScannerModal';
@@ -121,6 +122,11 @@ interface NursePortalProps {
   logoVariation: LogoVariation;
   onOpenVideoCall?: (participantName: string, participantRole: 'client' | 'admin', meetingTitle?: string) => void;
   onTriggerNotification?: (type: ActivityNotificationType, title: string, description: string, bookingId?: string) => void;
+  onSettlePlatformFee?: (
+    settlement: CashPlatformFeeSettlement,
+    updatedNurse: NurseProfile,
+    updatedBooking?: Booking
+  ) => void;
 }
 
 export const NursePortal: React.FC<NursePortalProps> = ({
@@ -142,7 +148,8 @@ export const NursePortal: React.FC<NursePortalProps> = ({
   onOpenLaunchKit,
   logoVariation,
   onOpenVideoCall,
-  onTriggerNotification
+  onTriggerNotification,
+  onSettlePlatformFee
 }) => {
   const fallbackEmptyNurse: NurseProfile = {
     id: 'nurse-pending',
@@ -308,6 +315,8 @@ export const NursePortal: React.FC<NursePortalProps> = ({
   const [exportModalEntity, setExportModalEntity] = useState<ExportEntityType>('bookings');
   const [isIDCardModalOpen, setIsIDCardModalOpen] = useState(false);
   const [isContractAgreementOpen, setIsContractAgreementOpen] = useState(false);
+  const [isPlatformFeeChargeModalOpen, setIsPlatformFeeChargeModalOpen] = useState(false);
+  const [selectedBookingForFeeCharge, setSelectedBookingForFeeCharge] = useState<Booking | null>(null);
 
   // Vitals State
   const [bp, setBp] = useState('124/80 mmHg');
@@ -847,6 +856,43 @@ export const NursePortal: React.FC<NursePortalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Outstanding Cash Visit Platform Fees Alert Banner */}
+      {(currentNurse.outstandingPlatformFeeJMD || 0) > 0 && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-red-950/90 via-slate-900 to-amber-950/70 border-2 border-red-500/50 text-white shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0 text-red-400">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-red-500/30 text-red-300 font-black text-[10px] tracking-wide uppercase border border-red-500/40">
+                  Payment Due
+                </span>
+                <h4 className="font-black text-sm text-white">
+                  Unsettled Platform Fees: {formatJMD(currentNurse.outstandingPlatformFeeJMD || 0)}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed max-w-2xl">
+                For visits paid in cash at the client's doorstep, you retain 100% of the funds in hand. The 15% WeCare platform fee must be settled via Card, Lynk (<strong className="text-purple-300">@wecareja</strong>), or NCB bank transfer.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedBookingForFeeCharge(null);
+                setIsPlatformFeeChargeModalOpen(true);
+              }}
+              className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Settle Platform Fee ({formatJMD(currentNurse.outstandingPlatformFeeJMD || 0)})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Pending Admin Review & Credential Verification Banner */}
       {currentNurse.status !== 'approved' && (
@@ -1984,6 +2030,10 @@ export const NursePortal: React.FC<NursePortalProps> = ({
           payouts={payouts}
           allBookings={bookings}
           onOpenInvoiceModal={(b) => setSelectedBookingForInvoiceModal(b)}
+          onOpenPlatformFeeChargeModal={(b) => {
+            setSelectedBookingForFeeCharge(b || null);
+            setIsPlatformFeeChargeModalOpen(true);
+          }}
         />
       )}
 
@@ -2701,6 +2751,10 @@ export const NursePortal: React.FC<NursePortalProps> = ({
           onOpenCloseoutModal={(b) => handleOpenCloseoutModal(b)}
           onOpenBiometricScan={(b) => setSelectedBookingForBiometricScan(b)}
           onDownloadMedicalSummary={(b) => setSelectedBookingForMedicalSummary(b)}
+          onOpenPlatformFeeCharge={(b) => {
+            setSelectedBookingForFeeCharge(b);
+            setIsPlatformFeeChargeModalOpen(true);
+          }}
           onUpdateBookingStatus={onUpdateBookingStatus}
           onTriggerNotification={onTriggerNotification}
         />
@@ -2865,6 +2919,32 @@ export const NursePortal: React.FC<NursePortalProps> = ({
         }}
         onOpenStore={onNavigateStore}
       />
+
+      {/* NURSE PLATFORM FEE CHARGE / SETTLEMENT MODAL */}
+      {isPlatformFeeChargeModalOpen && (
+        <NursePlatformFeeChargeModal
+          isOpen={isPlatformFeeChargeModalOpen}
+          onClose={() => {
+            setIsPlatformFeeChargeModalOpen(false);
+            setSelectedBookingForFeeCharge(null);
+          }}
+          nurse={currentNurse}
+          booking={selectedBookingForFeeCharge}
+          totalOutstandingFee={currentNurse.outstandingPlatformFeeJMD}
+          onFeeSettled={(settlement, updatedNurse, updatedBooking) => {
+            if (onSettlePlatformFee) {
+              onSettlePlatformFee(settlement, updatedNurse, updatedBooking);
+            } else {
+              onUpdateNurseProfile(updatedNurse);
+              if (updatedBooking) {
+                onUpdateBookingStatus(updatedBooking.id, updatedBooking.status, undefined, updatedBooking);
+              }
+            }
+            setIsPlatformFeeChargeModalOpen(false);
+            setSelectedBookingForFeeCharge(null);
+          }}
+        />
+      )}
     </div>
   );
 };

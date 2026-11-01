@@ -32,7 +32,9 @@ import {
   WifiOff,
   Database,
   CloudCheck,
-  RefreshCw
+  RefreshCw,
+  Banknote,
+  CreditCard
 } from 'lucide-react';
 import { VoiceToTextClinicalRecorder } from './VoiceToTextClinicalRecorder';
 import { ClinicalVoiceNotesInput } from './ClinicalVoiceNotesInput';
@@ -63,6 +65,7 @@ interface BookingDetailModalProps {
   onOpenCloseoutModal?: (booking: Booking) => void;
   onOpenBiometricScan?: (booking: Booking) => void;
   onDownloadMedicalSummary?: (booking: Booking) => void;
+  onOpenPlatformFeeCharge?: (booking: Booking) => void;
   onUpdateBookingStatus?: (
     bookingId: string,
     status: Booking['status'],
@@ -84,6 +87,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   onOpenCloseoutModal,
   onOpenBiometricScan,
   onDownloadMedicalSummary,
+  onOpenPlatformFeeCharge,
   onUpdateBookingStatus,
   onTriggerNotification
 }) => {
@@ -767,25 +771,117 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           {/* TAB 3: BILLING & EARNINGS */}
           {activeTab === 'billing' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
-                  <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Scheduled Duration</span>
-                  <strong className="text-white font-mono text-sm">{booking.baseDurationMinutes || 60} minutes</strong>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Clinical care window</span>
-                </div>
+              {booking.paymentMethod === 'cash_on_delivery' ? (
+                /* Cash on Delivery Specific Billing Breakdown */
+                <div className="space-y-3">
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/70 via-slate-900 to-amber-950/60 border border-blue-400/30 flex items-start gap-3 text-xs">
+                    <div className="p-2.5 rounded-xl bg-blue-500/20 text-blue-300 border border-blue-400/30 shrink-0">
+                      <Banknote className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-white text-sm">Doorstep Cash Payment Protocol</span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                          Cash on Delivery
+                        </span>
+                      </div>
+                      <p className="text-slate-300 text-[11px] leading-relaxed">
+                        Client hands you <strong>{formatJMD(booking.priceJMD)}</strong> in cash at doorstep. You retain 100% of these physical funds in hand (85% net earnings + 15% platform fee). The 15% WeCare platform fee ({formatJMD(booking.cashPlatformFeeAmountJMD || Math.round(booking.priceJMD * 0.15))}) is charged to your digital payout or card.
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
-                  <span className="text-emerald-300 block text-[10px] uppercase font-bold tracking-wider">Your Net Payout</span>
-                  <strong className="text-emerald-400 font-mono text-base">{formatJMD(booking.nurseEarningsJMD)}</strong>
-                  <span className="text-[10px] text-emerald-400/90 block mt-0.5 font-semibold">Direct Escrow Deposit</span>
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Cash Collected</span>
+                      <strong className="text-white font-mono text-base">{formatJMD(booking.priceJMD)}</strong>
+                      <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">Physical cash in hand</span>
+                    </div>
 
-                <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20">
-                  <span className="text-purple-300 block text-[10px] uppercase font-bold tracking-wider">Disbursement Status</span>
-                  <strong className="text-white font-mono text-sm">Escrow Protected</strong>
-                  <span className="text-[10px] text-purple-300 block mt-0.5">Released upon completed sign-off</span>
+                    <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                      <span className="text-emerald-300 block text-[10px] uppercase font-bold tracking-wider">Your 85% Earnings</span>
+                      <strong className="text-emerald-400 font-mono text-base">{formatJMD(booking.nurseEarningsJMD)}</strong>
+                      <span className="text-[10px] text-emerald-400/90 block mt-0.5 font-semibold">Retained in hand</span>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30">
+                      <span className="text-amber-300 block text-[10px] uppercase font-bold tracking-wider">WeCare Platform Fee</span>
+                      <strong className="text-amber-400 font-mono text-base">
+                        {formatJMD(booking.cashPlatformFeeAmountJMD || booking.platformFeeJMD || Math.round(booking.priceJMD * 0.15))}
+                      </strong>
+                      <span className="text-[10px] text-amber-300/90 block mt-0.5 font-medium">15% platform support</span>
+                    </div>
+                  </div>
+
+                  {/* Cash Platform Fee Status Card */}
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white">Platform Fee Charge Status:</span>
+                        {booking.cashPlatformFeeStatus === 'charged_to_payout' && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                            ✓ Deducted from Digital Payout
+                          </span>
+                        )}
+                        {booking.cashPlatformFeeStatus === 'charged_to_card' && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                            ✓ Charged to Nurse Card
+                          </span>
+                        )}
+                        {booking.cashPlatformFeeStatus === 'settled' && (
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px] border border-emerald-500/30">
+                            ✓ Fee Verified &amp; Settled
+                          </span>
+                        )}
+                        {(booking.cashPlatformFeeStatus === 'pending_nurse_settlement' || !booking.cashPlatformFeeStatus) && (
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold text-[10px] border border-amber-500/40">
+                            ⚠️ Settlement Due
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {booking.cashPlatformFeeStatus === 'charged_to_payout'
+                          ? 'Automatically settled against your digital escrow payouts.'
+                          : booking.cashPlatformFeeStatus === 'settled'
+                          ? 'Settlement confirmed.'
+                          : 'Settle via Card, Lynk mobile money (@wecareja), or NCB bank transfer.'}
+                      </p>
+                    </div>
+
+                    {(booking.cashPlatformFeeStatus === 'pending_nurse_settlement' || !booking.cashPlatformFeeStatus) && onOpenPlatformFeeCharge && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenPlatformFeeCharge(booking)}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs transition shadow-md flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" />
+                        <span>Settle Platform Fee</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Digital Escrow Billing Breakdown */
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10">
+                    <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Scheduled Duration</span>
+                    <strong className="text-white font-mono text-sm">{booking.baseDurationMinutes || 60} minutes</strong>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">Clinical care window</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30">
+                    <span className="text-emerald-300 block text-[10px] uppercase font-bold tracking-wider">Your Net Payout</span>
+                    <strong className="text-emerald-400 font-mono text-base">{formatJMD(booking.nurseEarningsJMD)}</strong>
+                    <span className="text-[10px] text-emerald-400/90 block mt-0.5 font-semibold">Direct Escrow Deposit</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20">
+                    <span className="text-purple-300 block text-[10px] uppercase font-bold tracking-wider">Disbursement Status</span>
+                    <strong className="text-white font-mono text-sm">Escrow Protected</strong>
+                    <span className="text-[10px] text-purple-300 block mt-0.5">Released upon completed sign-off</span>
+                  </div>
+                </div>
+              )}
 
               {/* Attendance Verification status */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">

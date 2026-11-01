@@ -114,12 +114,15 @@ import {
   Pill,
   Building,
   Banknote,
-  X
+  X,
+  Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CaregiverAcceptanceTimerCard } from './CaregiverAcceptanceTimerCard';
 import { CaregiverPromptModal, PromptModalType } from './CaregiverPromptModal';
 import { SuppliesChecklistModal } from '../common/SuppliesChecklistModal';
+import { NursingTeamDirectoryModal } from './NursingTeamDirectoryModal';
+import { LovedOneCheckReminderBanner } from './LovedOneCheckReminderBanner';
 
 interface ClientPortalProps {
   services: ServiceItem[];
@@ -228,6 +231,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState<boolean>(false);
   const [isPatientProfileModalOpen, setIsPatientProfileModalOpen] = useState<boolean>(false);
   const [isSyncHealthDataModalOpen, setIsSyncHealthDataModalOpen] = useState<boolean>(false);
+  const [isNursingTeamModalOpen, setIsNursingTeamModalOpen] = useState<boolean>(false);
   const [celebrationPayload, setCelebrationPayload] = useState<any>(null);
   const [selectedBookingForArrivalQR, setSelectedBookingForArrivalQR] = useState<Booking | null>(null);
   const [bookingConflictError, setBookingConflictError] = useState<string | null>(null);
@@ -244,6 +248,36 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
     type: 'dispatched',
     booking: null
   });
+
+  // Proactive periodic reminder alerting client to check on loved ones
+  useEffect(() => {
+    if (!onTriggerNotification) return;
+    const timer = setTimeout(() => {
+      onTriggerNotification(
+        'nurse_assigned',
+        '❤️ Caring Reminder: Have you checked on Mom today?',
+        'Ensure she is safe, comfortable, and taking medications on time. Dispatch a verified WeCare nurse now to check and get an instant update in the app.'
+      );
+    }, 12000);
+    return () => clearTimeout(timer);
+  }, [onTriggerNotification]);
+
+  const handleDispatchLovedOneCheck = (target: string, recommendedService: string, notesText: string) => {
+    soundFX.playSuccessPing();
+    const matchedService = services.find(s => 
+      s.name.toLowerCase().includes(recommendedService.toLowerCase()) ||
+      s.category?.toLowerCase().includes('elderly') ||
+      s.name.toLowerCase().includes('elderly') ||
+      s.name.toLowerCase().includes('companion')
+    ) || services[0];
+
+    if (matchedService) {
+      setSelectedService(matchedService);
+    }
+    setNotes(notesText);
+    setCurrentStep('schedule_location');
+    setActiveTab('new_booking');
+  };
 
   const handleClientStartTimer = (bookingId: string) => {
     const startTime = new Date().toISOString();
@@ -617,6 +651,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       nurseEarningsJMD: nurseNet,
       paymentMethod,
       paymentStatus: 'held_in_escrow',
+      ...(paymentMethod === 'cash_on_delivery' ? {
+        cashPlatformFeeStatus: 'pending_nurse_settlement',
+        cashPlatformFeeAmountJMD: platformFee,
+        cashCollectedByNurse: false
+      } : {}),
       notes,
       freeCancelDeadline: freeCancelTime,
       unreadMessagesCount: 0
@@ -832,6 +871,23 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               <span>Favorites</span>
             </button>
 
+            {/* Meet Nursing Team Button (Client / Authorized Users & Next of Kin) */}
+            <button
+              id="header-meet-nursing-team-btn"
+              onClick={() => {
+                soundFX.playTabSwitch();
+                setIsNursingTeamModalOpen(true);
+              }}
+              className="px-3.5 py-2 rounded-xl bg-[#1A1E4E] hover:bg-[#252b6b] text-white text-xs font-bold border border-[#3B82F6]/50 shadow-md backdrop-blur-md transition flex items-center gap-1.5 cursor-pointer group"
+              title="View all verified nurses and care aides on WeCare Track Jamaica (Privacy Protected)"
+            >
+              <Users className="w-4 h-4 text-[#F59E0B] group-hover:scale-110 transition-transform" />
+              <span>Meet Our Nursing Team</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-[#3B82F6]/30 text-blue-200 text-[10px] font-mono">
+                {nurses.filter(n => n.licenseVerified || n.status === 'approved').length || nurses.length}
+              </span>
+            </button>
+
             {/* 1. Book Care Cascading Dropdown */}
             <ActionDropdown
               label="Book Care"
@@ -839,6 +895,18 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               size="sm"
               variant="primary"
               items={[
+                {
+                  id: 'book-nursing-team',
+                  label: 'Meet Our Nursing Team',
+                  sublabel: 'View all verified nurses & care aides across Jamaica',
+                  icon: <Users className="w-4 h-4 text-[#F59E0B]" />,
+                  badge: 'Directory',
+                  badgeColor: 'bg-[#1A1E4E] text-[#F59E0B] border border-[#F59E0B]/40 font-bold',
+                  onClick: () => {
+                    soundFX.playTabSwitch();
+                    setIsNursingTeamModalOpen(true);
+                  }
+                },
                 {
                   id: 'book-standard',
                   label: 'Book Standard Visit',
@@ -2091,6 +2159,32 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                 </div>
               )}
 
+              {/* Cash on Delivery Information Banner */}
+              {paymentMethod === 'cash_on_delivery' && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-950/60 via-slate-900 to-emerald-950/40 border border-blue-400/40 space-y-2.5 text-xs animate-fadeIn">
+                  <div className="flex items-center justify-between text-blue-200 font-bold">
+                    <div className="flex items-center gap-2">
+                      <Banknote className="w-4 h-4 text-emerald-400" />
+                      <span>Doorstep Cash Payment Protocol</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
+                      No Online Prepayment
+                    </span>
+                  </div>
+                  
+                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                    Please prepare exact cash of <strong className="text-emerald-400 font-mono">{formatJMD(selectedService.priceJMD)}</strong> to hand directly to your visiting practitioner ({nurseToConfirm?.name || 'Practitioner'}) upon doorstep arrival.
+                  </p>
+
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 text-[11px] text-slate-300 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>
+                      100% of cash collected goes to the caregiver on-site. The 15% WeCare platform fee is charged to the nurse's account automatically.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Payment Failure Error Alert */}
               {paymentFailureError && (
                 <div className="p-3.5 rounded-xl bg-red-950/60 border border-red-500/50 text-red-200 text-xs flex items-start gap-2.5 animate-fadeIn">
@@ -2223,6 +2317,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             setCurrentStep('browse');
           }}
           onUpdateBookingStatus={onUpdateBookingStatus}
+          onOpenNursingTeamDirectory={() => {
+            soundFX.playTabSwitch();
+            setIsNursingTeamModalOpen(true);
+          }}
+          onDispatchLovedOneCheck={handleDispatchLovedOneCheck}
         />
       )}
 
@@ -3419,6 +3518,32 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         onConfirm={handleCompleteChecklistAndBook}
         onOpenStore={() => onNavigateStore?.()}
         serviceName={pendingBookingToConfirm?.serviceName || selectedService?.name}
+      />
+
+      {/* Client Safe Nursing Team Directory Modal (Privacy Protected: strictly excludes TRN, DL, banking & admin dossiers) */}
+      <NursingTeamDirectoryModal
+        isOpen={isNursingTeamModalOpen}
+        onClose={() => setIsNursingTeamModalOpen(false)}
+        nurses={nurses}
+        currentUser={currentUser || null}
+        onSelectNurseForBooking={(nurse) => {
+          setSelectedNurse(nurse);
+          setIsNursingTeamModalOpen(false);
+          setCurrentStep('select_service');
+          setActiveTab('new_booking');
+        }}
+        onRequestLovedOneCheck={(nurse, lovedOneTitle) => {
+          setSelectedNurse(nurse);
+          setIsNursingTeamModalOpen(false);
+          handleDispatchLovedOneCheck(
+            lovedOneTitle || 'Loved One',
+            'Elderly & Companion Care',
+            `Proactive Loved One Check for ${lovedOneTitle || 'Loved One'} with Nurse ${nurse.name}. Please assess vitals, check nutrition and comfort, and provide an instant clinical report in the app.`
+          );
+        }}
+        onViewNurseDetail={(nurse) => {
+          setViewingNurseProfile(nurse);
+        }}
       />
     </div>
   );

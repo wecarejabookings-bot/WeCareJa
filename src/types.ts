@@ -213,6 +213,10 @@ export interface NurseProfile {
   totalEarningsJMD: number;
   pendingPayoutJMD: number;
   completedVisitsCount: number;
+  outstandingPlatformFeeJMD?: number; // Total unpaid platform fees owed for cash bookings
+  totalPlatformFeesPaidJMD?: number; // Total platform fees settled by nurse
+  cashEarningsCollectedJMD?: number; // Total physical cash collected by nurse in hand
+  nurseSavedCards?: SavedNurseCard[]; // Saved payment card for charging platform fees
   rejection_reason?: string;
   rejected_documents?: string[];
   rejection_date?: string;
@@ -473,6 +477,39 @@ export interface Booking {
   startCodeVerifiedAt?: string;
   endCodeVerifiedBy?: string;
   endCodeVerifiedAt?: string;
+  // Cash on Delivery: Nurse Platform Fee Tracking
+  cashPlatformFeeStatus?: 'charged_to_payout' | 'charged_to_card' | 'pending_nurse_settlement' | 'settled';
+  cashPlatformFeeChargedAt?: string;
+  cashPlatformFeeAmountJMD?: number;
+  cashCollectedByNurse?: boolean;
+  cashCollectedAt?: string;
+  cashFeeChargeTxnId?: string;
+  cashFeeChargeMethod?: 'deducted_from_payout' | 'charged_to_card' | 'paid_via_lynk' | 'paid_via_bank';
+}
+
+export interface SavedNurseCard {
+  id: string;
+  cardBrand: string;
+  last4: string;
+  expMonth: string;
+  expYear: string;
+  cardholderName: string;
+  isDefault?: boolean;
+  addedAt: string;
+}
+
+export interface CashPlatformFeeSettlement {
+  id: string;
+  bookingId: string;
+  nurseId: string;
+  nurseName: string;
+  clientName: string;
+  amountJMD: number;
+  method: 'deducted_from_payout' | 'charged_to_card' | 'paid_via_lynk' | 'paid_via_bank';
+  status: 'completed' | 'pending' | 'failed';
+  timestamp: string;
+  referenceNumber: string;
+  notes?: string;
 }
 
 export type VisitQRAction = 'check_in' | 'check_out';
@@ -856,6 +893,7 @@ export type ActivityNotificationType =
   | 'nurse_enroute'
   | 'nurse_assigned'
   | 'payment_confirmed'
+  | 'payment_received'
   | 'rating_received'
   | 'nurse_late'
   | 'time_up'

@@ -25,7 +25,8 @@ import {
   CalendarCheck,
   Stethoscope,
   Smile,
-  BadgeCheck
+  BadgeCheck,
+  Users
 } from 'lucide-react';
 import { 
   Booking, 
@@ -39,6 +40,7 @@ import { INITIAL_PATIENT_MILESTONES, calculatePatientTherapySessionsCount } from
 import { getArrivalPassCode } from '../../utils/arrivalVerification';
 import { soundFX } from '../../utils/soundEffects';
 import confetti from 'canvas-confetti';
+import { LovedOneCheckReminderBanner } from './LovedOneCheckReminderBanner';
 
 export interface ClientDashboardProps {
   currentUser?: UserAccount | null;
@@ -56,6 +58,8 @@ export interface ClientDashboardProps {
   onNavigateToCoverageMap?: () => void;
   onNavigateToMedSchedule?: () => void;
   onUpdateBookingStatus?: (bookingId: string, status: Booking['status'], clinicalNotes?: any, additionalData?: any) => void;
+  onOpenNursingTeamDirectory?: () => void;
+  onDispatchLovedOneCheck?: (target: string, recommendedService: string, notes: string) => void;
 }
 
 export const ClientDashboard: React.FC<ClientDashboardProps> = ({
@@ -73,7 +77,9 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   onNavigateToHistory,
   onNavigateToCoverageMap,
   onNavigateToMedSchedule,
-  onUpdateBookingStatus
+  onUpdateBookingStatus,
+  onOpenNursingTeamDirectory,
+  onDispatchLovedOneCheck
 }) => {
   // Load and sync medical milestones (clean authentic state, no fictitious progress)
   const [milestones, setMilestones] = useState<MilestoneItem[]>(() => {
@@ -374,6 +380,23 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
   return (
     <div id="client-dashboard-container" className="space-y-6 animate-fadeIn">
+      {/* Proactive Loved One Check Reminder Banner */}
+      <LovedOneCheckReminderBanner
+        onDispatchCheck={(target, serviceName, notes) => {
+          if (onDispatchLovedOneCheck) {
+            onDispatchLovedOneCheck(target, serviceName, notes);
+          } else {
+            onRequestNewVisit();
+          }
+        }}
+        onOpenNursingTeam={() => {
+          if (onOpenNursingTeamDirectory) {
+            onOpenNursingTeamDirectory();
+          }
+        }}
+        availableNursesCount={nurses.filter(n => n.licenseVerified || n.status === 'approved').length || nurses.length}
+      />
+
       {/* Top Welcome & Quick-Action Hub */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1c082e] via-[#120520] to-[#250838] border border-purple-500/30 p-5 sm:p-7 shadow-2xl backdrop-blur-xl">
         {/* Ambient background glow accents */}
@@ -401,8 +424,23 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
             </p>
           </div>
 
-          {/* Primary Quick-Action Button */}
+          {/* Primary Quick-Action Buttons */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {onOpenNursingTeamDirectory && (
+              <button
+                id="dashboard-meet-nursing-team-btn"
+                type="button"
+                onClick={() => {
+                  soundFX.playClick();
+                  onOpenNursingTeamDirectory();
+                }}
+                className="px-5 py-4 rounded-2xl bg-white/10 hover:bg-white/15 text-white font-bold text-sm border border-purple-300/30 hover:border-purple-300/60 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              >
+                <Users className="w-4 h-4 text-amber-300" />
+                <span>Meet Nursing Team</span>
+              </button>
+            )}
+
             <button
               id="dashboard-request-nurse-btn"
               type="button"

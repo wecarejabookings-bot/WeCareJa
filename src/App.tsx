@@ -12,7 +12,8 @@ import {
   ActivityNotificationItem, 
   ActivityNotificationType,
   VideoMeeting,
-  NursingSchool
+  NursingSchool,
+  CashPlatformFeeSettlement
 } from './types';
 import { 
   INITIAL_SERVICES, 
@@ -1040,11 +1041,22 @@ export default function App() {
 
   // Booking Handlers
   const handleCreateBooking = async (newBooking: Booking) => {
-    setBookings(prev => [newBooking, ...prev]);
+    // For Cash on Delivery visits, initialize cash platform fee tracking
+    const isCashOnDelivery = newBooking.paymentMethod === 'cash_on_delivery';
+    const bookingToSave: Booking = {
+      ...newBooking,
+      ...(isCashOnDelivery ? {
+        cashPlatformFeeStatus: 'pending_nurse_settlement',
+        cashPlatformFeeAmountJMD: newBooking.platformFeeJMD || Math.round(newBooking.priceJMD * 0.15),
+        cashCollectedByNurse: false
+      } : {})
+    };
+
+    setBookings(prev => [bookingToSave, ...prev]);
 
     // Save to real Supabase bookings table (Requirement 5)
     try {
-      await createBookingInSupabase(newBooking);
+      await createBookingInSupabase(bookingToSave);
     } catch (err) {
       console.warn('Could not write booking to Supabase:', err);
     }
@@ -1165,6 +1177,9 @@ export default function App() {
       );
 
       const nursePayout = completed.nurseEarningsJMD;
+      const isCashVisit = completed.paymentMethod === 'cash_on_delivery';
+      const platformFee = completed.platformFeeJMD || Math.round(completed.priceJMD * 0.15);
+
       setNurses(nList => nList.map(nurse => {
         if (nurse.id === completed.nurseId || nurse.name === completed.nurseName) {
           const newCount = (nurse.completedVisitsCount || 0) + 1;
@@ -1183,11 +1198,135 @@ export default function App() {
             );
           }
 
+          if (isCashVisit) {
+            // Nurse collects 100% of priceJMD in physical cash at doorstep (nursePayout in hand + platformFee in hand)
+            const cashCollected = (nurse.cashEarningsCollectedJMD || 0) + completed.priceJMD;
+            const updatedTotalEarnings = nurse.totalEarningsJMD + nursePayout;
+
+            // Check if upcoming digital payout balance can cover the 15% platform fee
+            if (nurse.pendingPayoutJMD >= platformFee) {
+              const updatedPendingPayout = nurse.pendingPayoutJMD - platformFee;
+              const updatedFeesPaid = (nurse.totalPlatformFeesPaidJMD || 0) + platformFee;
+
+              // Record settlement in local audit ledger
+              try {
+                const existingSettlements = JSON.parse(localStorage.getItem('wecare_nurse_fee_settlements') || '[]');
+                const newSettlement = {
+                  id: `fee-auto-${Date.now()}`,
+                  bookingId: completed.id,
+                  nurseId: nurse.id,
+                  nurseName: nurse.name,
+                  clientName: completed.clientName,
+                  amountJMD: platformFee,
+                  method: 'deducted_from_payout',
+                  status: 'completed',
+                  timestamp: new Date().toISOString(),
+                  referenceNumber: `AUTO-DEDUCT-${Date.now().toString().slice(-6)}`,
+                  notes: `Auto-deducted 15% platform fee for cash visit #${completed.id}`
+                };
+                localStorage.setItem('wecare_nurse_fee_settlements', JSON.stringify([newSettlement, ...existingSettlements]));
+              } catch {}
+
+              handleTriggerNotification(
+                'payment_received',
+                '💵 Cash Visit: Platform Fee Deducted',
+                `Visit #${completed.id} paid in cash (JMD $${completed.priceJMD.toLocaleString()}). JMD $${platformFee.toLocaleString()} platform fee was automatically deducted from your upcoming digital payout.`,
+                completed.id
+              );
+
+              // Update booking status to charged_to_payout
+              setBookings(bList => bList.map(b => b.id === completed.id ? {
+                ...b,
+                cashPlatformFeeStatus: 'charged_to_payout',
+                cashPlatformFeeAmountJMD: platformFee,
+                cashFeeChargeMethod: 'deducted_from_payout',
+                cashCollectedByNurse: true,
+                cashCollectedAt: new Date().toISOString()
+              } : b));
+
+              return {
+                ...nurse,
+                completedVisitsCount: newCount,
+                pendingPayoutJMD: updatedPendingPayout,
+                totalEarningsJMD: updatedTotalEarnings,
+                cashEarningsCollectedJMD: cashCollected,
+                totalPlatformFeesPaidJMD: updatedFeesPaid
+              };
+            } else {
+              // Outstanding platform fee balance to be charged/settled
+              const updatedOutstanding = (nurse.outstandingPlatformFeeJMD || 0) + platformFee;
+
+              handleTriggerNotification(
+                'system_alert',
+                `⚠️ Cash Platform Fee Due: JMD $${platformFee.toLocaleString()}`,
+                `For cash visit #${completed.id}, you collected JMD $${completed.priceJMD.toLocaleString()} in hand. Please settle the 15% platform fee (JMD $${platformFee.toLocaleString()}) via Card, Lynk (@wecareja), or NCB.`,
+                completed.id
+              );
+
+              // Update booking status to pending_nurse_settlement
+              setBookings(bList => bList.map(b => b.id === completed.id ? {
+                ...b,
+                cashPlatformFeeStatus: 'pending_nurse_settlement',
+                cashPlatformFeeAmountJMD: platformFee,
+                cashCollectedByNurse: true,
+                cashCollectedAt: new Date().toISOString()
+              } : b));
+
+              return {
+                ...nurse,
+                completedVisitsCount: newCount,
+                totalEarningsJMD: updatedTotalEarnings,
+                cashEarningsCollectedJMD: cashCollected,
+                outstandingPlatformFeeJMD: updatedOutstanding
+              };
+            }
+          }
+
+          // Digital payment (card, stripe, lynk, ncb)
+          // If nurse owes previous outstanding cash platform fees, automatically offset from the new digital payout!
+          let creditedPayout = nursePayout;
+          let newOutstandingFee = nurse.outstandingPlatformFeeJMD || 0;
+          let extraFeesPaid = 0;
+
+          if (newOutstandingFee > 0) {
+            const feeDeduction = Math.min(newOutstandingFee, creditedPayout);
+            creditedPayout -= feeDeduction;
+            newOutstandingFee -= feeDeduction;
+            extraFeesPaid += feeDeduction;
+
+            try {
+              const existingSettlements = JSON.parse(localStorage.getItem('wecare_nurse_fee_settlements') || '[]');
+              const newSettlement = {
+                id: `fee-offset-${Date.now()}`,
+                bookingId: completed.id,
+                nurseId: nurse.id,
+                nurseName: nurse.name,
+                clientName: completed.clientName,
+                amountJMD: feeDeduction,
+                method: 'deducted_from_payout',
+                status: 'completed',
+                timestamp: new Date().toISOString(),
+                referenceNumber: `OFFSET-DEDUCT-${Date.now().toString().slice(-6)}`,
+                notes: `Automatically offset outstanding cash platform fee from digital visit #${completed.id}`
+              };
+              localStorage.setItem('wecare_nurse_fee_settlements', JSON.stringify([newSettlement, ...existingSettlements]));
+            } catch {}
+
+            handleTriggerNotification(
+              'payment_received',
+              '💵 Outstanding Cash Fee Offset from Payout',
+              `JMD $${feeDeduction.toLocaleString()} of previous cash visit platform fees was automatically settled from this visit's earnings. Remaining fee due: JMD $${newOutstandingFee.toLocaleString()}.`,
+              completed.id
+            );
+          }
+
           return {
             ...nurse,
             completedVisitsCount: newCount,
-            pendingPayoutJMD: nurse.pendingPayoutJMD + nursePayout,
-            totalEarningsJMD: nurse.totalEarningsJMD + nursePayout
+            pendingPayoutJMD: nurse.pendingPayoutJMD + creditedPayout,
+            totalEarningsJMD: nurse.totalEarningsJMD + nursePayout,
+            outstandingPlatformFeeJMD: newOutstandingFee,
+            totalPlatformFeesPaidJMD: (nurse.totalPlatformFeesPaidJMD || 0) + extraFeesPaid
           };
         }
         return nurse;
@@ -1321,6 +1460,53 @@ export default function App() {
       );
     }
   }, [nurses, handleTriggerNotification]);
+
+  // Handle settling of platform fees for Cash on Delivery visits
+  const handleSettleNursePlatformFee = useCallback((
+    settlement: CashPlatformFeeSettlement,
+    updatedNurse: NurseProfile,
+    updatedBooking?: Booking
+  ) => {
+    // 1. Update nurse in state
+    setNurses(nList => nList.map(n => n.id === updatedNurse.id ? updatedNurse : n));
+
+    // 2. Sync user accounts if present
+    setUserAccounts(prev => prev.map(u => {
+      if (u.nurseProfileId === updatedNurse.id || u.id === updatedNurse.id) {
+        return {
+          ...u,
+          outstandingPlatformFeeJMD: updatedNurse.outstandingPlatformFeeJMD,
+          totalPlatformFeesPaidJMD: updatedNurse.totalPlatformFeesPaidJMD
+        };
+      }
+      return u;
+    }));
+
+    // 3. Update bookings
+    if (updatedBooking) {
+      setBookings(bList => bList.map(b => b.id === updatedBooking.id ? updatedBooking : b));
+    } else {
+      // Settle all cash bookings for this nurse
+      setBookings(bList => bList.map(b => {
+        if (b.nurseId === updatedNurse.id && b.paymentMethod === 'cash_on_delivery' && b.cashPlatformFeeStatus === 'pending_nurse_settlement') {
+          return {
+            ...b,
+            cashPlatformFeeStatus: 'settled',
+            cashFeeChargeMethod: settlement.method,
+            cashFeeChargeTxnId: settlement.referenceNumber
+          };
+        }
+        return b;
+      }));
+    }
+
+    // 4. Trigger celebration notification
+    handleTriggerNotification(
+      'payment_received',
+      '✅ Platform Fee Settlement Verified',
+      `JMD $${settlement.amountJMD.toLocaleString()} platform fee settled via ${settlement.method.replace(/_/g, ' ')}. Reference #${settlement.referenceNumber}. Thank you!`
+    );
+  }, [handleTriggerNotification]);
 
   // Synchronization strategy for local offline storage (clinical notes & doorstep check-ins)
   const handleSyncPendingOfflineActions = useCallback(() => {
@@ -2308,6 +2494,7 @@ export default function App() {
                 logoVariation={logoVariation}
                 onOpenVideoCall={handleOpenDirectVideoCall}
                 onTriggerNotification={handleTriggerNotification}
+                onSettlePlatformFee={handleSettleNursePlatformFee}
               />
             )}
 

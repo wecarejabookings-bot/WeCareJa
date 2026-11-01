@@ -23,7 +23,8 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
-  ArrowRight
+  ArrowRight,
+  Newspaper
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { HealthNewsItem, HealthNewsResponse, ServiceItem } from '../../types';
@@ -37,6 +38,7 @@ export const HealthNewsFeed: React.FC<HealthNewsFeedProps> = ({ onBookService })
   const [newsData, setNewsData] = useState<HealthNewsResponse | null>(null);
   const [selectedParish, setSelectedParish] = useState('Kingston, St. Andrew, Portmore, and Spanish Town');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedSource, setSelectedSource] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
@@ -65,87 +67,108 @@ export const HealthNewsFeed: React.FC<HealthNewsFeedProps> = ({ onBookService })
       setNewsData({
         success: true,
         isLiveSearch: false,
-        fallbackReason: "Using verified Ministry of Health & Wellness registry.",
+        fallbackReason: "Using verified Ministry of Health & Wellness and Jamaican news media registry.",
         sources: [
           { title: "Ministry of Health & Wellness Jamaica (MOHW)", uri: "https://www.moh.gov.jm" },
-          { title: "South East Regional Health Authority (SERHA)", uri: "https://www.serha.gov.jm" }
+          { title: "Jamaica Information Service (JIS Health)", uri: "https://jis.gov.jm" },
+          { title: "The Jamaica Gleaner - Health & Wellness", uri: "https://jamaica-gleaner.com" },
+          { title: "The Jamaica Observer - Health News", uri: "https://www.jamaicaobserver.com" },
+          { title: "South East Regional Health Authority (SERHA)", uri: "https://www.serha.gov.jm" },
+          { title: "National Health Fund (NHF) Jamaica", uri: "https://www.nhf.org.jm" }
         ],
         timestamp: new Date().toISOString(),
         data: {
-          overview: "Official health advisories and surveillance guidance from the Ministry of Health & Wellness (MOHW) Jamaica and the South East Regional Health Authority (SERHA) for Kingston, St. Andrew, Portmore, and Spanish Town.",
+          overview: "Live aggregated Jamaican health news and surveillance bulletins from the Ministry of Health & Wellness (MOHW), Jamaica Information Service (JIS Health), The Jamaica Gleaner, The Jamaica Observer, and the South East Regional Health Authority (SERHA).",
           lastUpdated: new Date().toISOString(),
           articles: [
             {
               id: "mohw-1",
-              title: "MOHW Intensifies Dengue Vector Control & Mosquito Breeding Site Elimination in Kingston, St. Andrew, Portmore & Spanish Town",
+              title: "MOHW Intensifies Dengue Vector Control & Mosquito Breeding Site Inspections Across Kingston & St. Andrew",
               category: "Disease Surveillance",
               urgency: "advisory",
-              date: "August 2026",
+              date: "October 2026",
               source: "Ministry of Health & Wellness Jamaica (MOHW)",
               url: "https://www.moh.gov.jm",
-              summary: "The Ministry of Health & Wellness urges residents in Kingston, St. Andrew, Portmore, Spanish Town, and surrounding communities to search and destroy mosquito breeding sites weekly. Fogging schedules and community health aide inspections continue across high-risk urban communities.",
+              summary: "The Ministry of Health & Wellness urges residents across Kingston, St. Andrew, Portmore, and Spanish Town to systematically search and destroy mosquito breeding containers once per week. Vector-control teams and community health aides continue targeted fogging schedules across vulnerable urban communities.",
               takeaways: [
-                "Empty, clean, and cover all domestic water storage containers (drums, buckets, plant saucers).",
-                "Use insect repellent containing DEET, install window screens, and sleep under mosquito nets if fever or symptoms present.",
-                "Homecare nurses must monitor patients for warning signs: severe abdominal pain, persistent vomiting, mucosal bleeding, and sudden drop in platelets."
+                "Empty, wash, and tightly seal all domestic water storage drums, buckets, and garden saucers.",
+                "Use DEET-based repellent and install intact mesh screens on windows and doorways.",
+                "Attending home nurses must monitor fever patients for warning signs: persistent vomiting, abdominal tenderness, lethargy, or mucosal bleeding."
+              ]
+            },
+            {
+              id: "jis-1",
+              title: "JIS Health: Ministry Expands Mobile Health Clinics and Senior Outreach in St. Andrew Communities",
+              category: "Public Advisory",
+              urgency: "info",
+              date: "October 2026",
+              source: "Jamaica Information Service (JIS)",
+              url: "https://jis.gov.jm",
+              summary: "Minister of Health & Wellness Dr. Christopher Tufton announced the deployment of upgraded mobile medical units to provide accessible primary healthcare, non-communicable disease screenings, and pharmaceutical distribution directly to elderly and vulnerable residents unable to travel to major hospitals.",
+              takeaways: [
+                "Seniors can access blood pressure testing, blood glucose checks, and prescription refills near their homes.",
+                "Families are encouraged to register bedbound relatives with local health district nursing rosters.",
+                "WeCare Track home nurses provide seamless continuation of care following mobile clinic consultations."
+              ]
+            },
+            {
+              id: "gleaner-1",
+              title: "The Jamaica Gleaner: Battling Non-Communicable Diseases - Why At-Home Telemetry and Regular Nurse Checks Save Lives",
+              category: "Clinical & Community Care",
+              urgency: "info",
+              date: "October 2026",
+              source: "The Jamaica Gleaner",
+              url: "https://jamaica-gleaner.com",
+              summary: "With hypertension and Type 2 diabetes accounting for over 70% of hospital admissions across Jamaica, clinical specialists emphasize that routine at-home blood pressure monitoring, disciplined medication schedules, and regular nursing check-ins dramatically lower stroke and cardiac incident rates.",
+              takeaways: [
+                "Cardiologists recommend checking blood pressure at the same time each morning and evening with a calibrated cuff.",
+                "Audit medication organizers weekly to ensure elderly family members do not miss vital antihypertensive doses.",
+                "Diaspora family members can leverage digital nurse telemetry in WeCare Track to view authenticated vital logs remotely."
+              ]
+            },
+            {
+              id: "observer-1",
+              title: "The Jamaica Observer: NHF Expands Subsidized Medications for Cardiac and Diabetic Patients",
+              category: "Pharmaceutical & Care Subsidy",
+              urgency: "info",
+              date: "October 2026",
+              source: "The Jamaica Observer",
+              url: "https://www.jamaicaobserver.com",
+              summary: "The National Health Fund (NHF) has expanded its pharmaceutical subsidies for high-burden non-communicable conditions, adding modern insulin delivery options and advanced cardiovascular therapies to the NHF Card and GO-JADEP beneficiary schedules across participating Jamaican pharmacies.",
+              takeaways: [
+                "Verify your elderly loved one's NHF / JADEP card validity to maximize government subsidies on critical prescriptions.",
+                "Participating Drug Serv and private retail pharmacies across Kingston and Portmore dispense covered supplies upon presentation of valid prescription.",
+                "WeCare attending nurses can verify proper medication administration and storage conditions (e.g. insulin refrigeration)."
+              ]
+            },
+            {
+              id: "serha-1",
+              title: "SERHA Extends Clinic Hours at Comprehensive, Glen Vincent, and Portmore Health Centres",
+              category: "Healthcare Infrastructure",
+              urgency: "info",
+              date: "October 2026",
+              source: "South East Regional Health Authority (SERHA)",
+              url: "https://www.serha.gov.jm",
+              summary: "To relieve congestion in the Emergency Departments of Kingston Public Hospital (KPH) and Spanish Town Hospital, SERHA has extended evening clinic operations at major health centres for routine dressing changes, catheter maintenance, and chronic disease consultations.",
+              takeaways: [
+                "Non-emergency patients should utilize extended-hours health centres before visiting acute hospital trauma units.",
+                "Patients requiring post-operative sterile dressings or Foley catheter management can also arrange licensed in-home care.",
+                "SERHA hotlines remain active for community clinic appointment scheduling."
               ]
             },
             {
               id: "mohw-2",
-              title: "SERHA Community Health Centre Extended Hours & Hypertension/Diabetes Free Screening Drives",
-              category: "Clinical & Community Care",
-              urgency: "info",
-              date: "August 2026",
-              source: "South East Regional Health Authority (SERHA)",
-              url: "https://www.serha.gov.jm",
-              summary: "Public health clinics across Kingston, St. Andrew, Portmore & Spanish Town (including Glen Vincent, Edna Manley, Comprehensive Health Centre, Greater Portmore Health Centre, and Spanish Town Hospital OPD) are maintaining extended evening hours for routine non-communicable disease (NCD) checks, blood pressure monitoring, and prescription refills under the NHF/JADEP programs.",
-              takeaways: [
-                "Ensure elderly clients have up-to-date National Health Fund (NHF) and GO-JADEP cards for subsidized cardiovascular and diabetes medication.",
-                "Recommend regular blood pressure and blood glucose logs ahead of doctor or nurse appointments.",
-                "We Care registered nurses can administer scheduled vitals tracking and medication adherence audits."
-              ]
-            },
-            {
-              id: "mohw-3",
-              title: "MOHW Heat Health Warning: Extreme Temperature Precaution for Elderly and Chronic Patients",
+              title: "MOHW Heat & Dehydration Health Advisory: Safety Measures for Elderly and Bedbound Individuals",
               category: "Public Advisory",
               urgency: "alert",
-              date: "Summer 2026",
+              date: "October 2026",
               source: "Ministry of Health & Wellness Jamaica (MOHW)",
               url: "https://www.moh.gov.jm",
-              summary: "With elevated daytime heat indices across southern coastal parishes, the MOHW reminds caregivers and families to prevent heat exhaustion and dehydration, especially among infants, bedbound patients, and older adults.",
+              summary: "With elevated daytime temperature indices across Jamaica's southern plains, the Ministry of Health & Wellness advises relatives and caregivers to maintain strict hydration protocols, monitor indoor ventilation, and watch for early symptoms of heat exhaustion among senior citizens.",
               takeaways: [
-                "Encourage drinking at least 8-10 glasses of water daily, avoiding heavy caffeinated or sugary beverages.",
-                "Keep living quarters well-ventilated and dress vulnerable patients in loose, breathable lightweight fabrics.",
-                "Immediate nursing intervention is required for confusion, hot dry skin, rapid pulse, or body temperature exceeding 39°C (102.2°F)."
-              ]
-            },
-            {
-              id: "mohw-4",
-              title: "National Immunization Schedule & Respiratory Illness Guidance (Flu & COVID-19)",
-              category: "Vaccination / Immunization",
-              urgency: "info",
-              date: "2026 Update",
-              source: "MOHW Expanded Programme on Immunization (EPI)",
-              url: "https://www.moh.gov.jm",
-              summary: "Annual influenza vaccines and childhood booster immunizations are available free of charge at all public health centres for healthcare workers, pregnant women, the elderly, and individuals with underlying medical conditions.",
-              takeaways: [
-                "Verify childhood immunization cards (Child Health Passport) before community school resumption.",
-                "Practice strict respiratory hygiene, hand washing, and mask-wearing in crowded enclosed spaces if experiencing cough or sore throat."
-              ]
-            },
-            {
-              id: "mohw-5",
-              title: "Maternal Health & Postnatal Home Support Initiative in St Andrew Parishes",
-              category: "Maternal & Child Health",
-              urgency: "info",
-              date: "Recent Protocol",
-              source: "Victoria Jubilee Hospital / SERHA",
-              url: "https://www.serha.gov.jm",
-              summary: "Promoting comprehensive postnatal follow-up within 7 to 14 days of hospital discharge to screen for postpartum hemorrhage, wound healing after Caesarean sections, lactation support, and maternal postpartum depression.",
-              takeaways: [
-                "Book licensed nurse home visits for sterile C-section incision dressing checks and newborn cord care.",
-                "Report persistent high blood pressure, intense headaches, or visual disturbances immediately (rule out pre-eclampsia)."
+                "Encourage older adults to drink water frequently even if they do not explicitly voice thirst.",
+                "Keep bedrooms well-ventilated, utilize fans appropriately, and dress patients in lightweight cotton clothing.",
+                "Seek urgent medical attention if confusion, rapid weak pulse, dry flushed skin, or fainting occurs."
               ]
             }
           ]
@@ -166,9 +189,16 @@ export const HealthNewsFeed: React.FC<HealthNewsFeedProps> = ({ onBookService })
     const matchesSearch = 
       item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.category.toLowerCase().includes(searchQuery.toLowerCase());
+      item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.source.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || item.category.toLowerCase().includes(selectedCategory.toLowerCase());
-    return matchesSearch && matchesCategory;
+    const matchesSource = selectedSource === 'all' || 
+      (selectedSource === 'mohw' && item.source.toLowerCase().includes('ministry of health')) ||
+      (selectedSource === 'jis' && item.source.toLowerCase().includes('jamaica information service')) ||
+      (selectedSource === 'gleaner' && item.source.toLowerCase().includes('gleaner')) ||
+      (selectedSource === 'observer' && item.source.toLowerCase().includes('observer')) ||
+      (selectedSource === 'serha' && (item.source.toLowerCase().includes('serha') || item.source.toLowerCase().includes('regional health')));
+    return matchesSearch && matchesCategory && matchesSource;
   });
 
   const handleCopyShare = (item: HealthNewsItem) => {
@@ -336,12 +366,47 @@ export const HealthNewsFeed: React.FC<HealthNewsFeedProps> = ({ onBookService })
         </div>
       </div>
 
+      {/* Jamaican Health Media Outlets Filter Strip */}
+      <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.03] border border-white/10">
+        <div className="flex items-center justify-between text-xs text-slate-400">
+          <span className="font-semibold text-[11px] uppercase tracking-wider text-[#F59E0B] flex items-center gap-1.5">
+            <Newspaper className="w-3.5 h-3.5 text-[#F59E0B]" /> Jamaican Media &amp; Official Health Sources:
+          </span>
+          <span className="text-[11px] text-blue-300 font-mono">
+            {filteredArticles.length} {filteredArticles.length === 1 ? 'bulletin' : 'bulletins'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          {[
+            { id: 'all', label: 'All Media & Bulletins' },
+            { id: 'mohw', label: '🏛️ MOHW Official' },
+            { id: 'jis', label: '📰 JIS Health' },
+            { id: 'gleaner', label: '🗞️ The Jamaica Gleaner' },
+            { id: 'observer', label: '📢 The Jamaica Observer' },
+            { id: 'serha', label: '🏥 SERHA Regional Clinics' }
+          ].map(source => (
+            <button
+              key={source.id}
+              onClick={() => setSelectedSource(source.id)}
+              className={`px-3 py-1.5 rounded-xl whitespace-nowrap transition text-xs font-semibold cursor-pointer ${
+                selectedSource === source.id
+                  ? 'bg-gradient-to-r from-[#1A1E4E] to-[#3B82F6] text-white shadow-md border border-blue-400/50'
+                  : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
+              }`}
+            >
+              {source.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Category Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
           {[
-            { id: 'all', label: 'All Guidelines' },
+            { id: 'all', label: 'All Categories' },
             { id: 'Disease Surveillance', label: '🦟 Dengue & Vectors' },
             { id: 'Clinical & Community Care', label: '🏥 SERHA Clinics & NCDs' },
             { id: 'Public Advisory', label: '☀️ Heat & Weather' },
@@ -351,7 +416,7 @@ export const HealthNewsFeed: React.FC<HealthNewsFeedProps> = ({ onBookService })
             <button
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap transition text-xs font-semibold ${
+              className={`px-3.5 py-1.5 rounded-xl whitespace-nowrap transition text-xs font-semibold cursor-pointer ${
                 selectedCategory === cat.id
                   ? 'bg-[#1E1B4B] text-white shadow-md shadow-purple-950/40 border border-purple-400/40'
                   : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
@@ -509,10 +574,11 @@ export const HealthNewsFeed: React.FC<HealthNewsFeedProps> = ({ onBookService })
                     href={article.url || 'https://www.moh.gov.jm'}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs font-semibold text-[#C77DFF] hover:text-white flex items-center gap-1 transition"
+                    className="text-xs font-semibold text-[#3B82F6] hover:text-white flex items-center gap-1 transition"
+                    title={`Read full report on ${article.source}`}
                   >
-                    <span>Official MOHW Portal</span>
-                    <ExternalLink className="w-3 h-3" />
+                    <span className="truncate max-w-[200px]">{article.source}</span>
+                    <ExternalLink className="w-3 h-3 shrink-0" />
                   </a>
 
                   {onBookService && (

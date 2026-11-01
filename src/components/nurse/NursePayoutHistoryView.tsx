@@ -21,7 +21,8 @@ import {
   ChevronDown,
   Layers,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  Banknote
 } from 'lucide-react';
 
 interface NursePayoutHistoryViewProps {
@@ -29,13 +30,15 @@ interface NursePayoutHistoryViewProps {
   payouts: PayoutRecord[];
   allBookings?: Booking[];
   onOpenInvoiceModal?: (booking: Booking) => void;
+  onOpenPlatformFeeChargeModal?: (booking?: Booking) => void;
 }
 
 export const NursePayoutHistoryView: React.FC<NursePayoutHistoryViewProps> = ({
   nurse,
   payouts,
   allBookings = [],
-  onOpenInvoiceModal
+  onOpenInvoiceModal,
+  onOpenPlatformFeeChargeModal
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'completed' | 'processing' | 'scheduled'>('all');
@@ -70,6 +73,19 @@ export const NursePayoutHistoryView: React.FC<NursePayoutHistoryViewProps> = ({
     .reduce((sum, p) => sum + p.amountJMD, 0);
 
   const totalCompletedCount = nursePayouts.filter(p => p.status === 'completed').length;
+
+  // Filter Cash on Delivery visits for this nurse
+  const cashBookings = allBookings.filter(b => 
+    (b.nurseId === nurse.id || b.nurseName === nurse.name) && 
+    b.paymentMethod === 'cash_on_delivery'
+  );
+
+  const totalCashCollectedJMD = cashBookings
+    .filter(b => b.status === 'completed' || b.cashCollectedByNurse)
+    .reduce((sum, b) => sum + b.priceJMD, 0) || (nurse.cashEarningsCollectedJMD || 0);
+
+  const totalCashFeesOwedJMD = nurse.outstandingPlatformFeeJMD || 0;
+  const totalFeesSettledJMD = nurse.totalPlatformFeesPaidJMD || 0;
 
   const formatJMD = (amt: number) => `JMD $${Math.round(amt).toLocaleString()}`;
 
@@ -112,6 +128,42 @@ export const NursePayoutHistoryView: React.FC<NursePayoutHistoryViewProps> = ({
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Outstanding Cash Visit Platform Fees Alert */}
+      {totalCashFeesOwedJMD > 0 && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-red-950/90 via-slate-900 to-amber-950/70 border-2 border-red-500/50 text-white shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start gap-3.5">
+            <div className="w-11 h-11 rounded-2xl bg-red-500/20 border border-red-500/40 flex items-center justify-center shrink-0 text-red-400">
+              <Banknote className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-red-500/30 text-red-300 font-black text-[10px] tracking-wide uppercase border border-red-500/40">
+                  Payment Due
+                </span>
+                <h4 className="font-black text-sm text-white">
+                  Outstanding Cash Platform Fee: {formatJMD(totalCashFeesOwedJMD)}
+                </h4>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed max-w-2xl">
+                When patients pay in cash at doorstep, you keep 100% of the funds in hand. The 15% WeCare platform fee must be settled. Pay via Card, Lynk wallet (<strong className="text-purple-300">@wecareja</strong>), or NCB bank transfer.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 w-full md:w-auto">
+            {onOpenPlatformFeeChargeModal && (
+              <button
+                type="button"
+                onClick={() => onOpenPlatformFeeChargeModal()}
+                className="w-full md:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-black text-xs transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Settle Fee ({formatJMD(totalCashFeesOwedJMD)})</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Top Header & Summary KPI Strip */}
       <div className="p-6 rounded-3xl bg-white/[0.04] backdrop-blur-xl border border-white/10 space-y-6 text-white">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -141,19 +193,19 @@ export const NursePayoutHistoryView: React.FC<NursePayoutHistoryViewProps> = ({
           </div>
         </div>
 
-        {/* 4-Box Key Metrics Strip */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        {/* 5-Box Key Metrics Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 text-xs">
           {/* Total Transferred */}
           <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/50 via-[#0b241b] to-emerald-950/30 border border-emerald-500/30 space-y-1">
             <div className="flex items-center justify-between text-emerald-400 font-bold">
               <span className="text-[10px] uppercase tracking-wider">Total Net Paid Out</span>
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <span className="text-2xl font-black text-emerald-300 block">
+            <span className="text-xl font-black text-emerald-300 block">
               {formatJMD(totalCompletedPayoutsJMD)}
             </span>
             <span className="text-[11px] text-emerald-200/80 block">
-              Across {totalCompletedCount} successful weekly batches
+              Across {totalCompletedCount} weekly batches
             </span>
           </div>
 
@@ -163,25 +215,49 @@ export const NursePayoutHistoryView: React.FC<NursePayoutHistoryViewProps> = ({
               <span className="text-[10px] uppercase tracking-wider">Upcoming Friday Deposit</span>
               <Calendar className="w-4 h-4" />
             </div>
-            <span className="text-2xl font-black text-[#C77DFF] block">
+            <span className="text-xl font-black text-[#C77DFF] block">
               {formatJMD(scheduledPayoutJMD || nurse.pendingPayoutJMD || 0)}
             </span>
             <span className="text-[11px] text-purple-200/80 block">
-              Scheduled for batch release this Friday
+              Scheduled this Friday
             </span>
           </div>
 
-          {/* Gross Clinical Revenue */}
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-1">
-            <div className="flex items-center justify-between text-slate-400 font-bold">
-              <span className="text-[10px] uppercase tracking-wider">Gross Billed to Clients</span>
-              <Layers className="w-4 h-4 text-slate-400" />
+          {/* Cash In Hand Collected */}
+          <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-950/50 via-[#0c1f36] to-slate-950/40 border border-blue-500/30 space-y-1">
+            <div className="flex items-center justify-between text-blue-300 font-bold">
+              <span className="text-[10px] uppercase tracking-wider">Cash Collected (Door)</span>
+              <Banknote className="w-4 h-4 text-emerald-400" />
             </div>
-            <span className="text-2xl font-black text-white block">
-              {formatJMD(totalGrossCompletedJMD)}
+            <span className="text-xl font-black text-white block">
+              {formatJMD(totalCashCollectedJMD)}
             </span>
             <span className="text-[11px] text-slate-300 block">
-              15% platform support fee retained
+              100% retained at doorstep
+            </span>
+          </div>
+
+          {/* Platform Fees Status */}
+          <div className={`p-4 rounded-2xl border space-y-1 ${
+            totalCashFeesOwedJMD > 0 
+              ? 'bg-red-950/40 border-red-500/40' 
+              : 'bg-emerald-950/30 border-emerald-500/20'
+          }`}>
+            <div className="flex items-center justify-between font-bold">
+              <span className="text-[10px] uppercase tracking-wider text-slate-300">Platform Fees (15%)</span>
+              {totalCashFeesOwedJMD > 0 ? (
+                <AlertCircle className="w-4 h-4 text-red-400" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              )}
+            </div>
+            <span className={`text-xl font-black block ${
+              totalCashFeesOwedJMD > 0 ? 'text-red-300' : 'text-emerald-300'
+            }`}>
+              {totalCashFeesOwedJMD > 0 ? formatJMD(totalCashFeesOwedJMD) : 'All Settled'}
+            </span>
+            <span className="text-[11px] text-slate-300 block">
+              {totalCashFeesOwedJMD > 0 ? 'Payment due to WeCare' : `${formatJMD(totalFeesSettledJMD)} total fees settled`}
             </span>
           </div>
 
@@ -409,6 +485,162 @@ export const NursePayoutHistoryView: React.FC<NursePayoutHistoryViewProps> = ({
             Weekly Batch Schedule: <strong>Every Friday @ 3:00 PM EST</strong>
           </span>
         </div>
+      </div>
+
+      {/* Cash on Delivery & Platform Fee Remittance Ledger */}
+      <div className="bg-white/[0.04] backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden text-white shadow-xl space-y-0">
+        <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 shrink-0">
+              <Banknote className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-black text-white">Cash on Delivery &amp; Platform Fee Ledger</h4>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  {cashBookings.length} Visits
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Nurses retain 85% cash in hand at doorstep. The 15% platform support fee is charged to upcoming payouts, card, or settled via Lynk.
+              </p>
+            </div>
+          </div>
+
+          {totalCashFeesOwedJMD > 0 && onOpenPlatformFeeChargeModal && (
+            <button
+              type="button"
+              onClick={() => onOpenPlatformFeeChargeModal()}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-500 hover:to-amber-500 text-white font-bold text-xs transition shadow-md flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Settle All Fees ({formatJMD(totalCashFeesOwedJMD)})</span>
+            </button>
+          )}
+        </div>
+
+        {cashBookings.length === 0 ? (
+          <div className="py-10 px-4 text-center space-y-2">
+            <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto text-slate-400">
+              <Banknote className="w-5 h-5" />
+            </div>
+            <h5 className="font-bold text-white text-xs">No Cash on Delivery Visits Yet</h5>
+            <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+              When clients select Cash on Delivery, your 85% in-hand earnings and 15% platform fee status will be tracked here.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/[0.02] text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-3 px-4">Visit &amp; Patient</th>
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Cash Handed (Door)</th>
+                  <th className="py-3 px-4 text-emerald-400">Nurse Keeps (85%)</th>
+                  <th className="py-3 px-4 text-amber-300">Platform Fee (15%)</th>
+                  <th className="py-3 px-4">Fee Charge Status</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {cashBookings.map((b) => {
+                  const feeAmt = b.cashPlatformFeeAmountJMD || b.platformFeeJMD || Math.round(b.priceJMD * 0.15);
+                  const nurseKeeps = b.nurseEarningsJMD || (b.priceJMD - feeAmt);
+                  const isFeePending = b.cashPlatformFeeStatus === 'pending_nurse_settlement' || (!b.cashPlatformFeeStatus && b.status === 'completed');
+
+                  return (
+                    <tr key={b.id} className="hover:bg-white/[0.02] transition">
+                      <td className="py-3.5 px-4">
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          <span>{b.serviceName}</span>
+                          <span className="font-mono text-[10px] text-purple-300 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20">
+                            {b.id}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-300 mt-0.5">
+                          {b.clientName} • {b.zone}
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap text-slate-300">
+                        {formatDate(b.scheduledDateTime)}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap font-mono font-bold text-white">
+                        {formatJMD(b.priceJMD)}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap font-mono font-bold text-emerald-300">
+                        +{formatJMD(nurseKeeps)}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap font-mono font-bold text-amber-300">
+                        {formatJMD(feeAmt)}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        {b.cashPlatformFeeStatus === 'charged_to_payout' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>Deducted from Payout</span>
+                          </span>
+                        )}
+
+                        {b.cashPlatformFeeStatus === 'charged_to_card' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                            <CreditCard className="w-3 h-3 text-emerald-400" />
+                            <span>Charged to Card</span>
+                          </span>
+                        )}
+
+                        {b.cashPlatformFeeStatus === 'settled' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span>Fee Settled</span>
+                          </span>
+                        )}
+
+                        {isFeePending && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold animate-pulse">
+                            <AlertCircle className="w-3 h-3 text-amber-400" />
+                            <span>Fee Due ({formatJMD(feeAmt)})</span>
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {isFeePending && onOpenPlatformFeeChargeModal && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenPlatformFeeChargeModal(b)}
+                              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-1 shadow-sm cursor-pointer"
+                            >
+                              <CreditCard className="w-3 h-3" />
+                              <span>Settle Fee</span>
+                            </button>
+                          )}
+
+                          {onOpenInvoiceModal && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenInvoiceModal(b)}
+                              className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition flex items-center gap-1"
+                            >
+                              <FileText className="w-3 h-3 text-purple-300" />
+                              <span>Invoice</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* DETAILED PAYOUT REMITTANCE VOUCHER MODAL */}
