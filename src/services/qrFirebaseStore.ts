@@ -1,20 +1,10 @@
 /**
  * QR & Security Storage Service (Firebase / Persistent Storage Architecture)
  * Handles:
- * 1. /qr_invites/{qrId} = { createdBy: 'admin', expiresAt, used: false, url, createdAt }
- * 2. /nurses/{uid} = { fullName, trn, ncjLicense, phone, parish, serviceType, ... }
- * 3. /bookings/{bookingId}/checkin = { qrData, pin, status, createdAt, verifiedAt, gpsLocation }
- * 4. /security_logs = Security audit event entries
+ * 1. /nurses/{uid} = { fullName, trn, ncjLicense, phone, parish, serviceType, ... }
+ * 2. /bookings/{bookingId}/checkin = { qrData, pin, status, createdAt, verifiedAt, gpsLocation }
+ * 3. /security_logs = Security audit event entries
  */
-
-export interface NurseInviteQR {
-  id: string; // qrId
-  createdBy: string; // 'admin'
-  expiresAt: number; // 24-hr epoch timestamp
-  createdAt: number;
-  used: boolean;
-  url: string;
-}
 
 export interface NurseRegistrationRecord {
   uid: string;
@@ -52,7 +42,6 @@ export interface SecurityLogRecord {
 }
 
 const STORAGE_KEYS = {
-  INVITES: 'wecare_firebase_qr_invites',
   NURSES: 'wecare_firebase_nurses',
   CHECKINS: 'wecare_firebase_bookings_checkin',
   LOGS: 'wecare_firebase_security_logs'
@@ -84,94 +73,7 @@ function notifySync(type: string, payload: any) {
   }
 }
 
-/* ==================== 1. NURSE SIGN-UP INVITE QRs ==================== */
-
-function getBaseUrl(): string {
-  if (typeof window === 'undefined') {
-    return 'https://ais-pre-q5g37b6hiuoaulzo4j4wny-616436889958.us-west2.run.app';
-  }
-  const host = window.location.host;
-  if (host.includes('wecareja.app')) {
-    return 'https://wecareja.app';
-  }
-  const href = window.location.href;
-  if (href.includes('run.app')) {
-    const match = href.match(/(https:\/\/[a-z0-9\-]+\.us-west2\.run\.app)/);
-    if (match) {
-      return match[0].replace('ais-dev-', 'ais-pre-');
-    }
-  }
-  return 'https://ais-pre-q5g37b6hiuoaulzo4j4wny-616436889958.us-west2.run.app';
-}
-
-/**
- * Creates a new active 24-hour Nurse Invite QR in /qr_invites/{qrId}
- */
-export function createNurseInviteQR(): NurseInviteQR {
-  const qrId = `INV-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  const now = Date.now();
-  const expiresAt = now + 24 * 60 * 60 * 1000; // 24 hours from creation
-
-  // Real dynamic public recruitment URL open to all nurses
-  const url = `${getBaseUrl()}/auth?mode=signup&role=nurse`;
-
-  const invite: NurseInviteQR = {
-    id: qrId,
-    createdBy: 'admin',
-    expiresAt,
-    createdAt: now,
-    used: false,
-    url
-  };
-
-  const current = getNurseInviteQRs();
-  // Store newest first
-  const updated = [invite, ...current.filter(i => i.id !== qrId)];
-  localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(updated));
-
-  notifySync('INVITE_CREATED', invite);
-  return invite;
-}
-
-/**
- * Retrieves all stored Nurse Invite QRs from /qr_invites
- */
-export function getNurseInviteQRs(): NurseInviteQR[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.INVITES);
-    if (!raw) {
-      // Seed with an initial active 24h invite if empty
-      const initial = createNurseInviteQR();
-      return [initial];
-    }
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Gets a specific Nurse Invite QR by ID
- */
-export function getNurseInviteQR(qrId: string): NurseInviteQR | undefined {
-  const invites = getNurseInviteQRs();
-  return invites.find(i => i.id === qrId);
-}
-
-/**
- * Marks an invite as used in /qr_invites/{qrId}
- */
-export function markNurseInviteUsed(qrId: string): boolean {
-  const invites = getNurseInviteQRs();
-  const invite = invites.find(i => i.id === qrId);
-  if (!invite) return false;
-
-  invite.used = true;
-  localStorage.setItem(STORAGE_KEYS.INVITES, JSON.stringify(invites));
-  notifySync('INVITE_USED', invite);
-  return true;
-}
+/* ==================== 1. NURSE PROFILE REGISTRATION ==================== */
 
 /**
  * Creates a new nurse profile in /nurses/{uid} upon onboarding form completion
@@ -187,10 +89,6 @@ export function saveNurseProfile(uid: string, profile: Omit<NurseRegistrationRec
   const current = getNurseProfiles();
   const updated = [record, ...current.filter(n => n.uid !== uid)];
   localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(updated));
-
-  if (profile.inviteId) {
-    markNurseInviteUsed(profile.inviteId);
-  }
 
   notifySync('NURSE_REGISTERED', record);
   return record;
@@ -373,8 +271,6 @@ export function subscribeToQRUpdates(callback: (type: string, payload: any) => v
   const handleStorage = (e: StorageEvent) => {
     if (e.key === STORAGE_KEYS.CHECKINS) {
       callback('CHECKIN_STORAGE_SYNC', getAllBookingCheckins());
-    } else if (e.key === STORAGE_KEYS.INVITES) {
-      callback('INVITE_STORAGE_SYNC', getNurseInviteQRs());
     }
   };
 

@@ -7,7 +7,6 @@ import { VerifiedNursingCouncilBadge } from '../common/VerifiedNursingCouncilBad
 import { NurseProfileModal } from '../common/NurseProfileModal';
 
 const InvoiceReceiptModal = React.lazy(() => import('../common/InvoiceReceiptModal').then(m => ({ default: m.InvoiceReceiptModal })));
-import { NurseQRCodeSignUpModal } from './NurseQRCodeSignUpModal';
 import { NursePayoutHistoryView } from './NursePayoutHistoryView';
 import { NursePeerNetworkView } from './NursePeerNetworkView';
 import { PatientMedicationReminderCard } from './PatientMedicationReminderCard';
@@ -284,7 +283,6 @@ export const NursePortal: React.FC<NursePortalProps> = ({
 
   const [activeTab, setActiveTab] = useState<'requests' | 'active' | 'earnings' | 'payouts' | 'profile' | 'network' | 'milestones' | 'skill_badges' | 'performance' | 'reviews'>('requests');
   const [celebrationPayload, setCelebrationPayload] = useState<any>(null);
-  const [isQRCodeModalOpen, setIsQRCodeModalOpen] = useState(false);
   
   // Caregiver Supplies Checklist Modal before accepting job (Task 3)
   const [acceptingJobForSuppliesChecklist, setAcceptingJobForSuppliesChecklist] = useState<Booking | null>(null);
@@ -746,13 +744,6 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                     setExportModalEntity('bookings');
                     setIsExportModalOpen(true);
                   }
-                },
-                {
-                  id: 'tool-qr-signup',
-                  label: 'Fast QR Sign-Up',
-                  sublabel: 'Recruit fellow Jamaican nurses & caregivers',
-                  icon: <QrCode className="w-4 h-4 text-[#C77DFF]" />,
-                  onClick: () => setIsQRCodeModalOpen(true)
                 },
                 {
                   id: 'tool-launch-kit',
@@ -2674,18 +2665,6 @@ export const NursePortal: React.FC<NursePortalProps> = ({
         />
       )}
 
-      {/* QUICK NURSE QR CODE SIGN-UP MODAL */}
-      {isQRCodeModalOpen && (
-        <NurseQRCodeSignUpModal
-          isOpen={isQRCodeModalOpen}
-          onClose={() => setIsQRCodeModalOpen(false)}
-          onQuickSignUpNurse={(newNurse) => {
-            if (onAddNewNurse) {
-              onAddNewNurse(newNurse);
-            }
-          }}
-        />
-      )}
 
       {/* NURSE DOORSTEP ARRIVAL & VISIT QR SCANNER MODAL */}
       {selectedBookingForArrivalQRScan && (

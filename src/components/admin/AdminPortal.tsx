@@ -6,18 +6,11 @@ const MedicalSummaryModal = React.lazy(() => import('../common/MedicalSummaryMod
 const ClientArrivalQRCodeModal = React.lazy(() => import('../common/ClientArrivalQRCodeModal').then(m => ({ default: m.ClientArrivalQRCodeModal })));
 import { VerifiedNursingCouncilBadge } from '../common/VerifiedNursingCouncilBadge';
 const MonthlyEarningsReport = React.lazy(() => import('./MonthlyEarningsReport').then(m => ({ default: m.MonthlyEarningsReport })));
-const NurseQRCodeSignUpModal = React.lazy(() => import('../nurse/NurseQRCodeSignUpModal').then(m => ({ default: m.NurseQRCodeSignUpModal })));
 const NurseContractAgreementModal = React.lazy(() => import('./NurseContractAgreementModal').then(m => ({ default: m.NurseContractAgreementModal })));
 const NursePerformanceAnalyticsDashboard = React.lazy(() => import('./NursePerformanceAnalyticsDashboard').then(m => ({ default: m.NursePerformanceAnalyticsDashboard })));
 const NursingSchoolsLearningDatabaseManager = React.lazy(() => import('./NursingSchoolsLearningDatabaseManager').then(m => ({ default: m.NursingSchoolsLearningDatabaseManager })));
 const AdminVideoMeetingSchedulerModal = React.lazy(() => import('./AdminVideoMeetingSchedulerModal').then(m => ({ default: m.AdminVideoMeetingSchedulerModal })));
 import { soundFX } from '../../utils/soundEffects';
-import { 
-  createNurseInviteQR, 
-  getNurseInviteQRs, 
-  subscribeToQRUpdates, 
-  NurseInviteQR 
-} from '../../services/qrFirebaseStore';
 import { 
   UserCheck, 
   ShieldAlert, 
@@ -288,7 +281,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [selectedBookingForInvoiceModal, setSelectedBookingForInvoiceModal] = useState<Booking | null>(null);
   const [selectedBookingForMedicalSummary, setSelectedBookingForMedicalSummary] = useState<Booking | null>(null);
   const [selectedBookingForQRPass, setSelectedBookingForQRPass] = useState<Booking | null>(null);
-  const [isQRCodeModalOpen, setIsQRCodeModalOpen] = useState(false);
   const [selectedDocModal, setSelectedDocModal] = useState<{
     title: string;
     docUrl: string;
@@ -303,15 +295,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [exportModalEntity, setExportModalEntity] = useState<ExportEntityType>('bookings');
   const [isWhatsAppTemplatesOpen, setIsWhatsAppTemplatesOpen] = useState(false);
   const [isBusinessSettingsOpen, setIsBusinessSettingsOpen] = useState(false);
-  const [nurseInvites, setNurseInvites] = useState<NurseInviteQR[]>(() => getNurseInviteQRs());
-
-  // Subscribe to live QR invite updates
-  useEffect(() => {
-    const unsub = subscribeToQRUpdates(() => {
-      setNurseInvites(getNurseInviteQRs());
-    });
-    return unsub;
-  }, []);
 
   // Live Nurse & Admin Vetting Pipeline from Supabase public.profiles
   const [pendingProfiles, setPendingProfiles] = useState<PendingNurseProfile[]>([]);
@@ -1084,27 +1067,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             >
               <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" /> WhatsApp Templates (Meta)
             </button>
-            <button
-              onClick={() => {
-                createNurseInviteQR();
-                setNurseInvites(getNurseInviteQRs());
-                setIsQRCodeModalOpen(true);
-                soundFX.playSuccessPing();
-              }}
-              className="px-4 py-2.5 rounded-xl text-[#1E1B4B] text-xs font-black backdrop-blur-md border border-[#F59E0B] transition flex items-center gap-1.5 shadow-md shadow-[#F59E0B]/20 cursor-pointer hover:opacity-95"
-              style={{ backgroundColor: '#F59E0B' }}
-              title="Generate New Nurse Invite QR - creates new one instantly"
-            >
-              <QrCode className="w-3.5 h-3.5 text-[#1E1B4B]" />
-              <span>Generate New Nurse Invite QR</span>
-            </button>
-            <button
-              onClick={() => setIsQRCodeModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600/50 text-white text-xs font-bold backdrop-blur-md border border-purple-400/40 transition flex items-center gap-1.5 shadow-sm cursor-pointer"
-              title="View active nurse recruitment QR code & invite list"
-            >
-              <QrCode className="w-3.5 h-3.5 text-[#C77DFF]" /> QR Invites ({nurseInvites.filter(i => !i.used && i.expiresAt > Date.now()).length} Active)
-            </button>
+
             <button
               onClick={() => setIsBusinessSettingsOpen(true)}
               className="px-4 py-2.5 rounded-xl bg-purple-700/40 hover:bg-purple-700/60 text-white text-xs font-black backdrop-blur-md border border-purple-400/40 transition flex items-center gap-1.5 shadow-md shadow-purple-950/40 cursor-pointer"
@@ -1581,20 +1544,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
             
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  createNurseInviteQR();
-                  setNurseInvites(getNurseInviteQRs());
-                  setIsQRCodeModalOpen(true);
-                  soundFX.playSuccessPing();
-                }}
-                className="px-3.5 py-2 rounded-xl text-[#1E1B4B] text-xs font-black transition flex items-center gap-1.5 shadow-md shadow-[#F59E0B]/20 cursor-pointer hover:opacity-95"
-                style={{ backgroundColor: '#F59E0B' }}
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                <span>Generate New Nurse Invite QR</span>
-              </button>
               {onOpenNurseSignUp && (
                 <button
                   onClick={onOpenNurseSignUp}
@@ -1605,110 +1554,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </button>
               )}
               <span className="text-xs text-purple-300 font-bold bg-purple-950/40 border border-purple-500/30 px-3 py-1.5 rounded-xl">{pendingNurseCount} Pending Review</span>
-            </div>
-          </div>
-
-          {/* ACTIVE & INACTIVE NURSE INVITE QRs PANEL (/qr_invites) */}
-          <div className="p-4 rounded-3xl bg-[#0f0a26] border-2 border-[#1E1B4B] space-y-3 shadow-xl">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
-              <div className="flex items-center gap-2">
-                <span 
-                  className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase text-[#1E1B4B]"
-                  style={{ backgroundColor: '#F59E0B' }}
-                >
-                  Firebase Store: /qr_invites
-                </span>
-                <h4 className="text-sm font-black text-white">
-                  Active &amp; Inactive Nurse Invite QRs ({nurseInvites.length})
-                </h4>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-slate-300">
-                  {nurseInvites.filter(i => !i.used && i.expiresAt > Date.now()).length} Active (24hr expiry)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    createNurseInviteQR();
-                    setNurseInvites(getNurseInviteQRs());
-                    setIsQRCodeModalOpen(true);
-                  }}
-                  className="px-2.5 py-1 rounded-xl text-[11px] font-bold text-amber-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition flex items-center gap-1 cursor-pointer"
-                >
-                  <QrCode className="w-3 h-3" />
-                  <span>+ Create Another</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-              {nurseInvites.slice(0, 9).map((inv) => {
-                const now = Date.now();
-                const isExpired = inv.expiresAt <= now;
-                const isActive = !inv.used && !isExpired;
-
-                const diff = inv.expiresAt - now;
-                const hoursLeft = Math.max(0, Math.floor(diff / (1000 * 60 * 60)));
-                const minsLeft = Math.max(0, Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)));
-
-                return (
-                  <div
-                    key={inv.id}
-                    className={`p-3 rounded-2xl border transition flex flex-col justify-between gap-2 ${
-                      isActive
-                        ? 'bg-[#1E1B4B]/60 border-[#F59E0B]/60 shadow-md'
-                        : inv.used
-                        ? 'bg-emerald-950/20 border-emerald-500/30'
-                        : 'bg-white/[0.02] border-white/10 opacity-60'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-mono font-bold text-[11px] text-white truncate max-w-[140px]">{inv.id}</span>
-                        {isActive && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-[#F59E0B] text-[#1E1B4B]">
-                            Active ({hoursLeft}h {minsLeft}m)
-                          </span>
-                        )}
-                        {inv.used && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">
-                            Used ✓
-                          </span>
-                        )}
-                        {isExpired && !inv.used && (
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-red-500/20 text-red-300 border border-red-500/30">
-                            Expired
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 truncate">
-                        {inv.url}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 pt-1 border-t border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => setIsQRCodeModalOpen(true)}
-                        className="flex-1 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold transition cursor-pointer text-center"
-                      >
-                        Show QR
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard?.writeText(inv.url);
-                          soundFX.playSuccessPing();
-                        }}
-                        className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white text-[10px] transition cursor-pointer"
-                        title="Copy direct invite link"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
 
@@ -2942,16 +2787,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         />
       )}
 
-      {/* Nurse Quick QR Code Modal */}
-      {isQRCodeModalOpen && (
-        <NurseQRCodeSignUpModal
-          isOpen={isQRCodeModalOpen}
-          onClose={() => setIsQRCodeModalOpen(false)}
-          onQuickSignUpNurse={(newNurse) => {
-            onApproveNurse(newNurse.id);
-          }}
-        />
-      )}
 
       {/* CONFIDENTIAL CLINICAL CREDENTIAL INSPECTOR MODAL (ADMIN ONLY) */}
       {selectedDocModal && (
