@@ -53,12 +53,12 @@ export const QuickSOSButton: React.FC<QuickSOSButtonProps> = ({
   const [isTriggered, setIsTriggered] = useState<boolean>(Boolean(booking.quickSosTriggered));
   const [showConfirmationToast, setShowConfirmationToast] = useState<boolean>(false);
 
-  const emergencyContactName = booking.clientEmergencyContact?.name || 'Designated Contact';
-  const emergencyContactPhone = booking.clientEmergencyContact?.phone || '+1 (876) 926-CARE';
+  const emergencyContactName = booking.clientEmergencyContact?.name || '';
+  const emergencyContactPhone = booking.clientEmergencyContact?.phone || '';
   const emergencyRelation = booking.clientEmergencyContact?.relation || 'Emergency Contact';
-  const location = `${booking.clientAddress}, ${booking.zone}`;
-  const nurseName = booking.nurseName || 'Assigned Nurse';
-  const clientName = booking.clientName;
+  const location = booking.clientAddress ? `${booking.clientAddress}${booking.zone ? `, ${booking.zone}` : ''}` : 'Active Service Location';
+  const nurseName = booking.nurseName || '';
+  const clientName = booking.clientName || 'Patient';
 
   const handleInstantQuickSOS = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,11 +73,16 @@ export const QuickSOSButton: React.FC<QuickSOSButtonProps> = ({
     setTimeout(() => setShowConfirmationToast(false), 6000);
 
     const nowIso = new Date().toISOString();
-    const alertOrigin = userRole === 'client' ? `Patient ${clientName}` : `Nurse ${nurseName}`;
+    const alertOrigin = userRole === 'client' ? `Patient ${clientName}` : (nurseName ? `Nurse ${nurseName}` : 'Attending Caregiver');
 
     // 2. High-priority broadcast payload
+    const hasEmergencyContact = Boolean(emergencyContactName && emergencyContactPhone);
+    const alertDestination = hasEmergencyContact 
+      ? `Alerting ${emergencyContactName} (${emergencyContactPhone}), 119 Emergency Services, and Lead Administrator.`
+      : `Alerting 119 Emergency Services and Lead Administrator.`;
+
     const sosTitle = `🚨 QUICK-SOS: ${alertOrigin} Triggered Urgent Safety Alert!`;
-    const sosDescription = `URGENT: Immediate safety alert dispatched at ${location} for booking #${booking.id} (${booking.serviceName}). Alerting ${emergencyContactName} (${emergencyContactPhone}), 119 Emergency Services, and Lead Administrator.`;
+    const sosDescription = `URGENT: Immediate safety alert dispatched at ${location} for booking #${booking.id} (${booking.serviceName}). ${alertDestination}`;
 
     // Dispatch global full-screen takeover event for both client and nurse screens
     if (typeof window !== 'undefined') {
@@ -108,9 +113,9 @@ export const QuickSOSButton: React.FC<QuickSOSButtonProps> = ({
         quickSosTriggeredBy: userRole,
         quickSosAlertDetails: {
           location,
-          contactNotifiedName: emergencyContactName,
-          contactNotifiedPhone: emergencyContactPhone,
-          message: `Quick-SOS bypass alert triggered by ${alertOrigin}. Emergency contact ${emergencyContactName} and 119 dispatch alerted with live GPS coordinates.`
+          contactNotifiedName: emergencyContactName || '119 Police Dispatch',
+          contactNotifiedPhone: emergencyContactPhone || '119',
+          message: `Quick-SOS bypass alert triggered by ${alertOrigin}. ${hasEmergencyContact ? `Emergency contact ${emergencyContactName} and ` : ''}119 dispatch alerted with live GPS coordinates.`
         },
         ...arrivalAutoAlert
       });
@@ -184,16 +189,25 @@ export const QuickSOSButton: React.FC<QuickSOSButtonProps> = ({
                 <span className="text-[9px] text-slate-400">Bypassed Modal ✓</span>
               </div>
               <p className="text-xs font-bold text-white mt-0.5">
-                Alert sent to {emergencyContactName} ({emergencyRelation})
+                {emergencyContactName 
+                  ? `Alert sent to ${emergencyContactName} (${emergencyRelation})`
+                  : 'Alert sent to 119 Police & Admin Dispatch'}
               </p>
               <div className="mt-1 text-[11px] text-slate-300 space-y-0.5">
-                <div className="flex items-center gap-1">
-                  <PhoneCall className="w-3 h-3 text-emerald-400 shrink-0" />
-                  <span className="font-mono text-emerald-300">{emergencyContactPhone}</span>
-                </div>
+                {emergencyContactPhone ? (
+                  <div className="flex items-center gap-1">
+                    <PhoneCall className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="font-mono text-emerald-300">{emergencyContactPhone}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <PhoneCall className="w-3 h-3 text-emerald-400 shrink-0" />
+                    <span className="font-mono text-emerald-300">119 Police Emergency</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-1 text-[10px] text-slate-400">
                   <Send className="w-2.5 h-2.5 text-purple-300 shrink-0" />
-                  <span>GPS location &amp; arrival auto-notify broadcasted</span>
+                  <span>GPS location &amp; arrival broadcasted</span>
                 </div>
               </div>
             </div>

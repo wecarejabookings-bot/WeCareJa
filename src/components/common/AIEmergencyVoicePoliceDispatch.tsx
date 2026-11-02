@@ -47,7 +47,7 @@ export const AIEmergencyVoicePoliceDispatch: React.FC<AIEmergencyVoicePoliceDisp
   userName,
   lat,
   lng,
-  address = 'Kingston & St. Andrew Corridor, Jamaica',
+  address = '',
   nearestStationName,
   nearestStationPhone,
   nearestStationDistanceKm,

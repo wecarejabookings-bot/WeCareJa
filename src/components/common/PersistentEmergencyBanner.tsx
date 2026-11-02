@@ -27,7 +27,10 @@ export const PersistentEmergencyBanner: React.FC<PersistentEmergencyBannerProps>
               🚨 119 EMERGENCY SOS ACTIVE:
             </span>
             <span className="font-bold text-white">
-              {emergencyData.clientName} ({emergencyData.clientAddress}, {emergencyData.zone})
+              {emergencyData.clientName}
+              {(emergencyData.clientAddress || emergencyData.zone) ? (
+                ` (${[emergencyData.clientAddress, emergencyData.zone].filter(Boolean).join(', ')})`
+              ) : ''}
             </span>
             <span className="text-red-100 hidden sm:inline ml-2 text-[11px]">
               • Triggered by {emergencyData.triggererName}

@@ -300,6 +300,7 @@ export interface Booking {
   serviceId: string;
   serviceName: string;
   clientId: string;
+  clientEmail?: string;
   clientName: string;
   clientPhone: string;
   clientAddress: string;
@@ -756,6 +757,8 @@ export interface UserAccount {
   avatar?: string;
   zone?: string;
   address?: string;
+  currentLat?: number;
+  currentLng?: number;
   medical_info?: string;
   is_deleted?: boolean;
   gateCode?: string;

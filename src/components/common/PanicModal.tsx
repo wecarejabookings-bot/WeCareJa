@@ -27,7 +27,7 @@ export const PanicModal: React.FC<PanicModalProps> = ({
   const [isPolicePopupOpen, setIsPolicePopupOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  const effectiveAddress = userAddress || activeBooking?.clientAddress || 'Trafalgar Road, New Kingston, Jamaica';
+  const effectiveAddress = userAddress?.trim() || activeBooking?.clientAddress?.trim() || 'Awaiting GPS coordinates...';
   const effectiveName = userName || (userRole === 'nurse' ? (activeBooking?.nurseName || 'Nurse on Duty') : (activeBooking?.clientName || 'Patient / Family'));
   const nearestPolice = findNearestPoliceStations(null, null, effectiveAddress, 1)[0];
 
@@ -77,13 +77,17 @@ export const PanicModal: React.FC<PanicModalProps> = ({
             <div className="flex items-start gap-2.5">
               <MapPin className="w-5 h-5 text-[#E63946] shrink-0 mt-0.5" />
               <div>
-                <span className="text-xs font-bold text-red-300 block">Current Jamaican Service Location:</span>
+                <span className="text-xs font-bold text-red-300 block">Service Location:</span>
                 <p className="text-sm font-semibold text-white mt-0.5">
-                  {activeBooking?.clientAddress || 'Trafalgar Road, New Kingston'}, Kingston, St. Andrew, Portmore, and Spanish Town
+                  {effectiveAddress}
                 </p>
-                {activeBooking && (
+                {activeBooking?.nurseName ? (
                   <p className="text-xs text-slate-300 mt-1">
-                    Booking: <strong>{activeBooking.serviceName}</strong> | Nurse: <strong>{activeBooking.nurseName || 'Assigned Nurse'}</strong>
+                    Booking: <strong>{activeBooking.serviceName}</strong> | Attending Nurse: <strong>{activeBooking.nurseName}</strong>
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-300 mt-1">
+                    Emergency Dispatch Mode: <strong>Direct 119 Speed Dial</strong>
                   </p>
                 )}
               </div>

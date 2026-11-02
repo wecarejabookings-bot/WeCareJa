@@ -413,86 +413,35 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Editable Bio Data State
+  // Editable Bio Data State (Clean for registered users)
   const initialBio: ClientPatientBioData = user.patientBioData || {
-    dateOfBirth: '1946-11-20',
-    age: 79,
+    dateOfBirth: user.dateOfBirth || '',
+    age: user.careRecipient?.age || undefined,
     gender: 'female',
-    bloodType: 'O+',
-    residentialAddress: user.address || '14 Trafalgar Road, Kingston 5',
-    zone: user.zone || 'New Kingston',
-    knownIllnesses: ['Hypertension', 'Type 2 Diabetes'],
-    allergies: ['Penicillin', 'Latex'],
-    mobilityStatus: 'needs_cane_walker',
-    dietaryRestrictions: 'Low sodium, diabetic friendly',
-    specialCareInstructions: 'Requires gentle assistance with transfers and morning blood pressure monitoring.',
-    medications: [
-      {
-        id: 'med-def-1',
-        name: 'Amlodipine 5mg',
-        dosage: '1 tablet daily',
-        instructions: 'Take with morning tea and water',
-        timesOfDay: ['morning'],
-        scheduledTime: '08:00 AM',
-        purpose: 'Blood pressure control',
-        takenToday: true,
-        takenAt: '08:15 AM',
-        administeredToday: true,
-        lastAdministeredAt: new Date(Date.now() - 3600000 * 3).toISOString(),
-        complianceHistory: [
-          {
-            timestamp: new Date(Date.now() - 3600000 * 3).toISOString(),
-            status: 'taken',
-            loggedBy: 'Patient / Family',
-            notes: 'Taken with breakfast and herbal tea'
-          }
-        ]
-      },
-      {
-        id: 'med-def-2',
-        name: 'Metformin 500mg',
-        dosage: '1 tablet with food',
-        instructions: 'Take immediately after lunch with a full glass of water',
-        timesOfDay: ['midday'],
-        scheduledTime: '01:00 PM',
-        purpose: 'Type 2 Diabetes glucose management',
-        takenToday: false
-      },
-      {
-        id: 'med-def-3',
-        name: 'Atorvastatin 20mg',
-        dosage: '1 tablet nightly',
-        instructions: 'Take before bedtime with half glass of water',
-        timesOfDay: ['bedtime'],
-        scheduledTime: '09:00 PM',
-        purpose: 'Cardiovascular protection & cholesterol control',
-        takenToday: false
-      },
-      {
-        id: 'med-def-4',
-        name: 'Panadol Extra (Paracetamol 500mg)',
-        dosage: '1-2 tablets as needed',
-        instructions: 'Take for joint stiffness or mild headache (Max 8 tablets/day)',
-        timesOfDay: ['as_needed'],
-        scheduledTime: 'As Needed (PRN)',
-        purpose: 'Arthritis & mild pain relief',
-        takenToday: false
-      }
-    ],
+    bloodType: '',
+    residentialAddress: user.address || '',
+    zone: user.zone || '',
+    knownIllnesses: [],
+    allergies: [],
+    mobilityStatus: 'independent',
+    dietaryRestrictions: '',
+    specialCareInstructions: '',
+    medications: [],
     trustedFamilyMember: {
-      name: user.emergencyContact?.name || 'Robert Morrison',
-      relation: user.emergencyContact?.relation || 'Son',
-      phone: user.emergencyContact?.phone || user.phone,
-      email: 'family.guardian@gmail.com',
-      photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
+      name: user.emergencyContact?.name || '',
+      relation: user.emergencyContact?.relation || '',
+      phone: user.emergencyContact?.phone || user.phone || '',
+      email: '',
+      photoUrl: '',
       canManageCare: true,
-      notes: 'Primary emergency contact and medical guardian.'
+      notes: ''
     },
     profileSharedWith: []
   };
 
   const [currentBio, setCurrentBio] = useState<ClientPatientBioData>(initialBio);
-  const [address, setAddress] = useState(currentBio.residentialAddress || user.address || '14 Trafalgar Road, Kingston 5');
-  const [zone, setZone] = useState(currentBio.zone || user.zone || 'New Kingston');
+  const [address, setAddress] = useState(currentBio.residentialAddress || user.address || '');
+  const [zone, setZone] = useState(currentBio.zone || user.zone || '');
   const [customIllness, setCustomIllness] = useState('');
   const [customAllergy, setCustomAllergy] = useState('');
 

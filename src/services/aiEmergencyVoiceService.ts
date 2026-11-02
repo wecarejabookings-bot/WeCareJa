@@ -81,11 +81,24 @@ export function buildPoliceVoiceEmergencyScript(params: EmergencyVoiceScriptPara
   const phoneticCoords = formatPhoneticCoordinates(lat, lng);
 
   const resolvedName = userName?.trim() || (userRole === 'nurse' ? 'Nurse Healthcare Provider' : userRole === 'admin' ? 'Lead Administrator' : 'Patient Client');
-  const resolvedAddress = address?.trim() || 'Kingston & St. Andrew, Jamaica';
+  const hasRegisteredAddress = Boolean(address && address.trim().length > 0 && address !== 'Kingston & St. Andrew Corridor, Jamaica' && address !== 'Kingston & St. Andrew, Jamaica');
+  const resolvedAddress = hasRegisteredAddress ? address!.trim() : 'Live GPS coordinates (street address not on profile)';
 
   const stationRef = nearestStationName 
     ? `Reference police station: ${nearestStationName}${nearestStationDistanceKm !== undefined ? ` located approximately ${nearestStationDistanceKm} kilometers away` : ''}. `
     : '';
+
+  const addressSentence = hasRegisteredAddress
+    ? `The user's registered address on the app is: ${resolvedAddress}. `
+    : `The user's registered street address is not listed on their profile. Responders must navigate directly to their live GPS coordinates. `;
+
+  const repeatAddressSentence = hasRegisteredAddress
+    ? `Address on the app: ${resolvedAddress}. `
+    : `Live GPS fix: Latitude ${roundedLat}, Longitude ${roundedLng}. `;
+
+  const dispatchSentence = hasRegisteredAddress
+    ? `Please dispatch an emergency police response unit to ${resolvedName} at ${resolvedAddress} immediately, GPS coordinates ${roundedLat}, ${roundedLng}.`
+    : `Please dispatch an emergency police response unit to ${resolvedName} at GPS coordinates Latitude ${roundedLat}, Longitude ${roundedLng} immediately.`;
 
   const fullText = 
     `Attention Jamaica Constabulary Force 119 and Emergency Police Dispatch. ` +
@@ -93,21 +106,21 @@ export function buildPoliceVoiceEmergencyScript(params: EmergencyVoiceScriptPara
     `The user is in distress, unable to speak, and needs the urgent assistance of the police immediately. ` +
     `The reporting user's name on the app is: ${resolvedName}. ` +
     `User account role: ${roleDescription}. ` +
-    `The user's registered address on the app is: ${resolvedAddress}. ` +
+    `${addressSentence}` +
     `Their exact location according to real-time GPS coordinates is: Latitude ${roundedLat} degrees North, Longitude ${roundedLng} degrees West. ` +
     `${phoneticCoords}. ` +
     `${stationRef}` +
     `Repeating emergency identification for police units: ` +
     `User name on the app: ${resolvedName}. ` +
-    `Address on the app: ${resolvedAddress}. ` +
+    `${repeatAddressSentence}` +
     `The ${shortRole} is in acute distress and requires urgent police tactical intervention at coordinates ${roundedLat}, ${roundedLng}. ` +
-    `Please dispatch an emergency police response unit to ${resolvedName} at ${resolvedAddress} immediately.`;
+    `${dispatchSentence}`;
 
   const shortText = 
-    `Automated Emergency Distress Broadcast from WeCareJa.care: User Name: "${resolvedName}" (${roleDescription}) at registered app address "${resolvedAddress}" is in severe distress and unable to speak. Urgent police assistance required at Coordinates: ${roundedLat}, ${roundedLng}.`;
+    `Automated Emergency Distress Broadcast from WeCareJa.care: User Name: "${resolvedName}" (${roleDescription}) at registered location "${resolvedAddress}" is in severe distress and unable to speak. Urgent police assistance required at Coordinates: ${roundedLat}, ${roundedLng}.`;
 
   const smsBody = 
-    `🚨 WECAREJA.CARE EMERGENCY POLICE ALERT: ${resolvedName} (${roleDescription}) is in severe distress and needs urgent police response! Address on app: ${resolvedAddress}. GPS: ${roundedLat}, ${roundedLng}. Map: https://maps.google.com/?q=${roundedLat},${roundedLng}`;
+    `🚨 WECAREJA.CARE EMERGENCY POLICE ALERT: ${resolvedName} (${roleDescription}) is in severe distress and needs urgent police response! Location: ${resolvedAddress}. GPS: ${roundedLat}, ${roundedLng}. Map: https://maps.google.com/?q=${roundedLat},${roundedLng}`;
 
   return {
     fullText,

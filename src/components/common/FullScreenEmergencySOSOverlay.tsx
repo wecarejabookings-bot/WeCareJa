@@ -35,9 +35,12 @@ export interface EmergencySOSData {
   clientAddress: string;
   zone: string;
   serviceName: string;
-  nurseName: string;
+  nurseName?: string;
   nursePhone?: string;
   nursePhoto?: string;
+  lastVisitDate?: string;
+  lastVisitService?: string;
+  hasPreviousNurseVisit?: boolean;
   timestamp: string;
   bookingId?: string;
   bloodType?: string;
@@ -51,6 +54,7 @@ export interface EmergencySOSData {
     lat: number;
     lng: number;
   };
+  gpsAccuracyStatus?: 'locked' | 'acquiring' | 'profile_default';
   status: 'active' | 'resolved';
 }
 
@@ -277,56 +281,128 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
             </div>
           </a>
 
-          {/* Attending Nurse or Client Direct */}
-          <a
-            href={`tel:${(isClientView ? emergencyData.nursePhone : emergencyData.clientPhone) || '8765550192'}`}
-            className="p-5 rounded-3xl bg-gradient-to-br from-purple-700 to-indigo-900 hover:from-purple-600 hover:to-indigo-800 text-white shadow-2xl shadow-purple-950/80 border-2 border-purple-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-purple-500/40 text-purple-200 px-2 py-0.5 rounded-full">
-                {isClientView ? 'Attending Nurse' : 'Patient / Client'}
-              </span>
-              <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
-                <PhoneCall className="w-5 h-5 text-white" />
+          {/* Attending Nurse, Last Visiting Nurse, or Direct We Care Emergency Operations */}
+          {isClientView ? (
+            emergencyData.nurseName && emergencyData.nursePhone ? (
+              <a
+                href={`tel:${emergencyData.nursePhone.replace(/[^0-9+]/g, '')}`}
+                className="p-5 rounded-3xl bg-gradient-to-br from-purple-700 to-indigo-900 hover:from-purple-600 hover:to-indigo-800 text-white shadow-2xl shadow-purple-950/80 border-2 border-purple-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-purple-500/40 text-purple-200 px-2 py-0.5 rounded-full">
+                    {emergencyData.lastVisitDate ? 'Last Visiting Nurse' : 'Attending Nurse'}
+                  </span>
+                  <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
+                    <PhoneCall className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
+                    {emergencyData.nurseName}
+                  </span>
+                  <span className="text-xs text-purple-200 font-mono block mt-0.5">
+                    {emergencyData.nursePhone}
+                  </span>
+                </div>
+              </a>
+            ) : (
+              <a
+                href={`tel:${ADMIN_PROFILE.officeNumber.replace(/[^0-9+]/g, '')}`}
+                className="p-5 rounded-3xl bg-gradient-to-br from-purple-700 to-indigo-900 hover:from-purple-600 hover:to-indigo-800 text-white shadow-2xl shadow-purple-950/80 border-2 border-purple-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider bg-purple-500/40 text-purple-200 px-2 py-0.5 rounded-full">
+                    Operations Dispatch
+                  </span>
+                  <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
+                    <PhoneCall className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
+                    We Care Rapid Ops
+                  </span>
+                  <span className="text-xs text-purple-200 font-mono block mt-0.5">
+                    {ADMIN_PROFILE.officeNumber} (24/7)
+                  </span>
+                </div>
+              </a>
+            )
+          ) : (
+            <a
+              href={emergencyData.clientPhone ? `tel:${emergencyData.clientPhone.replace(/[^0-9+]/g, '')}` : '#'}
+              className="p-5 rounded-3xl bg-gradient-to-br from-purple-700 to-indigo-900 hover:from-purple-600 hover:to-indigo-800 text-white shadow-2xl shadow-purple-950/80 border-2 border-purple-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-purple-500/40 text-purple-200 px-2 py-0.5 rounded-full">
+                  Patient / Client
+                </span>
+                <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
+                  <PhoneCall className="w-5 h-5 text-white" />
+                </div>
               </div>
-            </div>
-            <div>
-              <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
-                {isClientView ? emergencyData.nurseName : emergencyData.clientName}
-              </span>
-              <span className="text-xs text-purple-200 font-mono block mt-0.5">
-                {isClientView ? emergencyData.nursePhone : emergencyData.clientPhone}
-              </span>
-            </div>
-          </a>
+              <div>
+                <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
+                  {emergencyData.clientName}
+                </span>
+                <span className="text-xs text-purple-200 font-mono block mt-0.5">
+                  {emergencyData.clientPhone || 'No phone registered'}
+                </span>
+              </div>
+            </a>
+          )}
 
-          {/* Family Emergency Contact */}
-          <a
-            href={`tel:${String(emergencyData.emergencyContact.phone).replace(/[^0-9+]/g, '')}`}
-            className="p-5 rounded-3xl bg-gradient-to-br from-emerald-700 to-teal-900 hover:from-emerald-600 hover:to-teal-800 text-white shadow-2xl shadow-emerald-950/80 border-2 border-emerald-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
-          >
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/40 text-emerald-200 px-2 py-0.5 rounded-full">
-                Family Guardian
-              </span>
-              <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
-                <PhoneCall className="w-5 h-5 text-white" />
+          {/* Family Emergency Contact or Hospital ER */}
+          {emergencyData.emergencyContact?.phone ? (
+            <a
+              href={`tel:${String(emergencyData.emergencyContact.phone).replace(/[^0-9+]/g, '')}`}
+              className="p-5 rounded-3xl bg-gradient-to-br from-emerald-700 to-teal-900 hover:from-emerald-600 hover:to-teal-800 text-white shadow-2xl shadow-emerald-950/80 border-2 border-emerald-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/40 text-emerald-200 px-2 py-0.5 rounded-full">
+                  {emergencyData.emergencyContact.relation || 'Emergency Contact'}
+                </span>
+                <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
+                  <PhoneCall className="w-5 h-5 text-white" />
+                </div>
               </div>
-            </div>
-            <div>
-              <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
-                {emergencyData.emergencyContact.name}
-              </span>
-              <span className="text-xs text-emerald-200 block truncate">
-                {emergencyData.emergencyContact.relation} • {emergencyData.emergencyContact.phone}
-              </span>
-            </div>
-          </a>
+              <div>
+                <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
+                  {emergencyData.emergencyContact.name}
+                </span>
+                <span className="text-xs text-emerald-200 block truncate">
+                  {emergencyData.emergencyContact.relation} • {emergencyData.emergencyContact.phone}
+                </span>
+              </div>
+            </a>
+          ) : (
+            <a
+              href="tel:+18769271620"
+              className="p-5 rounded-3xl bg-gradient-to-br from-emerald-700 to-teal-900 hover:from-emerald-600 hover:to-teal-800 text-white shadow-2xl shadow-emerald-950/80 border-2 border-emerald-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/40 text-emerald-200 px-2 py-0.5 rounded-full">
+                  Hospital ER Line
+                </span>
+                <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
+                  <PhoneCall className="w-5 h-5 text-white" />
+                </div>
+              </div>
+              <div>
+                <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
+                  UHWI Mona Emergency
+                </span>
+                <span className="text-xs text-emerald-200 block truncate">
+                  +1 (876) 927-1620 • Level-1 Trauma
+                </span>
+              </div>
+            </a>
+          )}
         </div>
 
         {/* Vital Patient & Incident Information Matrix */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card 1: Patient Bio & Critical Medical Info */}
+          {/* Card 1: Patient Bio & Critical Medical Info (Strictly linked to user profile) */}
           <div className="p-5 rounded-3xl bg-white/[0.06] backdrop-blur-2xl border-2 border-red-500/30 space-y-3.5">
             <div className="flex items-center gap-2 text-red-300 font-black text-xs uppercase tracking-wider border-b border-white/10 pb-2">
               <Heart className="w-4 h-4 text-red-400 fill-red-400" />
@@ -335,32 +411,35 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
 
             <div className="space-y-2 text-xs">
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Patient Full Name</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Patient Registered Name</span>
                 <strong className="text-base text-white font-extrabold">{emergencyData.clientName}</strong>
+                {emergencyData.clientPhone && (
+                  <span className="text-xs text-slate-300 block font-mono mt-0.5">{emergencyData.clientPhone}</span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10">
                   <span className="text-[10px] text-slate-400 block font-bold">Blood Group</span>
-                  <span className="text-base font-black text-red-400 font-mono">
-                    {emergencyData.bloodType || 'O+ Positive'}
+                  <span className="text-sm font-black text-red-400 font-mono">
+                    {emergencyData.bloodType?.trim() ? emergencyData.bloodType : 'Unrecorded on profile'}
                   </span>
                 </div>
 
                 <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10">
-                  <span className="text-[10px] text-slate-400 block font-bold">Visit Service</span>
+                  <span className="text-[10px] text-slate-400 block font-bold">Incident / Service</span>
                   <span className="text-xs font-bold text-white truncate block">
-                    {emergencyData.serviceName}
+                    {emergencyData.serviceName || 'Emergency Assistance Request'}
                   </span>
                 </div>
               </div>
 
               <div className="p-2.5 rounded-2xl bg-red-500/15 border border-red-400/30">
-                <span className="text-[10px] text-red-300 uppercase font-black block">Critical Known Allergies</span>
+                <span className="text-[10px] text-red-300 uppercase font-black block">Known Allergies on Profile</span>
                 <span className="text-xs font-bold text-white">
                   {(emergencyData.allergies && emergencyData.allergies.length > 0) 
                     ? emergencyData.allergies.join(', ') 
-                    : 'Penicillin, Sulfa Antibiotics (Verified)'}
+                    : 'None recorded on profile'}
                 </span>
               </div>
             </div>
@@ -375,32 +454,51 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
 
             <div className="space-y-2.5 text-xs">
               <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Patient Residence</span>
+                <span className="text-slate-400 block text-[10px] uppercase font-bold">Client Registered Address</span>
                 <p className="text-sm font-bold text-white mt-0.5">
-                  {emergencyData.clientAddress}
+                  {emergencyData.clientAddress || 'Address not registered in user profile'}
                 </p>
-                <span className="text-xs text-purple-300 font-semibold">{emergencyData.zone}, Jamaica</span>
+                {emergencyData.zone && (
+                  <span className="text-xs text-purple-300 font-semibold">{emergencyData.zone}, Jamaica</span>
+                )}
               </div>
 
               <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10 font-mono text-[11px] space-y-1">
-                <span className="text-[10px] text-slate-400 uppercase font-bold block">GPS Coordinates for Responders</span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold">Live Device Coordinates</span>
+                  {emergencyData.gpsAccuracyStatus === 'locked' && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/30 text-emerald-300 font-bold">GPS LOCKED ✓</span>
+                  )}
+                </div>
                 <p className="text-emerald-400 font-bold">
-                  LAT: {emergencyData.gpsCoordinates.lat.toFixed(4)}° N
+                  LAT: {emergencyData.gpsCoordinates.lat ? emergencyData.gpsCoordinates.lat.toFixed(5) + '° N' : 'Acquiring GPS...'}
                 </p>
                 <p className="text-emerald-400 font-bold">
-                  LNG: {emergencyData.gpsCoordinates.lng.toFixed(4)}° W
+                  LNG: {emergencyData.gpsCoordinates.lng ? emergencyData.gpsCoordinates.lng.toFixed(5) + '° W' : 'Acquiring GPS...'}
                 </p>
               </div>
 
-              <a
-                href={`https://maps.google.com/?q=${emergencyData.gpsCoordinates.lat},${emergencyData.gpsCoordinates.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 border border-white/10"
-              >
-                <MapPin className="w-3.5 h-3.5 text-red-400" />
-                <span>Open in Google Maps Navigation</span>
-              </a>
+              {emergencyData.gpsCoordinates.lat && emergencyData.gpsCoordinates.lng ? (
+                <a
+                  href={`https://maps.google.com/?q=${emergencyData.gpsCoordinates.lat},${emergencyData.gpsCoordinates.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 border border-white/10"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-red-400" />
+                  <span>Open Live GPS in Google Maps</span>
+                </a>
+              ) : emergencyData.clientAddress ? (
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(emergencyData.clientAddress + ', Jamaica')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition flex items-center justify-center gap-1.5 border border-white/10"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-red-400" />
+                  <span>Search Registered Address in Maps</span>
+                </a>
+              ) : null}
             </div>
           </div>
 
@@ -412,11 +510,48 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
             </div>
 
             <div className="space-y-2 text-xs">
-              <div>
-                <span className="text-slate-400 block text-[10px] uppercase font-bold">Attending Licensed Caregiver</span>
-                <strong className="text-sm text-white font-bold block">{emergencyData.nurseName}</strong>
-                <span className="text-xs text-emerald-300 font-mono">{emergencyData.nursePhone || '+1 (876) 555-0192'}</span>
-              </div>
+              {emergencyData.nurseName ? (
+                <div>
+                  <span className="text-slate-400 block text-[10px] uppercase font-bold">
+                    {emergencyData.lastVisitDate ? 'Last Visiting Licensed Nurse' : 'Attending Licensed Caregiver'}
+                  </span>
+                  <div className="flex items-center gap-2 mt-1">
+                    {emergencyData.nursePhoto ? (
+                      <img src={emergencyData.nursePhoto} alt={emergencyData.nurseName} className="w-8 h-8 rounded-full object-cover border border-emerald-400/50" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-300 flex items-center justify-center font-bold text-xs">
+                        {emergencyData.nurseName.charAt(0)}
+                      </div>
+                    )}
+                    <div>
+                      <strong className="text-sm text-white font-bold block">{emergencyData.nurseName}</strong>
+                      {emergencyData.nursePhone && (
+                        <a href={`tel:${emergencyData.nursePhone.replace(/[^0-9+]/g, '')}`} className="text-xs text-emerald-300 font-mono hover:underline">
+                          {emergencyData.nursePhone}
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  {emergencyData.lastVisitService && (
+                    <p className="text-[11px] text-slate-300 mt-1">
+                      Last Visit: <span className="text-white font-medium">{emergencyData.lastVisitService}</span>
+                      {emergencyData.lastVisitDate && (
+                        <span className="text-slate-400 block text-[10px]">
+                          {new Date(emergencyData.lastVisitDate).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 rounded-2xl bg-black/40 border border-white/10 space-y-1">
+                  <span className="text-[10px] text-amber-300 font-bold uppercase block">Previous Caregiver History</span>
+                  <strong className="text-xs text-white font-bold block">No previous nurse visit on record</strong>
+                  <p className="text-[11px] text-slate-400">
+                    This client has no completed home nurse visits on file. No made-up nurse is shown. Connect directly with 119 police dispatch or We Care operations below.
+                  </p>
+                </div>
+              )}
 
               <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10">
                 <span className="text-[10px] text-slate-400 block font-bold">We Care Admin Control</span>

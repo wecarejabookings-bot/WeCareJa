@@ -1979,36 +1979,100 @@ export default function App() {
 
   // Full-Screen SOS Emergency Takeover Trigger
   const handleTriggerFullScreenSOS = useCallback((bookingContext?: Booking | null, triggeredByRole?: 'client' | 'nurse' | 'admin') => {
-    const targetBooking = bookingContext || emergencyActiveBooking || bookings.find(b => ['accepted', 'en_route', 'in_progress'].includes(b.status)) || bookings[0];
     const role = triggeredByRole || currentRole;
-    const triggererName = currentUser ? getDisplayName(currentUser, currentUser) : (role === 'nurse' ? (targetBooking?.nurseName || 'Nurse on Duty') : role === 'admin' ? 'Lead Administrator' : (targetBooking?.clientName || 'Patient / Family'));
-    const userAddressOnApp = currentUser?.address?.trim() || targetBooking?.clientAddress || '14 Hope Road, Kingston 6, Jamaica';
+
+    // Find any active booking for the current context
+    const currentActiveBooking = bookingContext || emergencyActiveBooking || bookings.find(b => 
+      ['in_progress', 'en_route', 'accepted'].includes(b.status) &&
+      (role === 'client' && currentUser ? (b.clientId === currentUser.id || b.clientPhone === currentUser.phone) : true)
+    ) || null;
+
+    // 1. Identify previous nurse visits strictly from real booking records for this client
+    const clientBookings = currentUser ? bookings.filter(b => {
+      const matchId = b.clientId && (b.clientId === currentUser.id || b.clientId === currentUser.email);
+      const matchEmail = currentUser.email && b.clientEmail && b.clientEmail.toLowerCase() === currentUser.email.toLowerCase();
+      const matchPhone = currentUser.phone && b.clientPhone && b.clientPhone.replace(/\D/g, '') === currentUser.phone.replace(/\D/g, '');
+      const matchName = currentUser.name && b.clientName && b.clientName.toLowerCase() === currentUser.name.toLowerCase();
+      return matchId || matchEmail || matchPhone || matchName;
+    }) : (currentActiveBooking ? [currentActiveBooking] : []);
+
+    // Filter for visits with a verified real nurse
+    const completedOrActiveNurseVisits = clientBookings
+      .filter(b => Boolean(b.nurseName && b.nurseName.trim()))
+      .sort((a, b) => {
+        const timeA = new Date(a.visitEndedAt || a.scheduledDateTime || a.createdAt).getTime();
+        const timeB = new Date(b.visitEndedAt || b.scheduledDateTime || b.createdAt).getTime();
+        return timeB - timeA;
+      });
+
+    // If there is an active booking with an assigned nurse right now, prioritize it; otherwise use the last completed visit
+    const lastVisitingRecord = (currentActiveBooking?.nurseName ? currentActiveBooking : null) || completedOrActiveNurseVisits[0] || null;
+
+    // Real nurse fields: strictly from real visit or empty (NEVER fake / made-up)
+    const nurseName = lastVisitingRecord?.nurseName?.trim() || '';
+    const nursePhone = lastVisitingRecord?.nursePhone?.trim() || '';
+    const nursePhoto = lastVisitingRecord?.nursePhoto;
+    const lastVisitDate = lastVisitingRecord ? (lastVisitingRecord.visitEndedAt || lastVisitingRecord.scheduledDateTime || lastVisitingRecord.createdAt) : undefined;
+    const lastVisitService = lastVisitingRecord?.serviceName;
+    const hasPreviousNurseVisit = Boolean(nurseName);
+
+    // 2. Real patient / client info: strictly from logged in user profile or active booking
+    const triggererName = currentUser ? getDisplayName(currentUser, currentUser) : (role === 'nurse' ? (currentActiveBooking?.nurseName || 'Nurse on Duty') : role === 'admin' ? 'Lead Administrator' : 'Client');
+    const clientName = role === 'nurse' && currentActiveBooking ? currentActiveBooking.clientName : (currentUser ? getDisplayName(currentUser, currentUser) : (currentActiveBooking?.clientName || 'Client'));
+    const clientPhone = (currentUser?.phone || currentUser?.whatsAppPhone || currentActiveBooking?.clientPhone || '').trim();
+    const clientAddress = (currentUser?.address || currentUser?.patientBioData?.residentialAddress || currentActiveBooking?.clientAddress || '').trim();
+    const zone = (currentUser?.zone || currentUser?.patientBioData?.zone || currentActiveBooking?.zone || '').trim();
+    const bloodType = currentUser?.patientBioData?.bloodType || currentUser?.bioData?.bloodType || '';
+    const allergies = currentUser?.patientBioData?.allergies || currentUser?.bioData?.allergies || [];
+    
+    // Emergency contact strictly from user profile or active booking
+    const userEmergencyContact = currentUser?.emergencyContact?.name ? {
+      name: currentUser.emergencyContact.name,
+      phone: currentUser.emergencyContact.phone || '',
+      relation: currentUser.emergencyContact.relation || 'Emergency Contact'
+    } : (currentUser?.patientBioData?.trustedFamilyMember?.name ? {
+      name: currentUser.patientBioData.trustedFamilyMember.name,
+      phone: currentUser.patientBioData.trustedFamilyMember.phone || '',
+      relation: currentUser.patientBioData.trustedFamilyMember.relation || 'Family Guardian'
+    } : (currentActiveBooking?.clientEmergencyContact?.name ? {
+      name: currentActiveBooking.clientEmergencyContact.name,
+      phone: currentActiveBooking.clientEmergencyContact.phone || '',
+      relation: currentActiveBooking.clientEmergencyContact.relation || 'Emergency Contact'
+    } : {
+      name: '',
+      phone: '',
+      relation: ''
+    }));
+
+    // Initial GPS Coordinates: standard fallback while querying real device GPS
+    const initialLat = currentUser?.currentLat || 18.0179;
+    const initialLng = currentUser?.currentLng || -76.8099;
 
     const emergencyData: EmergencySOSData = {
       id: `sos-${Date.now()}`,
       triggeredBy: role === 'nurse' ? 'nurse' : role === 'admin' ? 'admin' : 'client',
       triggererName,
-      clientName: targetBooking?.clientName || (currentUser ? getDisplayName(currentUser, currentUser) : 'Mrs. Marjorie Simpson'),
-      clientPhone: targetBooking?.clientPhone || currentUser?.phone || '+1 (876) 555-0182',
-      clientAddress: userAddressOnApp,
-      zone: targetBooking?.zone || currentUser?.zone || 'Liguanea',
-      serviceName: targetBooking?.serviceName || 'Geriatric Vital Signs & Fall Monitoring',
-      nurseName: targetBooking?.nurseName || 'Nurse Keisha Brown, RN',
-      nursePhone: targetBooking?.nursePhone || '+1 (876) 555-0199',
-      nursePhoto: targetBooking?.nursePhoto,
+      clientName,
+      clientPhone,
+      clientAddress,
+      zone,
+      serviceName: currentActiveBooking?.serviceName || (hasPreviousNurseVisit ? `Follow-up to ${lastVisitService || 'Past Nurse Visit'}` : 'Emergency SOS Distress'),
+      nurseName: nurseName || undefined,
+      nursePhone: nursePhone || undefined,
+      nursePhoto: nursePhoto || undefined,
+      lastVisitDate,
+      lastVisitService,
+      hasPreviousNurseVisit,
       timestamp: new Date().toISOString(),
-      bookingId: targetBooking?.id || 'BK-101',
-      bloodType: 'O+',
-      allergies: ['Penicillin', 'Sulfa Drugs'],
-      emergencyContact: {
-        name: targetBooking?.clientEmergencyContact?.name || 'Dr. Mark Simpson (Son)',
-        phone: targetBooking?.clientEmergencyContact?.phone || '+1 (876) 927-2481',
-        relation: targetBooking?.clientEmergencyContact?.relation || 'Son & Healthcare Proxy'
-      },
+      bookingId: currentActiveBooking?.id,
+      bloodType: bloodType || undefined,
+      allergies: allergies.length > 0 ? allergies : undefined,
+      emergencyContact: userEmergencyContact,
       gpsCoordinates: {
-        lat: 18.0179,
-        lng: -76.8099
+        lat: initialLat,
+        lng: initialLng
       },
+      gpsAccuracyStatus: 'acquiring',
       status: 'active'
     };
 
@@ -2017,7 +2081,7 @@ export default function App() {
     localStorage.setItem('wecare_active_emergency_sos', JSON.stringify(emergencyData));
     soundFX.playQuickSOSTone();
 
-    // Query live GPS coordinates immediately to provide exact coordinates to police dispatch
+    // Query live GPS coordinates immediately from browser device sensor
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -2025,9 +2089,10 @@ export default function App() {
           const liveLng = pos.coords.longitude;
           setActiveEmergencySOS(prev => {
             if (!prev) return prev;
-            const updated = {
+            const updated: EmergencySOSData = {
               ...prev,
-              gpsCoordinates: { lat: liveLat, lng: liveLng }
+              gpsCoordinates: { lat: liveLat, lng: liveLng },
+              gpsAccuracyStatus: 'locked'
             };
             try {
               localStorage.setItem('wecare_active_emergency_sos', JSON.stringify(updated));
@@ -2036,7 +2101,7 @@ export default function App() {
           });
         },
         (err) => console.warn('Emergency GPS lock note:', err.message),
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
       );
     }
 
@@ -2044,7 +2109,7 @@ export default function App() {
       'sos_emergency',
       '🚨 119 EMERGENCY TAKEOVER TRIGGERED',
       `FULL SCREEN EMERGENCY: ${triggererName} (${role.toUpperCase()}) triggered emergency SOS. High-priority screen takeover active across all client and caregiver screens.`,
-      targetBooking?.id
+      currentActiveBooking?.id
     );
   }, [emergencyActiveBooking, bookings, currentRole, currentUser, handleTriggerNotification]);
 
@@ -2773,9 +2838,9 @@ export default function App() {
         <NearestPoliceStationModal
           isOpen={isNearestPoliceModalOpen}
           onClose={() => setIsNearestPoliceModalOpen(false)}
-          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || '14 Hope Road, Kingston 6, Jamaica'}
-          initialLat={emergencyActiveBooking ? 18.0125 : null}
-          initialLng={emergencyActiveBooking ? -76.7990 : null}
+          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || ''}
+          initialLat={emergencyActiveBooking?.clientAddress ? null : (currentUser?.currentLat || null)}
+          initialLng={emergencyActiveBooking?.clientAddress ? null : (currentUser?.currentLng || null)}
           userRole={currentRole}
           userName={currentUser ? getDisplayName(currentUser, currentUser) : undefined}
         />
@@ -2788,7 +2853,7 @@ export default function App() {
           activeBooking={emergencyActiveBooking}
           userRole={currentRole}
           userName={currentUser ? getDisplayName(currentUser, currentUser) : undefined}
-          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || '14 Hope Road, Kingston 6, Jamaica'}
+          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || ''}
         />
       )}
 
