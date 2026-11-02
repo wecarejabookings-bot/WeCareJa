@@ -138,7 +138,7 @@ export const LegalTermsModal: React.FC<LegalTermsModalProps> = ({
                   <div className="font-black text-white">We Care Jamaica</div>
                   <div>4 Claudete Drive</div>
                   <div>St. Catherine, Jamaica</div>
-                  <div className="text-purple-300">wecareja.bookings@gmail.com</div>
+                  <div className="text-purple-300">support@wecareja.care</div>
                   <div className="text-emerald-300">(876) 582-7613</div>
                 </div>
               </div>
@@ -169,7 +169,7 @@ export const LegalTermsModal: React.FC<LegalTermsModalProps> = ({
                   <div className="font-black text-white">We Care Jamaica</div>
                   <div>4 Claudete Drive</div>
                   <div>St. Catherine, Jamaica</div>
-                  <div className="text-purple-300">wecareja.bookings@gmail.com</div>
+                  <div className="text-purple-300">support@wecareja.care</div>
                   <div className="text-emerald-300">(876) 582-7613</div>
                 </div>
               </div>
@@ -236,7 +236,6 @@ export const LegalTermsModal: React.FC<LegalTermsModalProps> = ({
                 <div className="font-black text-white">We Care Jamaica Support &amp; Compliance</div>
                 <div>4 Claudete Drive, St. Catherine, Jamaica</div>
                 <div className="text-cyan-300 font-bold">support@wecareja.care</div>
-                <div className="text-purple-300">wecareja.bookings@gmail.com</div>
                 <div className="text-emerald-300">(876) 582-7613</div>
               </div>
             </div>

@@ -268,7 +268,7 @@ export const NurseContractAgreementModal: React.FC<NurseContractAgreementModalPr
                   Welcome to WeCare Jamaica. By accepting bookings, you agree to these terms.
                 </p>
                 <p className="text-[11px] text-blue-900 font-bold mt-1">
-                  WeCare Jamaica • 1876-582-7613 • wecareja.bookings@gmail.com
+                  WeCare Jamaica • 1876-582-7613 • support@wecareja.care
                 </p>
               </div>
 

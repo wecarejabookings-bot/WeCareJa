@@ -110,7 +110,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
                 St. Catherine, Jamaica
               </div>
               <div className="pt-1 space-y-0.5 font-mono text-xs">
-                <div className="text-purple-300 font-bold">wecareja.bookings@gmail.com</div>
+                <div className="text-purple-300 font-bold">support@wecareja.care</div>
                 <div className="text-emerald-300 font-bold">(876) 582-7613</div>
               </div>
             </div>
@@ -120,7 +120,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
                 type="button"
                 onClick={() =>
                   handleCopy(
-                    `We Care Jamaica\n4 Claudete Drive\nSt. Catherine, Jamaica\nwecareja.bookings@gmail.com\n(876) 582-7613`,
+                    `We Care Jamaica\n4 Claudete Drive\nSt. Catherine, Jamaica\nsupport@wecareja.care\n(876) 582-7613`,
                     'full-address'
                   )
                 }
@@ -193,7 +193,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
             </a>
 
             <a
-              href="mailto:wecareja.bookings@gmail.com"
+              href="mailto:support@wecareja.care"
               className="p-3.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 transition flex items-center gap-3 cursor-pointer group"
             >
               <div className="w-9 h-9 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center shrink-0">
@@ -202,7 +202,7 @@ export const ContactUsModal: React.FC<ContactUsModalProps> = ({
               <div>
                 <span className="text-[10px] text-slate-400 block font-mono">Direct Email</span>
                 <span className="font-bold text-white text-xs group-hover:text-purple-300 font-mono truncate max-w-[140px] block">
-                  wecareja.bookings@gmail.com
+                  support@wecareja.care
                 </span>
               </div>
             </a>

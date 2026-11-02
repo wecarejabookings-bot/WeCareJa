@@ -140,7 +140,7 @@ Status: Settled in Full`;
               <div className="text-slate-200 text-xs font-mono space-y-0.5">
                 <div className="font-bold text-white">4 Claudete Drive</div>
                 <div>St. Catherine, Jamaica</div>
-                <div className="text-purple-300">wecareja.bookings@gmail.com</div>
+                <div className="text-purple-300">support@wecareja.care</div>
                 <div className="text-emerald-300 font-bold">(876) 582-7613</div>
               </div>
               <p className="text-slate-400 text-[10px] mt-1.5 flex items-center gap-1">

@@ -102,19 +102,8 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
   
-  // Track open topics - default opens the first topic "Exclusive Health Care Promotions & Advertisements"
-  const [openTopics, setOpenTopics] = useState<Record<string, boolean>>({
-    'exclusive_promos': true,
-    'hospital_vs_home': false,
-    'clinical_services': false,
-    'medical_store': false,
-    'escrow_security': false,
-    'jamaica_health_news': false,
-    'emergency_119': false,
-    'family_reviews': false,
-    'how_it_works': false,
-    'nurse_careers': false,
-  });
+  // Track open topics - default collapsed for all 10 topics to improve LCP
+  const [openTopics, setOpenTopics] = useState<Record<string, boolean>>({});
 
   const topicRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -298,77 +287,76 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
           </div>
 
           {/* Primary Action Buttons */}
+          {/* Primary Action Buttons */}
           <div className="flex flex-wrap items-center gap-3.5 pt-2">
-            {/* Primary Button: Navy background with white text, Hover = Orange */}
-            <button
-              onClick={onOpenSignIn}
-              className="px-6 py-3.5 rounded-2xl bg-[#1A1E4E] hover:bg-[#F59E0B] text-white font-extrabold text-sm border-2 border-[#3B82F6]/60 shadow-xl shadow-black/40 transition-all flex items-center gap-2 group hover:scale-[1.02] cursor-pointer"
-            >
-              <span>Sign In to Access Portal</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-            </button>
-            {onOpenBiometricAuth && (
-              <button
-                type="button"
-                onClick={onOpenBiometricAuth}
-                className="px-5 py-3.5 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 font-extrabold text-sm border border-emerald-500/40 shadow-lg transition flex items-center gap-2 cursor-pointer group"
-                title="Sign in with Touch ID, Face ID, or Windows Hello"
-              >
-                <Fingerprint className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-                <span>Biometric Sign-In</span>
-              </button>
-            )}
-            {/* Secondary Buttons: Blue outline */}
+            {/* Primary Button: Solid Orange #F59E0B */}
             <button
               onClick={onOpenRegisterClient}
-              className="px-6 py-3.5 rounded-2xl bg-[#1A1E4E]/60 hover:bg-[#3B82F6]/20 text-white font-bold text-sm border-2 border-[#3B82F6] backdrop-blur-md transition flex items-center gap-2 cursor-pointer shadow-md"
+              className="px-6 sm:px-7 py-3.5 rounded-2xl bg-[#F59E0B] hover:bg-[#D97706] text-slate-950 font-black text-sm shadow-xl shadow-amber-950/40 hover:scale-[1.02] transition-all flex items-center gap-2 cursor-pointer group"
+            >
+              <span>Book a Home Nurse Visit →</span>
+            </button>
+
+            {/* Secondary Button 1: Create Client Account */}
+            <button
+              onClick={onOpenRegisterClient}
+              className="px-5 sm:px-6 py-3.5 rounded-2xl bg-[#1A1E4E]/80 hover:bg-[#3B82F6]/20 text-white font-bold text-sm border-2 border-[#3B82F6] backdrop-blur-md transition flex items-center gap-2 cursor-pointer shadow-md"
             >
               <Users className="w-4 h-4 text-blue-400" />
               <span>Create Client Account</span>
             </button>
+
+            {/* Secondary Button 2: Join as Nurse (85%) */}
             <button
               onClick={onOpenRegisterNurse}
-              className="px-5 py-3.5 rounded-2xl bg-[#1A1E4E]/60 hover:bg-[#F59E0B]/20 text-amber-300 hover:text-white font-bold text-sm border-2 border-[#F59E0B]/70 transition flex items-center gap-2 cursor-pointer shadow-md"
+              className="px-5 sm:px-6 py-3.5 rounded-2xl bg-[#1A1E4E]/80 hover:bg-[#F59E0B]/20 text-amber-300 hover:text-white font-bold text-sm border-2 border-[#F59E0B]/70 transition flex items-center gap-2 cursor-pointer shadow-md"
             >
               <Stethoscope className="w-4 h-4 text-[#F59E0B]" />
-              <span>Join as Nurse / Caregiver (Top Earnings)</span>
+              <span>Join as Nurse (85%)</span>
             </button>
-            {onOpenStore && (
-              <button
-                type="button"
-                onClick={onOpenStore}
-                className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 text-slate-950 font-black text-sm shadow-xl shadow-emerald-950/60 transition flex items-center gap-2 cursor-pointer group"
-              >
-                <ShoppingBag className="w-4 h-4 text-slate-950 group-hover:scale-110 transition-transform" />
-                <span>Shop Medical Supplies (/store)</span>
-              </button>
-            )}
           </div>
 
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-white/10">
-            <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
-              <span className="text-2xl sm:text-3xl font-black text-white block">100%</span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">NCJ Licensed Nurses</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
-              <span className="text-2xl sm:text-3xl font-black text-emerald-400 block">1,420+</span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">Visits Completed</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
-              <span className="text-2xl sm:text-3xl font-black text-amber-400 block">4.9 ★</span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">Patient Rating</span>
-            </div>
-            <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
-              <span className="text-2xl sm:text-3xl font-black text-blue-400 block">15-30m</span>
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">Proximity ETA</span>
-            </div>
-          </div>
+          {/* Key Metrics Grid - Dynamic Counts */}
+          {(() => {
+            const completedVisits = 1420;
+            const nurseCount = nurses?.length || 0;
+            const isVisitsLow = completedVisits < 10;
+            const isNursesLow = nurseCount > 0 && nurseCount < 10;
+
+            return (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 pt-4 border-t border-white/10">
+                <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                  <span className="text-xl sm:text-2xl font-black text-white block">
+                    {isNursesLow ? 'NCJ Verified Nurses' : '100%'}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">
+                    {isNursesLow ? 'Council Verified' : 'NCJ Licensed'}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                  <span className="text-xl sm:text-2xl font-black text-emerald-400 block">
+                    {isVisitsLow ? 'NCJ Verified Nurses' : '1,420+ Visits'}
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">
+                    {isVisitsLow ? 'Doorstep Care' : 'Completed Care'}
+                  </span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                  <span className="text-xl sm:text-2xl font-black text-amber-400 block">4.9★</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">Patient Rating</span>
+                </div>
+                <div className="p-3.5 rounded-2xl bg-black/25 border border-white/10">
+                  <span className="text-xl sm:text-2xl font-black text-blue-400 block">15-30m ETA</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-blue-300">Fast Proximity Dispatch</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </section>
 
       {/* 2. VISUAL TOPIC DIRECTORY INTRO & CONTROLS (OPTIMIZED FOR NON-READERS) */}
-      <section className="space-y-6">
+      <section id="topics-directory" className="space-y-6">
         <div className="p-6 rounded-3xl bg-gradient-to-r from-blue-950/40 via-purple-950/30 to-black/60 border border-blue-500/30 backdrop-blur-xl">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
@@ -508,6 +496,8 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
           return (
             <div
               key={topic.id}
+              id={topic.id}
+              data-topic-id={topic.id}
               ref={(el) => { topicRefs.current[topic.id] = el; }}
               className={`rounded-3xl border transition-all duration-200 overflow-hidden shadow-xl ${
                 isOpen

@@ -100,7 +100,7 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({
               <div className="font-black text-white text-sm">We Care Jamaica</div>
               <div className="text-slate-200">4 Claudete Drive</div>
               <div className="text-slate-200">St. Catherine, Jamaica</div>
-              <div className="text-purple-300 pt-1">wecareja.bookings@gmail.com</div>
+              <div className="text-purple-300 pt-1">support@wecareja.care</div>
               <div className="text-emerald-300 font-bold">(876) 582-7613</div>
             </div>
           </div>

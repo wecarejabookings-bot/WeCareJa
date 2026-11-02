@@ -2150,6 +2150,22 @@ export default function App() {
         isMasterAdmin={isMasterAdmin}
         currentView={currentView}
         onNavigateView={handleNavigateView}
+        onOpenHowItWorks={() => {
+          if (currentView !== 'portal') setCurrentView('portal');
+          setTimeout(() => {
+            const el = document.getElementById('how_it_works') || document.querySelector('[data-topic-id="how_it_works"]');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            else setIsLaunchKitOpen(true);
+          }, 100);
+        }}
+        onOpenProcedures={() => {
+          if (currentView !== 'portal') setCurrentView('portal');
+          setTimeout(() => {
+            const el = document.getElementById('clinical_services') || document.querySelector('[data-topic-id="clinical_services"]') || document.getElementById('topics-directory');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            else window.scrollTo({ top: 600, behavior: 'smooth' });
+          }, 100);
+        }}
       />
 
       {/* Persistent Emergency Top Banner (Active across Client, Nurse & Admin screens) */}
@@ -2615,9 +2631,6 @@ export default function App() {
             <div className="text-blue-300 font-bold pt-1 flex items-center gap-1.5 font-sans">
               <Mail className="w-3.5 h-3.5 text-[#3B82F6]" />
               <a href="mailto:support@wecareja.care" className="hover:underline">support@wecareja.care</a>
-            </div>
-            <div className="text-slate-300 pt-0.5">
-              <a href="mailto:wecareja.bookings@gmail.com" className="hover:underline">wecareja.bookings@gmail.com</a>
             </div>
             <div className="text-emerald-300 font-bold">
               <a href="tel:8765827613" className="hover:underline">(876) 582-7613</a>

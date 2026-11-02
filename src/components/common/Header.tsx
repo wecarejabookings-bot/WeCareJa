@@ -76,6 +76,8 @@ interface HeaderProps {
   isMasterAdmin?: boolean;
   onNavigateView?: (view: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth') => void;
   currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth';
+  onOpenHowItWorks?: () => void;
+  onOpenProcedures?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -103,7 +105,9 @@ export const Header: React.FC<HeaderProps> = ({
   onForceSync,
   isMasterAdmin,
   onNavigateView,
-  currentView = 'portal'
+  currentView = 'portal',
+  onOpenHowItWorks,
+  onOpenProcedures
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(soundFX.getMuted());
   const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
@@ -131,6 +135,34 @@ export const Header: React.FC<HeaderProps> = ({
     soundFX.playSuccessPing();
   };
 
+  const isAdmin = isAuthenticated && (currentRole === 'admin' || !!isMasterAdmin);
+
+  const handleProceduresClick = () => {
+    if (onOpenProcedures) {
+      onOpenProcedures();
+      return;
+    }
+    const el = document.getElementById('clinical_services') || document.querySelector('[data-topic-id="clinical_services"]') || document.getElementById('topics-directory');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      onNavigateView?.('portal');
+    }
+  };
+
+  const handleHowItWorksClick = () => {
+    if (onOpenHowItWorks) {
+      onOpenHowItWorks();
+      return;
+    }
+    const el = document.getElementById('how_it_works') || document.querySelector('[data-topic-id="how_it_works"]');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      onOpenLaunchKit();
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-[#1A1E4E]/95 backdrop-blur-xl border-b border-[#3B82F6]/25 shadow-lg shadow-[#1A1E4E]/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
@@ -140,52 +172,54 @@ export const Header: React.FC<HeaderProps> = ({
             <Logo variation={logoVariation} size="md" subtext="HOME NURSING" />
           </div>
 
-          {/* Cascading App Tools Dropdown (Integrates Logo Studio, Launch Kit, Test on Phone, Share App) */}
-          <ActionDropdown
-            label="Tools"
-            icon={<Sparkles className="w-4 h-4 text-purple-300" />}
-            size="xs"
-            variant="secondary"
-            hideLabelOnMobile={true}
-            items={[
-              {
-                id: 'tool-logo',
-                label: 'Logo Studio',
-                sublabel: 'Switch between 3 logo variations',
-                icon: <Palette className="w-4 h-4 text-purple-400" />,
-                onClick: onOpenLogoStudio
-              },
-              {
-                id: 'tool-launchkit',
-                label: '1-Page Launch Kit',
-                sublabel: 'Printable operations & protocol PDF',
-                icon: <FileText className="w-4 h-4 text-[#C77DFF]" />,
-                onClick: onOpenLaunchKit
-              },
-              ...(onOpenTestOnPhone ? [{
-                id: 'tool-phone',
-                label: 'Test on Phone',
-                sublabel: 'Open private mobile PWA QR pass',
-                icon: <Smartphone className="w-4 h-4 text-emerald-400" />,
-                onClick: onOpenTestOnPhone
-              }] : []),
-              ...(onOpenShareApp ? [{
-                id: 'tool-share',
-                label: 'Share & Earn',
-                sublabel: 'Give $500, get $500 care credit',
-                icon: <Share2 className="w-4 h-4 text-emerald-400" />,
-                badge: '+$500',
-                badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-                onClick: onOpenShareApp
-              }] : [])
-            ]}
-          />
+          {/* Cascading App Tools Dropdown - ONLY for Admin */}
+          {isAdmin && (
+            <ActionDropdown
+              label="Tools"
+              icon={<Sparkles className="w-4 h-4 text-purple-300" />}
+              size="xs"
+              variant="secondary"
+              hideLabelOnMobile={true}
+              items={[
+                {
+                  id: 'tool-logo',
+                  label: 'Logo Studio',
+                  sublabel: 'Switch between 3 logo variations',
+                  icon: <Palette className="w-4 h-4 text-purple-400" />,
+                  onClick: onOpenLogoStudio
+                },
+                {
+                  id: 'tool-launchkit',
+                  label: '1-Page Launch Kit',
+                  sublabel: 'Printable operations & protocol PDF',
+                  icon: <FileText className="w-4 h-4 text-[#C77DFF]" />,
+                  onClick: onOpenLaunchKit
+                },
+                ...(onOpenTestOnPhone ? [{
+                  id: 'tool-phone',
+                  label: 'Test on Phone',
+                  sublabel: 'Open private mobile PWA QR pass',
+                  icon: <Smartphone className="w-4 h-4 text-emerald-400" />,
+                  onClick: onOpenTestOnPhone
+                }] : []),
+                ...(onOpenShareApp ? [{
+                  id: 'tool-share',
+                  label: 'Share & Earn',
+                  sublabel: 'Give $500, get $500 care credit',
+                  icon: <Share2 className="w-4 h-4 text-emerald-400" />,
+                  badge: '+$500',
+                  badgeColor: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+                  onClick: onOpenShareApp
+                }] : [])
+              ]}
+            />
+          )}
         </div>
 
         {/* Center / Right Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Activity Notifications Bell */}
-          {onOpenNotifications && (
+          {/* Activity Notifications Bell (Logged-In Users Only) */}
+          {isAuthenticated && onOpenNotifications && (
             <button
               onClick={onOpenNotifications}
               className="relative p-1.5 sm:p-2 rounded-xl bg-white/5 hover:bg-white/10 text-purple-200 border border-white/10 transition"
@@ -200,33 +234,36 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Sound & Chimes Toggle */}
-          <button
-            onClick={handleToggleSound}
-            className={`p-1.5 sm:px-2 sm:py-1.5 rounded-xl border backdrop-blur-md text-[11px] font-bold transition flex items-center gap-1.5 ${
-              !isMuted 
-                ? 'bg-purple-500/20 text-purple-200 border-purple-400/30 hover:bg-purple-500/30' 
-                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-            }`}
-            title={!isMuted ? 'Sound active (Click to mute)' : 'Sound muted (Click to enable)'}
-          >
-            {!isMuted ? (
-              <>
-                <Volume2 className="w-4 h-4 text-emerald-400" />
-                <span className="hidden xl:inline">Sound</span>
-              </>
-            ) : (
-              <>
-                <VolumeX className="w-4 h-4 text-slate-400" />
-                <span className="hidden xl:inline">Mute</span>
-              </>
-            )}
-          </button>
-
-          {/* Local State & Network Status Indicator */}
-          <div className="relative">
+          {/* Sound & Chimes Toggle - ONLY for Admin */}
+          {isAdmin && (
             <button
-              onClick={() => setIsSyncPopoverOpen(prev => !prev)}
+              onClick={handleToggleSound}
+              className={`p-1.5 sm:px-2 sm:py-1.5 rounded-xl border backdrop-blur-md text-[11px] font-bold transition flex items-center gap-1.5 ${
+                !isMuted 
+                  ? 'bg-purple-500/20 text-purple-200 border-purple-400/30 hover:bg-purple-500/30' 
+                  : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+              }`}
+              title={!isMuted ? 'Sound active (Click to mute)' : 'Sound muted (Click to enable)'}
+            >
+              {!isMuted ? (
+                <>
+                  <Volume2 className="w-4 h-4 text-emerald-400" />
+                  <span className="hidden xl:inline">Sound</span>
+                </>
+              ) : (
+                <>
+                  <VolumeX className="w-4 h-4 text-slate-400" />
+                  <span className="hidden xl:inline">Mute</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Local State & Network Status Indicator - ONLY for Admin */}
+          {isAdmin && (
+            <div className="relative">
+              <button
+                onClick={() => setIsSyncPopoverOpen(prev => !prev)}
               className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border backdrop-blur-md text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 isOnline
                   ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
@@ -333,6 +370,7 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             )}
           </div>
+          )}
 
           {/* Active Booking Quick-SOS Instant Button */}
           {activeBooking && (
@@ -346,32 +384,34 @@ export const Header: React.FC<HeaderProps> = ({
             />
           )}
 
-          {/* 119 Emergency Panic Button (Compact) */}
+          {/* 119 Emergency Panic Button (Always Visible) */}
           <button
             onClick={onOpenPanic}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#F59E0B] hover:bg-red-600 text-white text-[11px] font-extrabold shadow-sm border border-red-400/30 transition group cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md border border-red-400/40 transition group cursor-pointer shrink-0"
             title="Immediate Speed Dial to 119 Emergency Dispatch"
           >
-            <ShieldAlert className="w-4 h-4" />
-            <span className="hidden xs:inline">119</span>
+            <ShieldAlert className="w-4 h-4 text-white animate-pulse" />
+            <span>SOS 119</span>
           </button>
 
-          {/* Public Medical Supplies Store (/store) */}
-          <button
-            onClick={() => onNavigateView?.(currentView === 'store' ? 'portal' : 'store')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
-              currentView === 'store'
-                ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-emerald-950/40'
-                : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30'
-            }`}
-            title="Public Medical Supplies Store (/store)"
-          >
-            <ShoppingBag className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{currentView === 'store' ? 'Dashboard' : 'Store'}</span>
-          </button>
+          {/* Medical Supplies Store (/store) - Rendered for Authenticated Users */}
+          {isAuthenticated && (
+            <button
+              onClick={() => onNavigateView?.(currentView === 'store' ? 'portal' : 'store')}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
+                currentView === 'store'
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 font-black shadow-emerald-950/40'
+                  : 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/30'
+              }`}
+              title="Public Medical Supplies Store (/store)"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{currentView === 'store' ? 'Dashboard' : 'Store'}</span>
+            </button>
+          )}
 
-          {/* Admin Supply Orders Manager (/admin/orders) */}
-          {(isMasterAdmin || currentRole === 'admin') && (
+          {/* Admin Supply Orders Manager (/admin/orders) - ONLY for Admin */}
+          {isAdmin && (
             <button
               onClick={() => onNavigateView?.(currentView === 'admin_orders' ? 'portal' : 'admin_orders')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
@@ -386,8 +426,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Admin User Management (/admin/users) */}
-          {(isMasterAdmin || currentRole === 'admin') && (
+          {/* Admin User Management (/admin/users) - ONLY for Admin */}
+          {isAdmin && (
             <button
               onClick={() => onNavigateView?.(currentView === 'admin_users' ? 'portal' : 'admin_users')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
@@ -402,8 +442,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Admin Topics Directory & Homepage CMS (/admin/topics) */}
-          {(isMasterAdmin || currentRole === 'admin') && (
+          {/* Admin Topics Directory & Homepage CMS (/admin/topics) - ONLY for Admin */}
+          {isAdmin && (
             <button
               onClick={() => onNavigateView?.(currentView === 'admin_topics' ? 'portal' : 'admin_topics')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
@@ -418,8 +458,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Admin Marketing QR Ad Flyers (/admin/qr-generator) */}
-          {(isMasterAdmin || currentRole === 'admin') && (
+          {/* Admin Marketing QR Ad Flyers (/admin/qr-generator) - ONLY for Admin */}
+          {isAdmin && (
             <button
               onClick={() => onNavigateView?.(currentView === 'admin_qr_generator' ? 'portal' : 'admin_qr_generator')}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer ${
@@ -475,53 +515,50 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </>
           ) : (
-            /* UNAUTHENTICATED GUEST ACTIONS - Clean Cascading Dropdown */
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <ActionDropdown
-                label="Explore"
-                icon={<Sparkles className="w-4 h-4 text-purple-300" />}
-                size="xs"
-                variant="purple"
-                items={[
-                  {
-                    id: 'guest-nurse-signup',
-                    label: 'Nurse Sign Up',
-                    sublabel: 'Earn 85% net as verified home nurse',
-                    icon: <UserPlus className="w-4 h-4 text-[#C77DFF]" />,
-                    badge: '85%',
-                    badgeColor: 'bg-emerald-400 text-slate-950 font-black',
-                    onClick: onOpenNurseSignUp
-                  },
-                  ...(onOpenClientSignUp ? [{
-                    id: 'guest-patient-signup',
-                    label: 'Patient Sign Up',
-                    sublabel: 'Family caregiver & patient account',
-                    icon: <User className="w-4 h-4 text-[#C77DFF]" />,
-                    onClick: onOpenClientSignUp
-                  }] : []),
-                  ...(onOpenBiometricAuth ? [{
-                    id: 'guest-passkey',
-                    label: 'Biometric Passkey',
-                    sublabel: 'Sign in with Touch ID / Face ID',
-                    icon: <Fingerprint className="w-4 h-4 text-emerald-400" />,
-                    onClick: onOpenBiometricAuth
-                  }] : [])
-                ]}
-              />
-
+            /* PUBLIC NAVIGATION ONLY FOR LOGGED-OUT USERS */
+            <div className="flex items-center gap-1 sm:gap-2">
               <button
+                type="button"
+                onClick={handleProceduresClick}
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+              >
+                Procedures
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigateView?.('store')}
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+              >
+                Medical Store
+              </button>
+              <button
+                type="button"
+                onClick={handleHowItWorksClick}
+                className="hidden md:inline-flex px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-slate-200 hover:text-white hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+              >
+                How It Works
+              </button>
+              <button
+                type="button"
+                onClick={onOpenNurseSignUp}
+                className="hidden sm:inline-flex px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black text-amber-300 hover:text-white bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/30 transition cursor-pointer whitespace-nowrap"
+              >
+                Join as Nurse
+              </button>
+              <button
+                type="button"
                 onClick={() => onOpenAuthModal && onOpenAuthModal('signin')}
-                className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold border border-white/20 backdrop-blur-md transition flex items-center gap-1 cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 backdrop-blur-md transition flex items-center gap-1 cursor-pointer whitespace-nowrap"
               >
                 <LogIn className="w-3.5 h-3.5 text-blue-300" />
                 <span>Sign In</span>
               </button>
-
               <button
+                type="button"
                 onClick={() => onOpenAuthModal && onOpenAuthModal('register')}
-                className="px-3 py-1.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-white text-[11px] font-extrabold shadow-sm hover:shadow-orange-500/25 transition flex items-center gap-1 cursor-pointer"
+                className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-slate-950 font-black text-xs shadow-md shadow-amber-950/40 hover:scale-[1.02] transition cursor-pointer whitespace-nowrap"
               >
-                <span>Sign Up</span>
+                Sign Up
               </button>
             </div>
           )}
