@@ -73,6 +73,8 @@ const AdminUserManagementPage = lazy(() => import('./components/admin/AdminUserM
 const AdminTopicsDirectoryManager = lazy(() => import('./components/admin/AdminTopicsDirectoryManager').then(m => ({ default: m.AdminTopicsDirectoryManager })));
 const UnifiedAuthPage = lazy(() => import('./components/auth/UnifiedAuthPage').then(m => ({ default: m.UnifiedAuthPage })));
 const RejectedDocumentsResubmit = lazy(() => import('./components/common/RejectedDocumentsResubmit').then(m => ({ default: m.RejectedDocumentsResubmit })));
+const AppVideoTutorialModal = lazy(() => import('./components/common/AppVideoTutorialModal').then(m => ({ default: m.AppVideoTutorialModal })));
+const FaceScanTutorialModal = lazy(() => import('./components/auth/FaceScanTutorialModal').then(m => ({ default: m.FaceScanTutorialModal })));
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -88,7 +90,7 @@ import {
 } from './lib/supabase';
 import { Logo } from './components/common/Logo';
 import { soundFX } from './utils/soundEffects';
-import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail } from 'lucide-react';
+import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail, Play, Scan } from 'lucide-react';
 import { isNetworkOnline, processOfflineSyncQueue } from './utils/offlineSyncManager';
 import { subscribeToQRUpdates, generateBookingCheckin } from './services/qrFirebaseStore';
 import { getDisplayName } from './utils/privacy';
@@ -452,6 +454,8 @@ export default function App() {
   });
   const [isLegalTermsOpen, setIsLegalTermsOpen] = useState(false);
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isFaceScanTutorialOpen, setIsFaceScanTutorialOpen] = useState(false);
   const [isPushLibraryOpen, setIsPushLibraryOpen] = useState(false);
   const [isLaunchPackOpen, setIsLaunchPackOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -2231,6 +2235,7 @@ export default function App() {
             else window.scrollTo({ top: 600, behavior: 'smooth' });
           }, 100);
         }}
+        onOpenVideoTutorial={() => setIsVideoModalOpen(true)}
       />
 
       {/* Persistent Emergency Top Banner (Active across Client, Nurse & Admin screens) */}
@@ -2505,6 +2510,8 @@ export default function App() {
             onOpenPanic={() => handleOpenPanic()}
             onOpenBiometricAuth={() => handleOpenBiometricAuth()}
             onOpenStore={() => handleNavigateView('store')}
+            onOpenVideoTutorial={() => setIsVideoModalOpen(true)}
+            onOpenFaceScanTutorial={() => setIsFaceScanTutorialOpen(true)}
           />
         ) : (currentUser?.status === 'rejected' || currentUser?.approvalStatus === 'rejected') ? (
           <RejectedDocumentsResubmit
@@ -2642,6 +2649,19 @@ export default function App() {
             >
               <Mail className="w-3.5 h-3.5 text-amber-400" /> support@wecareja.care
             </a>
+
+            <button 
+              onClick={() => setIsVideoModalOpen(true)} 
+              className="text-amber-300 hover:text-amber-200 transition flex items-center gap-1 font-bold cursor-pointer"
+            >
+              <Play className="w-3.5 h-3.5 text-amber-400 fill-amber-400" /> Video Tutorial
+            </button>
+            <button 
+              onClick={() => setIsFaceScanTutorialOpen(true)} 
+              className="text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1 font-bold cursor-pointer"
+            >
+              <Scan className="w-3.5 h-3.5 text-cyan-400" /> Face Scan Guide
+            </button>
 
             <button onClick={() => setIsContactUsOpen(true)} className="text-slate-200 hover:text-white transition flex items-center gap-1 font-bold cursor-pointer">
               <MapPin className="w-3.5 h-3.5 text-rose-400" /> Contact Us (Map &amp; Desk)
@@ -3031,6 +3051,47 @@ export default function App() {
           onOpenPanic={() => {
             setIsHowItWorksOpen(false);
             handleOpenPanic();
+          }}
+          onOpenFaceScanTutorial={() => {
+            setIsHowItWorksOpen(false);
+            setIsFaceScanTutorialOpen(true);
+          }}
+          onOpenStore={() => {
+            setIsHowItWorksOpen(false);
+            handleNavigateView('store');
+          }}
+        />
+      )}
+
+      {/* Video Option & Walkthrough Modal */}
+      {isVideoModalOpen && (
+        <AppVideoTutorialModal
+          isOpen={isVideoModalOpen}
+          onClose={() => setIsVideoModalOpen(false)}
+          onOpenBooking={() => {
+            setIsVideoModalOpen(false);
+            handleOpenUnifiedSignUp('client');
+          }}
+          onOpenStore={() => {
+            setIsVideoModalOpen(false);
+            handleNavigateView('store');
+          }}
+          onOpenFaceScanTutorial={() => {
+            setIsVideoModalOpen(false);
+            setIsFaceScanTutorialOpen(true);
+          }}
+        />
+      )}
+
+      {/* Biometric Face Scan Step-by-Step Interactive Tutorial */}
+      {isFaceScanTutorialOpen && (
+        <FaceScanTutorialModal
+          isOpen={isFaceScanTutorialOpen}
+          onClose={() => setIsFaceScanTutorialOpen(false)}
+          role="nurse"
+          onReadyToScan={() => {
+            setIsFaceScanTutorialOpen(false);
+            handleOpenUnifiedSignUp('nurse');
           }}
         />
       )}

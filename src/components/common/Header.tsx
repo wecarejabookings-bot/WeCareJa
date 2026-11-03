@@ -35,7 +35,9 @@ import {
   Sparkles,
   Menu,
   ShoppingBag,
-  Package
+  Package,
+  Video,
+  Play
 } from 'lucide-react';
 import { useNetworkStatus } from '../../utils/offlineSyncManager';
 import { getDisplayName, getProfileDropdownLabel } from '../../utils/privacy';
@@ -78,6 +80,7 @@ interface HeaderProps {
   currentView?: 'portal' | 'store' | 'admin_orders' | 'admin_store' | 'nurse_signup' | 'admin_qr_generator' | 'admin_users' | 'admin_topics' | 'auth';
   onOpenHowItWorks?: () => void;
   onOpenProcedures?: () => void;
+  onOpenVideoTutorial?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -107,7 +110,8 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateView,
   currentView = 'portal',
   onOpenHowItWorks,
-  onOpenProcedures
+  onOpenProcedures,
+  onOpenVideoTutorial
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(soundFX.getMuted());
   const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
@@ -538,6 +542,16 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 How It Works
               </button>
+              {onOpenVideoTutorial && (
+                <button
+                  type="button"
+                  onClick={onOpenVideoTutorial}
+                  className="hidden lg:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 hover:text-white hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+                >
+                  <Play className="w-3 h-3 text-amber-400 fill-amber-400" />
+                  <span>Video Tour</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onOpenNurseSignUp}

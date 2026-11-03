@@ -56,7 +56,10 @@ import {
   Ambulance,
   BadgeCheck,
   CheckCircle,
-  Info
+  Info,
+  Play,
+  Video,
+  Scan
 } from 'lucide-react';
 
 interface AppLandingCoverProps {
@@ -70,6 +73,8 @@ interface AppLandingCoverProps {
   onOpenPanic: () => void;
   onOpenBiometricAuth?: () => void;
   onOpenStore?: () => void;
+  onOpenVideoTutorial?: () => void;
+  onOpenFaceScanTutorial?: () => void;
 }
 
 interface TopicItem {
@@ -96,7 +101,9 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
   onOpenLaunchKit,
   onOpenPanic,
   onOpenBiometricAuth,
-  onOpenStore
+  onOpenStore,
+  onOpenVideoTutorial,
+  onOpenFaceScanTutorial
 }) => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -314,6 +321,17 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
               <Stethoscope className="w-4 h-4 text-[#F59E0B]" />
               <span>Join as Nurse (85%)</span>
             </button>
+
+            {/* Video Walkthrough: How to Use the App */}
+            {onOpenVideoTutorial && (
+              <button
+                onClick={onOpenVideoTutorial}
+                className="px-5 sm:px-6 py-3.5 rounded-2xl bg-gradient-to-r from-blue-900/60 to-[#1A1E4E] hover:from-blue-800/80 hover:to-[#1A1E4E] text-blue-200 hover:text-white font-bold text-sm border-2 border-blue-400/50 backdrop-blur-md transition flex items-center gap-2 cursor-pointer shadow-md"
+              >
+                <Play className="w-4 h-4 text-amber-400 fill-amber-400" />
+                <span>Watch Video Tour (3 Min)</span>
+              </button>
+            )}
           </div>
 
           {/* Key Metrics Grid - Dynamic Counts */}

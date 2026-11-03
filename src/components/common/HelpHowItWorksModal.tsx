@@ -24,16 +24,24 @@ import {
   ExternalLink,
   ChevronRight,
   Stethoscope,
-  HeartHandshake
+  HeartHandshake,
+  Video,
+  Play,
+  Pause,
+  Scan,
+  ShoppingBag,
+  RotateCcw
 } from 'lucide-react';
 
 interface HelpHowItWorksModalProps {
   isOpen: boolean;
   onClose: () => void;
-  defaultTab?: 'client' | 'nurse' | 'faq';
+  defaultTab?: 'client' | 'nurse' | 'faq' | 'video';
   logoVariation?: LogoVariation;
   onOpenSignUp?: () => void;
   onOpenPanic?: () => void;
+  onOpenFaceScanTutorial?: () => void;
+  onOpenStore?: () => void;
 }
 
 export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
@@ -42,9 +50,13 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
   defaultTab = 'client',
   logoVariation = 'heart-cross',
   onOpenSignUp,
-  onOpenPanic
+  onOpenPanic,
+  onOpenFaceScanTutorial,
+  onOpenStore
 }) => {
-  const [activeTab, setActiveTab] = useState<'client' | 'nurse' | 'faq'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'client' | 'nurse' | 'faq' | 'video'>(defaultTab);
+  const [videoChapter, setVideoChapter] = useState<number>(0);
+  const [isVideoPlaying, setIsVideoPlaying] = useState<boolean>(true);
 
   if (!isOpen) return null;
 
@@ -79,20 +91,20 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-white/10 bg-black/30 p-2 gap-2 text-xs font-bold">
+        <div className="flex border-b border-white/10 bg-black/30 p-2 gap-1.5 sm:gap-2 text-xs font-bold overflow-x-auto">
           <button
             onClick={() => {
               soundFX.playTabSwitch();
               setActiveTab('client');
             }}
-            className={`flex-1 py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 px-3 sm:px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'client'
                 ? 'bg-purple-600 text-white shadow-md'
                 : 'text-slate-300 hover:bg-white/5'
             }`}
           >
             <HeartHandshake className="w-4 h-4" />
-            <span>Client &amp; Family Guide</span>
+            <span>Client Guide</span>
           </button>
 
           <button
@@ -100,14 +112,29 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
               soundFX.playTabSwitch();
               setActiveTab('nurse');
             }}
-            className={`flex-1 py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 ${
+            className={`flex-1 py-2.5 px-3 sm:px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'nurse'
                 ? 'bg-gradient-to-r from-[#7209B7] to-purple-600 text-white shadow-md'
                 : 'text-slate-300 hover:bg-white/5'
             }`}
           >
             <Stethoscope className="w-4 h-4" />
-            <span>Nurse &amp; Caregiver Guide</span>
+            <span>Nurse Guide</span>
+          </button>
+
+          <button
+            onClick={() => {
+              soundFX.playTabSwitch();
+              setActiveTab('video');
+            }}
+            className={`py-2.5 px-3 sm:px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              activeTab === 'video'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                : 'text-amber-300 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <Video className="w-4 h-4 text-amber-400" />
+            <span>Video Tutorial</span>
           </button>
 
           <button
@@ -115,14 +142,14 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
               soundFX.playTabSwitch();
               setActiveTab('faq');
             }}
-            className={`py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-1.5 ${
+            className={`py-2.5 px-3 sm:px-4 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'faq'
                 ? 'bg-white/20 text-white'
                 : 'text-slate-400 hover:bg-white/5'
             }`}
           >
             <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            <span>Safety &amp; Policies</span>
+            <span>Policies</span>
           </button>
         </div>
 
@@ -131,6 +158,30 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
           {/* TAB 1: CLIENT GUIDE (Section 3) */}
           {activeTab === 'client' && (
             <div className="space-y-6 animate-fadeIn">
+              {/* Video Option Callout Banner */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-950/60 to-purple-950/60 border border-blue-400/30 flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center shrink-0">
+                    <Video className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-white block text-xs">Prefer a visual video guide?</span>
+                    <span className="text-[10px] text-slate-300">Watch our interactive video on how to use the app for booking, tracking & bundles</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundFX.playTabSwitch();
+                    setActiveTab('video');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition flex items-center gap-1 shrink-0 cursor-pointer shadow"
+                >
+                  <Play className="w-3 h-3 text-emerald-300" />
+                  <span>Video Tutorial</span>
+                </button>
+              </div>
+
               <div className="p-4 rounded-2xl bg-purple-950/40 border border-purple-500/30 space-y-2">
                 <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider block">
                   Quick Summary
@@ -231,6 +282,37 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
           {/* TAB 2: NURSE & CAREGIVER GUIDE (Section 5) */}
           {activeTab === 'nurse' && (
             <div className="space-y-6 animate-fadeIn">
+              {/* Mandatory Staff Biometric Face Scan Tutorial Banner */}
+              <div className="p-3.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center shrink-0 mt-0.5">
+                    <Scan className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-white block text-xs flex items-center gap-1.5">
+                      <span>Mandatory Staff Biometric Face Scan</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 font-bold">Anti-Fraud</span>
+                    </span>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      During sign-up, nurses & admins must scan their live face. Photo file uploads from device storage are strictly disabled.
+                    </p>
+                  </div>
+                </div>
+                {onOpenFaceScanTutorial && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFX.playToggleClick();
+                      onOpenFaceScanTutorial();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs transition flex items-center gap-1.5 shrink-0 cursor-pointer shadow"
+                  >
+                    <Scan className="w-3.5 h-3.5" />
+                    <span>Face Scan Tutorial</span>
+                  </button>
+                )}
+              </div>
+
               {/* Duty Mode & Job Acceptance */}
               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                 <div className="flex items-center gap-2 text-purple-300 font-extrabold text-sm">
@@ -351,6 +433,176 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
                 <p className="text-xs text-slate-300 leading-relaxed">
                   To protect patient privacy, live exact GPS pin tracking is active ONLY during the booking window (from 30 minutes before the scheduled time until 30 minutes after completion). Outside this window, only the broad neighbourhood area is shown (e.g. "Area: Kingston 8").
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: VIDEO TUTORIAL & APP WALKTHROUGH */}
+          {activeTab === 'video' && (
+            <div className="space-y-5 animate-fadeIn">
+              {/* Video Player Display Screen */}
+              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/20 shadow-2xl flex flex-col justify-between p-4 sm:p-6 bg-gradient-to-br from-[#0c1033] via-[#151c4a] to-[#0a0d24]">
+                <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
+                
+                <div className="relative z-10 flex items-center justify-between">
+                  <span className="px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-mono font-bold flex items-center gap-1.5">
+                    <Video className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Interactive App Walkthrough</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    3:30 Total Runtime
+                  </span>
+                </div>
+
+                <div className="relative z-10 my-auto text-center space-y-2 p-3 sm:p-5 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-md max-w-lg mx-auto">
+                  <div className="w-12 h-12 mx-auto rounded-2xl bg-gradient-to-br from-blue-600 to-amber-500 flex items-center justify-center text-white shadow-lg">
+                    {videoChapter === 0 && <Stethoscope className="w-6 h-6" />}
+                    {videoChapter === 1 && <Clock className="w-6 h-6" />}
+                    {videoChapter === 2 && <ShoppingBag className="w-6 h-6" />}
+                    {videoChapter === 3 && <MapPin className="w-6 h-6 animate-bounce" />}
+                    {videoChapter === 4 && <AlertTriangle className="w-6 h-6 text-rose-300" />}
+                    {videoChapter === 5 && <Scan className="w-6 h-6 text-cyan-300" />}
+                  </div>
+
+                  <span className="text-[10px] uppercase font-mono font-bold tracking-wider text-amber-400 block">
+                    {videoChapter === 0 && 'Chapter 1: Platform Overview'}
+                    {videoChapter === 1 && 'Chapter 2: Booking a Home Nurse'}
+                    {videoChapter === 2 && 'Chapter 3: Medical Store Bundles'}
+                    {videoChapter === 3 && 'Chapter 4: Live GPS & QR Check-In'}
+                    {videoChapter === 4 && 'Chapter 5: Emergency SOS 119'}
+                    {videoChapter === 5 && 'Chapter 6: Staff Biometric Face Scan'}
+                  </span>
+
+                  <h4 className="text-sm sm:text-base font-black text-white">
+                    {videoChapter === 0 && 'Verified NCJ Home Nursing in Jamaica'}
+                    {videoChapter === 1 && 'Procedure Selection, Pricing & Vetting'}
+                    {videoChapter === 2 && 'Add Supplies & Monitors to Care Visits'}
+                    {videoChapter === 3 && 'Real-Time Map Tracking & Doorstep Chime'}
+                    {videoChapter === 4 && 'Real GPS Coordinates & Attending Nurse Dispatch'}
+                    {videoChapter === 5 && 'Mandatory Live Face Scan & Passkey Login'}
+                  </h4>
+
+                  <p className="text-[11px] text-slate-200 leading-relaxed">
+                    {videoChapter === 0 && '100% NCJ licensed nurses & caregivers arriving in 15–30 min with clinical escrow protection.'}
+                    {videoChapter === 1 && 'Pick from IV therapy, post-op dressings, or senior care, select nurse reviews, and confirm visit date.'}
+                    {videoChapter === 2 && 'Order gloves, BP monitors, and wound supplies in one checkout—delivered hand-in-hand by your nurse.'}
+                    {videoChapter === 3 && 'Watch nurse travel on the live map, receive an audible doorbell chime, and scan your QR code.'}
+                    {videoChapter === 4 && 'Immediate 119 police & Jamaica Fire Brigade dispatch with real attending nurse contact info.'}
+                    {videoChapter === 5 && 'Nurses & admins scan their live face via camera. Photo file uploads are strictly disabled.'}
+                  </p>
+                </div>
+
+                <div className="relative z-10 flex items-center justify-between text-xs pt-2 border-t border-white/10">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsVideoPlaying(!isVideoPlaying);
+                        soundFX.playToggleClick();
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {isVideoPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 text-emerald-400" />}
+                      <span>{isVideoPlaying ? 'Pause' : 'Play'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVideoChapter(0);
+                        soundFX.playToggleClick();
+                      }}
+                      className="p-1.5 rounded-lg hover:bg-white/10 text-slate-300"
+                      title="Restart"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <span className="text-[10px] text-slate-300 font-mono">
+                    Chapter {videoChapter + 1} of 6
+                  </span>
+                </div>
+              </div>
+
+              {/* Chapter Cards Grid */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Video className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Choose Video Topic / Feature Walkthrough</span>
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                  {[
+                    { id: 0, title: '1. Platform Overview', desc: 'NCJ licensing, coverage zones, safety' },
+                    { id: 1, title: '2. Book Home Nurse', desc: 'Select procedure, nurse reviews, booking' },
+                    { id: 2, title: '3. Store & Care Bundles', desc: 'Bundle gloves, BP monitors with visit' },
+                    { id: 3, title: '4. Live GPS & QR Scan', desc: 'Real-time arrival map, door chime' },
+                    { id: 4, title: '5. Emergency SOS 119', desc: 'Real GPS dispatch & attending nurse' },
+                    { id: 5, title: '6. Biometric Face Scan', desc: 'Live camera scan tutorial for staff' }
+                  ].map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => {
+                        setVideoChapter(ch.id);
+                        soundFX.playTabSwitch();
+                      }}
+                      className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                        videoChapter === ch.id
+                          ? 'bg-blue-600/30 border-blue-400 text-white ring-2 ring-blue-400/50 shadow-md'
+                          : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.06] text-slate-300'
+                      }`}
+                    >
+                      <div className="font-bold text-white text-[11px]">{ch.title}</div>
+                      <div className="text-[10px] text-slate-400">{ch.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons below Video */}
+              <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <span className="text-[11px] text-slate-300">
+                  Ready to test these features in your account?
+                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {onOpenSignUp && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenSignUp();
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-slate-950 font-black text-xs transition cursor-pointer"
+                    >
+                      Sign Up Account
+                    </button>
+                  )}
+                  {onOpenFaceScanTutorial && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenFaceScanTutorial();
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 border border-cyan-400/30 font-bold text-xs transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Scan className="w-3.5 h-3.5" />
+                      <span>Face Scan Tutorial</span>
+                    </button>
+                  )}
+                  {onOpenStore && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenStore();
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition cursor-pointer"
+                    >
+                      Medical Store
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}

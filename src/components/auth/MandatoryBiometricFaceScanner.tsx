@@ -11,10 +11,12 @@ import {
   Sparkles, 
   Eye, 
   Lock,
-  UserCheck
+  UserCheck,
+  HelpCircle
 } from 'lucide-react';
 import { soundFX } from '../../utils/soundEffects';
 import confetti from 'canvas-confetti';
+import { FaceScanTutorialModal } from './FaceScanTutorialModal';
 
 interface MandatoryBiometricFaceScannerProps {
   role: 'nurse' | 'admin';
@@ -47,6 +49,7 @@ export const MandatoryBiometricFaceScanner: React.FC<MandatoryBiometricFaceScann
   const [scanVerificationId, setScanVerificationId] = useState<string>(() => {
     return value ? `BIO-${Math.random().toString(36).substring(2, 8).toUpperCase()}` : '';
   });
+  const [isTutorialOpen, setIsTutorialOpen] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -220,12 +223,27 @@ export const MandatoryBiometricFaceScanner: React.FC<MandatoryBiometricFaceScann
           </div>
         </div>
 
-        {value && !isCameraActive && (
-          <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Verified Scan</span>
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {value && !isCameraActive && (
+            <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Verified Scan</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              soundFX.playToggleClick();
+              setIsTutorialOpen(true);
+            }}
+            className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 hover:text-white text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+            title="Open Face Scan Step-by-Step Tutorial"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Face Scan Tutorial</span>
+          </button>
+        </div>
       </div>
 
       {/* Security Compliance Banner */}
@@ -411,6 +429,17 @@ export const MandatoryBiometricFaceScanner: React.FC<MandatoryBiometricFaceScann
           </div>
         </div>
       )}
+
+      {/* Face Scan Step-by-Step Guidance Tutorial */}
+      <FaceScanTutorialModal
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+        role={role}
+        onReadyToScan={() => {
+          setIsCameraActive(true);
+          startCamera(facingMode);
+        }}
+      />
     </div>
   );
 };
