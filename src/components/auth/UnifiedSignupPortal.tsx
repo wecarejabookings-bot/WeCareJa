@@ -46,6 +46,7 @@ import {
 } from '../../types';
 import { soundFX } from '../../utils/soundEffects';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
+import { MandatoryBiometricFaceScanner } from './MandatoryBiometricFaceScanner';
 import { compressImageFile } from '../../utils/imageCompression';
 import { supabase, saveNurseProfileToSupabase, saveUsernameToCache } from '../../lib/supabase';
 import confetti from 'canvas-confetti';
@@ -778,8 +779,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const handleNurseNext = () => {
     setErrorMsg(null);
     if (nurseStep === 1) {
-      if (!profilePhotoUrl) {
-        setErrorMsg('Live face liveness photo scan is mandatory. Please look at the camera, blink to verify liveness, and capture your biometric photo before proceeding.');
+      if (!profilePhotoUrl || !profilePhotoUrl.startsWith('data:image/')) {
+        setErrorMsg('Live biometric face scan is mandatory for all healthcare practitioners. Please scan your face using the live camera before proceeding.');
         soundFX.playWarningSound();
         return;
       }
@@ -839,9 +840,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     if (e) e.preventDefault();
     setErrorMsg(null);
 
-    // Profile Photo validation
-    if ((role === 'nurse' || role === 'admin') && !profilePhotoUrl) {
-      setErrorMsg(`Profile photo is required for ${role === 'admin' ? 'administrators' : 'nurses'}. Please upload a clear photo or select a preset.`);
+    // Profile Photo validation - Live camera face scan strictly required for nurse and admin
+    if ((role === 'nurse' || role === 'admin') && (!profilePhotoUrl || !profilePhotoUrl.startsWith('data:image/'))) {
+      setErrorMsg(`Live biometric face scan is strictly required for ${role === 'admin' ? 'administrators' : 'healthcare practitioners'}. Photo file uploads are disabled. Please scan your face using the live camera.`);
       soundFX.playWarningSound();
       return;
     }
@@ -1434,6 +1435,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             type="button"
             onClick={() => {
               setRole('nurse');
+              if (profilePhotoUrl && !profilePhotoUrl.startsWith('data:image/')) {
+                setProfilePhotoUrl('');
+              }
               soundFX.playToggleClick();
             }}
             className={`p-3 rounded-2xl border text-left font-bold transition flex items-center sm:flex-col sm:items-start gap-2.5 cursor-pointer ${
@@ -1456,6 +1460,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             type="button"
             onClick={() => {
               setRole('admin');
+              if (profilePhotoUrl && !profilePhotoUrl.startsWith('data:image/')) {
+                setProfilePhotoUrl('');
+              }
               soundFX.playToggleClick();
             }}
             className={`p-3 rounded-2xl border text-left font-bold transition flex items-center sm:flex-col sm:items-start gap-2.5 cursor-pointer ${
@@ -2210,12 +2217,13 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           {/* STEP 1: Personal Profile & Photo */}
           {nurseStep === 1 && (
             <div className="space-y-3.5 animate-fadeIn">
-              {/* Profile Photo Upload */}
-              <ProfilePhotoUploader
+              {/* Mandatory Nurse Biometric Face Scan */}
+              <MandatoryBiometricFaceScanner
                 role="nurse"
-                profilePhotoUrl={profilePhotoUrl}
-                onPhotoSelected={setProfilePhotoUrl}
-                onClearPhoto={() => setProfilePhotoUrl('')}
+                value={profilePhotoUrl}
+                onChange={(scannedDataUrl) => setProfilePhotoUrl(scannedDataUrl)}
+                label="Mandatory Nurse Biometric Face Scan"
+                required={true}
               />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2792,12 +2800,13 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             </p>
           </div>
 
-          {/* Administrator Profile Photo */}
-          <ProfilePhotoUploader
+          {/* Mandatory Administrator Biometric Face Scan */}
+          <MandatoryBiometricFaceScanner
             role="admin"
-            profilePhotoUrl={profilePhotoUrl}
-            onPhotoSelected={(url) => setProfilePhotoUrl(url)}
-            onClearPhoto={() => setProfilePhotoUrl('')}
+            value={profilePhotoUrl}
+            onChange={(scannedDataUrl) => setProfilePhotoUrl(scannedDataUrl)}
+            label="Mandatory Administrator Biometric Face Scan"
+            required={true}
           />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -44,6 +44,7 @@ import {
 import confetti from 'canvas-confetti';
 import { compressImageFile } from '../../utils/imageCompression';
 import { saveNurseProfileToSupabase } from '../../lib/supabase';
+import { MandatoryBiometricFaceScanner } from '../auth/MandatoryBiometricFaceScanner';
 
 export interface ProviderRoleOption {
   id: NurseCareLevel;
@@ -706,8 +707,8 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       setEmail('merlene.brown@wecare.jm');
       setYearsExperience(6);
       setBio('Dedicated Certified Geriatric Home Caregiver with 6 years experience in senior assisted daily living (ADLs), gentle mobility routines, medication prompting, and cognitive companionship.');
-      setPhotoUrl(SAMPLE_PHOTO_PRESETS[3].url);
-      setPhotoFileName('Merlene_Brown_Caregiver.jpg');
+      setPhotoUrl('');
+      setPhotoFileName('');
       setNursingCouncilLicense('HEART-GER-2024-5921');
       setLicenseExpiryDate('2028-06-30');
       setLicenseDocFileName('HEART_NTA_Geriatric_Certificate.pdf');
@@ -728,8 +729,8 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       setEmail('andrew.grant@wecare.jm');
       setYearsExperience(12);
       setBio('Advanced Practice Registered Nurse (APRN) specializing in geriatric chronic disease stabilization, palliative symptom relief, oncology comfort care, and complex home treatments.');
-      setPhotoUrl(SAMPLE_PHOTO_PRESETS[2].url);
-      setPhotoFileName('Andrew_Grant_APRN.jpg');
+      setPhotoUrl('');
+      setPhotoFileName('');
       setNursingCouncilLicense('NCJ-APRN-2025-0482');
       setLicenseExpiryDate('2027-12-31');
       setLicenseDocFileName('NCJ_APRN_Certificate_2026.pdf');
@@ -750,8 +751,8 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       setEmail('danielle.palmer@wecare.jm');
       setYearsExperience(7);
       setBio('Registered General Nurse with 7 years acute hospital and home clinical experience across Kingston and St. Catherine. Specializing in sterile surgical wound care, senior hypertension monitoring, and IV therapy.');
-      setPhotoUrl(SAMPLE_PHOTO_PRESETS[1].url);
-      setPhotoFileName('Danielle_Palmer_Headshot.jpg');
+      setPhotoUrl('');
+      setPhotoFileName('');
       setNursingCouncilLicense('NCJ-RN-2024-8192');
       setLicenseExpiryDate('2027-12-31');
       setLicenseDocFileName('NCJ_Annual_Certificate_2026.pdf');
@@ -798,6 +799,13 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
   const handleSubmitRegistration = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !nursingCouncilLicense) return;
+
+    if (!photoUrl || !photoUrl.startsWith('data:image/')) {
+      soundFX.playWarningSound();
+      alert('Live biometric face scan is strictly required for healthcare practitioner registration. Please return to Step 1 and scan your face.');
+      setCurrentStep(1);
+      return;
+    }
 
     const newNurseId = `nurse-${Date.now()}`;
     const formattedSignDate = new Date().toISOString().split('T')[0];
@@ -907,7 +915,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       name,
       phone: phone || '+1 (876) 555-0100',
       email: email || `${String(name || 'nurse').toLowerCase().replace(/[^a-z]/g, '')}@wecare.jm`,
-      photoUrl: photoUrl || SAMPLE_PHOTO_PRESETS[0].url,
+      photoUrl: photoUrl,
       institutionAttended: resolvedInstitution,
       diplomaDocumentUrl,
       diplomaFileName: diplomaDocFileName,
@@ -1232,80 +1240,17 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Photo Upload & Preview Section */}
-                  <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-4">
-                    <label className="block text-xs font-bold text-white">
-                      Professional Nurse Headshot / Profile Photo *
-                    </label>
-
-                    <div className="flex flex-col sm:flex-row items-center gap-5">
-                      {/* Photo Circular Preview */}
-                      <div className="relative group">
-                        <img loading="lazy" decoding="async"
-                          src={photoUrl || SAMPLE_PHOTO_PRESETS[0].url}
-                          alt="Nurse Preview"
-                          className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-purple-400 shadow-xl"
-                        />
-                        <div className="absolute -bottom-2 -right-2 p-1.5 rounded-full bg-emerald-500 text-white shadow-md">
-                          <Check className="w-3.5 h-3.5" />
-                        </div>
-                      </div>
-
-                      {/* Upload Controls */}
-                      <div className="flex-1 space-y-3 w-full">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <input
-                            type="file"
-                            ref={photoFileInputRef}
-                            onChange={handlePhotoFileUpload}
-                            accept="image/*"
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => photoFileInputRef.current?.click()}
-                            className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-md shadow-purple-900/40"
-                          >
-                            <Upload className="w-3.5 h-3.5" />
-                            <span>Upload Custom Photo (JPG/PNG)</span>
-                          </button>
-                        </div>
-
-                        {photoFileName && (
-                          <span className="text-[11px] text-emerald-300 block font-mono">
-                            ✓ File Selected: {photoFileName}
-                          </span>
-                        )}
-
-                        <div className="space-y-1.5 pt-1">
-                          <span className="text-[11px] text-slate-400 block font-semibold">Or select a Jamaican nurse photo preset:</span>
-                          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                            {SAMPLE_PHOTO_PRESETS.map((preset, idx) => (
-                              <button
-                                key={idx}
-                                type="button"
-                                onClick={() => {
-                                  setPhotoUrl(preset.url);
-                                  setPhotoFileName(`Preset_${idx + 1}.jpg`);
-                                }}
-                                className={`p-1 rounded-xl border transition ${
-                                  photoUrl === preset.url
-                                    ? 'border-purple-400 bg-purple-500/20'
-                                    : 'border-white/10 hover:border-white/30'
-                                }`}
-                              >
-                                <img loading="lazy" decoding="async"
-                                  src={preset.url}
-                                  alt={preset.name}
-                                  className="w-10 h-10 rounded-lg object-cover"
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* Mandatory Practitioner Live Biometric Face Scan */}
+                  <MandatoryBiometricFaceScanner
+                    role="nurse"
+                    value={photoUrl}
+                    onChange={(scannedUrl) => {
+                      setPhotoUrl(scannedUrl);
+                      setPhotoFileName('Biometric_Live_Face_Scan.jpg');
+                    }}
+                    label="Mandatory Practitioner Biometric Face Scan"
+                    required={true}
+                  />
 
                   {/* Text Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1639,12 +1584,25 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                     />
                   </div>
 
-                  <div className="flex justify-end pt-3">
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3">
+                    {!photoUrl && (
+                      <span className="text-[11px] text-amber-300 font-medium flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        <span>Live biometric face scan is strictly required before proceeding to Step 2</span>
+                      </span>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setCurrentStep(2)}
-                      disabled={!name}
-                      className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2"
+                      onClick={() => {
+                        if (!photoUrl) {
+                          soundFX.playWarningSound();
+                          alert('Live biometric face scan is mandatory for all healthcare practitioners. Please complete your face scan above to proceed.');
+                          return;
+                        }
+                        setCurrentStep(2);
+                      }}
+                      disabled={!name || !photoUrl}
+                      className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold transition flex items-center gap-2 ml-auto cursor-pointer"
                     >
                       <span>Next: Confidential Docs &amp; NCJ License</span>
                       <span>→</span>
