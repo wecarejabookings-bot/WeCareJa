@@ -37,7 +37,8 @@ import {
   ShoppingBag,
   Package,
   Video,
-  Play
+  Play,
+  Search
 } from 'lucide-react';
 import { useNetworkStatus } from '../../utils/offlineSyncManager';
 import { getDisplayName, getProfileDropdownLabel } from '../../utils/privacy';
@@ -81,6 +82,7 @@ interface HeaderProps {
   onOpenHowItWorks?: () => void;
   onOpenProcedures?: () => void;
   onOpenVideoTutorial?: () => void;
+  onOpenSearch?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -111,7 +113,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentView = 'portal',
   onOpenHowItWorks,
   onOpenProcedures,
-  onOpenVideoTutorial
+  onOpenVideoTutorial,
+  onOpenSearch
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(soundFX.getMuted());
   const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
@@ -175,6 +178,22 @@ export const Header: React.FC<HeaderProps> = ({
           <div onClick={onOpenLogoStudio} className="cursor-pointer group flex items-center gap-2">
             <Logo variation={logoVariation} size="md" subtext="HOME NURSING" />
           </div>
+
+          {/* Quick In-App Feature Search Bar */}
+          {onOpenSearch && (
+            <button
+              type="button"
+              onClick={onOpenSearch}
+              className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl bg-white/[0.07] hover:bg-white/[0.12] border border-white/10 hover:border-amber-400/40 text-slate-300 text-xs transition cursor-pointer group shadow-inner"
+              title="Search all features, clinical procedures, tools (⌘K)"
+            >
+              <Search className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-400 transition" />
+              <span className="hidden md:inline text-slate-300 font-medium">Search features...</span>
+              <kbd className="hidden lg:inline-flex items-center px-1 py-0.5 text-[9px] font-mono font-bold bg-white/10 border border-white/15 rounded text-slate-400 group-hover:text-amber-300">
+                ⌘K
+              </kbd>
+            </button>
+          )}
 
           {/* Cascading App Tools Dropdown - ONLY for Admin */}
           {isAdmin && (

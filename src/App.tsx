@@ -75,6 +75,7 @@ const UnifiedAuthPage = lazy(() => import('./components/auth/UnifiedAuthPage').t
 const RejectedDocumentsResubmit = lazy(() => import('./components/common/RejectedDocumentsResubmit').then(m => ({ default: m.RejectedDocumentsResubmit })));
 const AppVideoTutorialModal = lazy(() => import('./components/common/AppVideoTutorialModal').then(m => ({ default: m.AppVideoTutorialModal })));
 const FaceScanTutorialModal = lazy(() => import('./components/auth/FaceScanTutorialModal').then(m => ({ default: m.FaceScanTutorialModal })));
+const AppFeatureSearchModal = lazy(() => import('./components/common/AppFeatureSearchModal').then(m => ({ default: m.AppFeatureSearchModal })));
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -90,7 +91,7 @@ import {
 } from './lib/supabase';
 import { Logo } from './components/common/Logo';
 import { soundFX } from './utils/soundEffects';
-import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail, Play, Scan } from 'lucide-react';
+import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail, Play, Scan, Search } from 'lucide-react';
 import { isNetworkOnline, processOfflineSyncQueue } from './utils/offlineSyncManager';
 import { subscribeToQRUpdates, generateBookingCheckin } from './services/qrFirebaseStore';
 import { getDisplayName } from './utils/privacy';
@@ -456,6 +457,19 @@ export default function App() {
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isFaceScanTutorialOpen, setIsFaceScanTutorialOpen] = useState(false);
+  const [isFeatureSearchOpen, setIsFeatureSearchOpen] = useState(false);
+
+  // Global Keyboard Shortcut: CMD+K / Ctrl+K opens Feature Search
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setIsFeatureSearchOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   const [isPushLibraryOpen, setIsPushLibraryOpen] = useState(false);
   const [isLaunchPackOpen, setIsLaunchPackOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
@@ -2236,6 +2250,7 @@ export default function App() {
           }, 100);
         }}
         onOpenVideoTutorial={() => setIsVideoModalOpen(true)}
+        onOpenSearch={() => setIsFeatureSearchOpen(true)}
       />
 
       {/* Persistent Emergency Top Banner (Active across Client, Nurse & Admin screens) */}
@@ -2512,6 +2527,7 @@ export default function App() {
             onOpenStore={() => handleNavigateView('store')}
             onOpenVideoTutorial={() => setIsVideoModalOpen(true)}
             onOpenFaceScanTutorial={() => setIsFaceScanTutorialOpen(true)}
+            onOpenSearch={() => setIsFeatureSearchOpen(true)}
           />
         ) : (currentUser?.status === 'rejected' || currentUser?.approvalStatus === 'rejected') ? (
           <RejectedDocumentsResubmit
@@ -2661,6 +2677,12 @@ export default function App() {
               className="text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1 font-bold cursor-pointer"
             >
               <Scan className="w-3.5 h-3.5 text-cyan-400" /> Face Scan Guide
+            </button>
+            <button 
+              onClick={() => setIsFeatureSearchOpen(true)} 
+              className="text-amber-300 hover:text-white transition flex items-center gap-1 font-bold cursor-pointer"
+            >
+              <Search className="w-3.5 h-3.5 text-amber-400" /> Search Features (⌘K)
             </button>
 
             <button onClick={() => setIsContactUsOpen(true)} className="text-slate-200 hover:text-white transition flex items-center gap-1 font-bold cursor-pointer">
@@ -3140,6 +3162,90 @@ export default function App() {
           onClose={() => setIsAboutUsOpen(false)}
           logoVariation={logoVariation}
           onOpenContact={() => setIsContactUsOpen(true)}
+        />
+      )}
+
+      {/* Global In-App Feature Search & Command Palette (Strict Admin RBAC) */}
+      {isFeatureSearchOpen && (
+        <AppFeatureSearchModal
+          isOpen={isFeatureSearchOpen}
+          onClose={() => setIsFeatureSearchOpen(false)}
+          currentUser={currentUser || undefined}
+          isAuthenticated={isAuthenticated}
+          isMasterAdmin={isMasterAdmin}
+          onNavigateView={(view) => {
+            setIsFeatureSearchOpen(false);
+            handleNavigateView(view);
+          }}
+          onOpenAuthModal={(tab) => {
+            setIsFeatureSearchOpen(false);
+            handleOpenAuthModal(tab || 'signin');
+          }}
+          onOpenUnifiedSignUp={(role) => {
+            setIsFeatureSearchOpen(false);
+            handleOpenUnifiedSignUp(role || 'client');
+          }}
+          onOpenBiometricAuth={() => {
+            setIsFeatureSearchOpen(false);
+            handleOpenBiometricAuth();
+          }}
+          onOpenPanic={() => {
+            setIsFeatureSearchOpen(false);
+            handleOpenPanic();
+          }}
+          onOpenNearestPolice={() => {
+            setIsFeatureSearchOpen(false);
+            setIsNearestPoliceModalOpen(true);
+          }}
+          onOpenVideoTutorial={() => {
+            setIsFeatureSearchOpen(false);
+            setIsVideoModalOpen(true);
+          }}
+          onOpenFaceScanTutorial={() => {
+            setIsFeatureSearchOpen(false);
+            setIsFaceScanTutorialOpen(true);
+          }}
+          onOpenHowItWorks={() => {
+            setIsFeatureSearchOpen(false);
+            setIsHowItWorksOpen(true);
+          }}
+          onOpenContactUs={() => {
+            setIsFeatureSearchOpen(false);
+            setIsContactUsOpen(true);
+          }}
+          onOpenAboutUs={() => {
+            setIsFeatureSearchOpen(false);
+            setIsAboutUsOpen(true);
+          }}
+          onOpenLegalTerms={() => {
+            setIsFeatureSearchOpen(false);
+            setIsLegalTermsOpen(true);
+          }}
+          onOpenLaunchKit={() => {
+            setIsFeatureSearchOpen(false);
+            setIsLaunchKitOpen(true);
+          }}
+          onOpenShareApp={() => {
+            setIsFeatureSearchOpen(false);
+            setIsShareAppOpen(true);
+          }}
+          onOpenPushLibrary={() => {
+            setIsFeatureSearchOpen(false);
+            setIsPushLibraryOpen(true);
+          }}
+          onOpenOnboarding={() => {
+            setIsFeatureSearchOpen(false);
+            setIsOnboardingOpen(true);
+          }}
+          onSelectProcedure={() => {
+            setIsFeatureSearchOpen(false);
+            if (currentView !== 'portal') setCurrentView('portal');
+            setTimeout(() => {
+              const el = document.getElementById('clinical_services') || document.querySelector('[data-topic-id="clinical_services"]');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              else handleOpenUnifiedSignUp('client');
+            }, 100);
+          }}
         />
       )}
 

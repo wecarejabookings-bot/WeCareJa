@@ -75,6 +75,7 @@ interface AppLandingCoverProps {
   onOpenStore?: () => void;
   onOpenVideoTutorial?: () => void;
   onOpenFaceScanTutorial?: () => void;
+  onOpenSearch?: () => void;
 }
 
 interface TopicItem {
@@ -103,7 +104,8 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
   onOpenBiometricAuth,
   onOpenStore,
   onOpenVideoTutorial,
-  onOpenFaceScanTutorial
+  onOpenFaceScanTutorial,
+  onOpenSearch
 }) => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -332,6 +334,20 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
                 <span>Watch Video Tour (3 Min)</span>
               </button>
             )}
+
+            {/* In-App Feature Search Command Bar */}
+            {onOpenSearch && (
+              <button
+                onClick={onOpenSearch}
+                className="px-5 sm:px-6 py-3.5 rounded-2xl bg-white/[0.08] hover:bg-white/[0.15] text-slate-200 hover:text-white font-bold text-sm border-2 border-white/20 backdrop-blur-md transition flex items-center gap-2 cursor-pointer shadow-md group"
+              >
+                <Search className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Search Features</span>
+                <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono bg-white/10 rounded border border-white/20 text-slate-300">
+                  ⌘K
+                </kbd>
+              </button>
+            )}
           </div>
 
           {/* Key Metrics Grid - Dynamic Counts */}
@@ -442,15 +458,26 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
           </div>
 
           {/* Search Filter for Instant Finding */}
-          <div className="mt-3 relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <div className="mt-3 relative flex items-center">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Filter topics by name, service or feature (e.g. Promotions, Hospital, Wound Care, Equipment)..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-black/40 border border-white/15 text-white placeholder-slate-400 text-xs focus:outline-none focus:border-blue-400 transition"
+              className="w-full pl-10 pr-28 sm:pr-32 py-2 rounded-xl bg-black/40 border border-white/15 text-white placeholder-slate-400 text-xs focus:outline-none focus:border-blue-400 transition"
             />
+            {onOpenSearch && (
+              <button
+                type="button"
+                onClick={onOpenSearch}
+                className="absolute right-2 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white text-[11px] font-bold border border-white/15 transition flex items-center gap-1 cursor-pointer"
+                title="Open Global App Search (⌘K)"
+              >
+                <span>Search All</span>
+                <kbd className="hidden sm:inline font-mono text-[9px] bg-white/10 px-1 py-0.5 rounded">⌘K</kbd>
+              </button>
+            )}
           </div>
         </div>
 
