@@ -42,6 +42,8 @@ interface HelpHowItWorksModalProps {
   onOpenPanic?: () => void;
   onOpenFaceScanTutorial?: () => void;
   onOpenStore?: () => void;
+  onOpenQRGuide?: () => void;
+  onOpenVideoModal?: () => void;
 }
 
 export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
@@ -52,7 +54,9 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
   onOpenSignUp,
   onOpenPanic,
   onOpenFaceScanTutorial,
-  onOpenStore
+  onOpenStore,
+  onOpenQRGuide,
+  onOpenVideoModal
 }) => {
   const [activeTab, setActiveTab] = useState<'client' | 'nurse' | 'faq' | 'video'>(defaultTab);
   const [videoChapter, setVideoChapter] = useState<number>(0);
@@ -264,6 +268,19 @@ export const HelpHowItWorksModal: React.FC<HelpHowItWorksModalProps> = ({
                 <p className="text-xs text-slate-300">
                   When the nurse arrives, you'll hear a warm Jamaican doorbell chime in your app. Ask the helper to show their <strong className="text-white">We Care ID Badge</strong> and scan your <strong className="text-white">Booking QR Code</strong> from <em>My Bookings &gt; Current Visit</em>. The visit cannot start without this QR scan.
                 </p>
+                {onOpenQRGuide && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenQRGuide();
+                    }}
+                    className="mt-2 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center gap-1.5 cursor-pointer shadow"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    <span>Open Easy QR Check-in Guide →</span>
+                  </button>
+                )}
               </div>
 
               {/* Step 5: After Visit */}

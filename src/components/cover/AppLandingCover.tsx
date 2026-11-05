@@ -59,7 +59,8 @@ import {
   Info,
   Play,
   Video,
-  Scan
+  Scan,
+  QrCode
 } from 'lucide-react';
 
 interface AppLandingCoverProps {
@@ -76,6 +77,7 @@ interface AppLandingCoverProps {
   onOpenVideoTutorial?: () => void;
   onOpenFaceScanTutorial?: () => void;
   onOpenSearch?: () => void;
+  onOpenQRGuide?: () => void;
 }
 
 interface TopicItem {
@@ -105,7 +107,8 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
   onOpenStore,
   onOpenVideoTutorial,
   onOpenFaceScanTutorial,
-  onOpenSearch
+  onOpenSearch,
+  onOpenQRGuide
 }) => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -332,6 +335,17 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
               >
                 <Play className="w-4 h-4 text-amber-400 fill-amber-400" />
                 <span>Watch Video Tour (3 Min)</span>
+              </button>
+            )}
+
+            {/* Easy QR Check-in Guide */}
+            {onOpenQRGuide && (
+              <button
+                onClick={onOpenQRGuide}
+                className="px-5 sm:px-6 py-3.5 rounded-2xl bg-[#0f1738] hover:bg-[#182554] text-amber-300 hover:text-white font-bold text-sm border-2 border-amber-400/40 backdrop-blur-md transition flex items-center gap-2 cursor-pointer shadow-md"
+              >
+                <QrCode className="w-4 h-4 text-amber-400" />
+                <span>Easy QR Check-in</span>
               </button>
             )}
 

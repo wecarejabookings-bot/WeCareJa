@@ -38,7 +38,8 @@ import {
   Package,
   Video,
   Play,
-  Search
+  Search,
+  QrCode
 } from 'lucide-react';
 import { useNetworkStatus } from '../../utils/offlineSyncManager';
 import { getDisplayName, getProfileDropdownLabel } from '../../utils/privacy';
@@ -83,6 +84,7 @@ interface HeaderProps {
   onOpenProcedures?: () => void;
   onOpenVideoTutorial?: () => void;
   onOpenSearch?: () => void;
+  onOpenQRGuide?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -114,7 +116,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenHowItWorks,
   onOpenProcedures,
   onOpenVideoTutorial,
-  onOpenSearch
+  onOpenSearch,
+  onOpenQRGuide
 }) => {
   const [isMuted, setIsMuted] = useState<boolean>(soundFX.getMuted());
   const [isSyncPopoverOpen, setIsSyncPopoverOpen] = useState(false);
@@ -500,6 +503,32 @@ export const Header: React.FC<HeaderProps> = ({
           {/* AUTHENTICATED USER CONTROLS */}
           {isAuthenticated ? (
             <>
+              {/* Video Tour Quick Button */}
+              {onOpenVideoTutorial && (
+                <button
+                  type="button"
+                  onClick={onOpenVideoTutorial}
+                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border-blue-500/30"
+                  title="Watch App Video Walkthrough"
+                >
+                  <Play className="w-3 h-3 text-amber-400 fill-amber-400" />
+                  <span className="hidden lg:inline">Video Tour</span>
+                </button>
+              )}
+
+              {/* Easy QR Check-in Quick Button */}
+              {onOpenQRGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenQRGuide}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition shadow-xs cursor-pointer bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30"
+                  title="Easy QR Doorstep Check-in Guide"
+                >
+                  <QrCode className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden lg:inline">QR Guide</span>
+                </button>
+              )}
+
               {/* Role Indicator Badge (Role Switcher is housed in left sidebar for spacious UX) */}
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500/15 border border-blue-500/30 text-[11px] font-bold text-white shadow-xs">
                 {currentRole === 'client' && <User className="w-3.5 h-3.5 text-blue-400" />}
@@ -565,10 +594,22 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onOpenVideoTutorial}
-                  className="hidden lg:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 hover:text-white hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+                  className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 hover:text-white bg-amber-500/10 hover:bg-amber-500/20 border border-amber-400/30 transition cursor-pointer whitespace-nowrap"
+                  title="Watch 3-minute Video Tour"
                 >
                   <Play className="w-3 h-3 text-amber-400 fill-amber-400" />
                   <span>Video Tour</span>
+                </button>
+              )}
+              {onOpenQRGuide && (
+                <button
+                  type="button"
+                  onClick={onOpenQRGuide}
+                  className="hidden md:inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-blue-300 hover:text-white hover:bg-white/10 transition cursor-pointer whitespace-nowrap"
+                  title="Easy QR Doorstep Check-in Guide"
+                >
+                  <QrCode className="w-3 h-3 text-amber-400" />
+                  <span>QR Guide</span>
                 </button>
               )}
               <button

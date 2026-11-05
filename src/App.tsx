@@ -76,6 +76,7 @@ const RejectedDocumentsResubmit = lazy(() => import('./components/common/Rejecte
 const AppVideoTutorialModal = lazy(() => import('./components/common/AppVideoTutorialModal').then(m => ({ default: m.AppVideoTutorialModal })));
 const FaceScanTutorialModal = lazy(() => import('./components/auth/FaceScanTutorialModal').then(m => ({ default: m.FaceScanTutorialModal })));
 const AppFeatureSearchModal = lazy(() => import('./components/common/AppFeatureSearchModal').then(m => ({ default: m.AppFeatureSearchModal })));
+const EasyQRCheckInGuideModal = lazy(() => import('./components/common/EasyQRCheckInGuideModal').then(m => ({ default: m.EasyQRCheckInGuideModal })));
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
@@ -91,7 +92,7 @@ import {
 } from './lib/supabase';
 import { Logo } from './components/common/Logo';
 import { soundFX } from './utils/soundEffects';
-import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail, Play, Scan, Search } from 'lucide-react';
+import { Heart, ShieldCheck, PhoneCall, Sparkles, MapPin, Palette, FileText, Users, KeyRound, Share2, Bell, HelpCircle, Shield, Volume2, BookOpen, Crown, User, Stethoscope, Lock, Building, Mail, Play, Scan, Search, QrCode } from 'lucide-react';
 import { isNetworkOnline, processOfflineSyncQueue } from './utils/offlineSyncManager';
 import { subscribeToQRUpdates, generateBookingCheckin } from './services/qrFirebaseStore';
 import { getDisplayName } from './utils/privacy';
@@ -458,6 +459,7 @@ export default function App() {
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isFaceScanTutorialOpen, setIsFaceScanTutorialOpen] = useState(false);
   const [isFeatureSearchOpen, setIsFeatureSearchOpen] = useState(false);
+  const [isQRGuideOpen, setIsQRGuideOpen] = useState(false);
 
   // Global Keyboard Shortcut: CMD+K / Ctrl+K opens Feature Search
   useEffect(() => {
@@ -2251,6 +2253,7 @@ export default function App() {
         }}
         onOpenVideoTutorial={() => setIsVideoModalOpen(true)}
         onOpenSearch={() => setIsFeatureSearchOpen(true)}
+        onOpenQRGuide={() => setIsQRGuideOpen(true)}
       />
 
       {/* Persistent Emergency Top Banner (Active across Client, Nurse & Admin screens) */}
@@ -2528,6 +2531,7 @@ export default function App() {
             onOpenVideoTutorial={() => setIsVideoModalOpen(true)}
             onOpenFaceScanTutorial={() => setIsFaceScanTutorialOpen(true)}
             onOpenSearch={() => setIsFeatureSearchOpen(true)}
+            onOpenQRGuide={() => setIsQRGuideOpen(true)}
           />
         ) : (currentUser?.status === 'rejected' || currentUser?.approvalStatus === 'rejected') ? (
           <RejectedDocumentsResubmit
@@ -2683,6 +2687,12 @@ export default function App() {
               className="text-amber-300 hover:text-white transition flex items-center gap-1 font-bold cursor-pointer"
             >
               <Search className="w-3.5 h-3.5 text-amber-400" /> Search Features (⌘K)
+            </button>
+            <button 
+              onClick={() => setIsQRGuideOpen(true)} 
+              className="text-amber-300 hover:text-amber-200 transition flex items-center gap-1 font-bold cursor-pointer"
+            >
+              <QrCode className="w-3.5 h-3.5 text-amber-400" /> Easy QR Check-in
             </button>
 
             <button onClick={() => setIsContactUsOpen(true)} className="text-slate-200 hover:text-white transition flex items-center gap-1 font-bold cursor-pointer">
@@ -3082,6 +3092,14 @@ export default function App() {
             setIsHowItWorksOpen(false);
             handleNavigateView('store');
           }}
+          onOpenQRGuide={() => {
+            setIsHowItWorksOpen(false);
+            setIsQRGuideOpen(true);
+          }}
+          onOpenVideoModal={() => {
+            setIsHowItWorksOpen(false);
+            setIsVideoModalOpen(true);
+          }}
         />
       )}
 
@@ -3101,6 +3119,26 @@ export default function App() {
           onOpenFaceScanTutorial={() => {
             setIsVideoModalOpen(false);
             setIsFaceScanTutorialOpen(true);
+          }}
+          onOpenQRGuide={() => {
+            setIsVideoModalOpen(false);
+            setIsQRGuideOpen(true);
+          }}
+        />
+      )}
+
+      {/* Easy QR Doorstep Check-in Guide & Simulator Modal */}
+      {isQRGuideOpen && (
+        <EasyQRCheckInGuideModal
+          isOpen={isQRGuideOpen}
+          onClose={() => setIsQRGuideOpen(false)}
+          onOpenBooking={() => {
+            setIsQRGuideOpen(false);
+            handleOpenUnifiedSignUp('client');
+          }}
+          onOpenVideoTour={() => {
+            setIsQRGuideOpen(false);
+            setIsVideoModalOpen(true);
           }}
         />
       )}
@@ -3236,6 +3274,10 @@ export default function App() {
           onOpenOnboarding={() => {
             setIsFeatureSearchOpen(false);
             setIsOnboardingOpen(true);
+          }}
+          onOpenQRGuide={() => {
+            setIsFeatureSearchOpen(false);
+            setIsQRGuideOpen(true);
           }}
           onSelectProcedure={() => {
             setIsFeatureSearchOpen(false);

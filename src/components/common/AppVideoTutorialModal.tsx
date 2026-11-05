@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   X, 
   Play, 
@@ -17,125 +17,140 @@ import {
   Clock, 
   Maximize2, 
   ArrowRight,
-  ExternalLink,
   ChevronRight,
+  ChevronLeft,
   HelpCircle,
-  FileText
+  FileText,
+  User,
+  Calendar,
+  CreditCard,
+  Bell,
+  Check,
+  QrCode,
+  Smartphone,
+  Navigation,
+  Activity,
+  Layers,
+  Lock
 } from 'lucide-react';
 import { soundFX } from '../../utils/soundEffects';
 import { WeCareTrackLogo } from './WeCareTrackLogo';
 
-interface AppVideoTutorialModalProps {
+export interface AppVideoTutorialModalProps {
   isOpen: boolean;
   onClose: () => void;
   onNavigateView?: (view: string) => void;
   onOpenBooking?: () => void;
   onOpenStore?: () => void;
   onOpenFaceScanTutorial?: () => void;
+  onOpenQRGuide?: () => void;
+  initialMode?: 'client_booking' | 'nurse_confirm' | 'full_tour';
 }
 
-interface Chapter {
-  id: number;
+type VideoMode = 'client_booking' | 'nurse_confirm' | 'full_tour';
+
+interface VideoStep {
+  stepNumber: number;
   title: string;
-  duration: string;
-  startSec: number;
-  endSec: number;
-  badge: string;
-  summary: string;
-  keyPoints: string[];
-  visualTag: string;
+  subtitle: string;
+  durationSec: number;
+  narrationText: string;
+  screenType: 
+    | 'client_select_procedure'
+    | 'client_parish_address'
+    | 'client_pick_nurse'
+    | 'client_escrow_payment'
+    | 'client_booking_secured'
+    | 'nurse_dispatch_alert'
+    | 'nurse_review_notes'
+    | 'nurse_confirm_accept'
+    | 'nurse_route_navigation'
+    | 'nurse_doorstep_qr';
 }
 
-const VIDEO_CHAPTERS: Chapter[] = [
+const CLIENT_BOOKING_STEPS: VideoStep[] = [
   {
-    id: 1,
-    title: 'Welcome to We Care Jamaica',
-    duration: '0:35',
-    startSec: 0,
-    endSec: 35,
-    badge: 'Overview',
-    summary: 'Jamaica\'s trusted on-demand home healthcare platform connecting families with NCJ licensed Registered Nurses & Certified Caregivers.',
-    keyPoints: [
-      '100% NCJ licensed nurses & background-verified caregivers',
-      'Average 15–30 min emergency arrival across Kingston, St. Andrew & Portmore',
-      'Strict independent contractor & clinical escrow protection'
-    ],
-    visualTag: 'overview'
+    stepNumber: 1,
+    title: 'Select Clinical Procedure',
+    subtitle: 'Choose hospital-grade service needed (Wound Care, IV Therapy, Vitals)',
+    durationSec: 6,
+    narrationText: 'To secure a booking, start by selecting the procedure your patient or family member requires, such as sterile wound dressing or IV hydration.',
+    screenType: 'client_select_procedure'
   },
   {
-    id: 2,
-    title: 'Booking a Home Nurse Visit',
-    duration: '0:40',
-    startSec: 35,
-    endSec: 75,
-    badge: 'Procedures',
-    summary: 'How to easily book clinical home visits—from IV infusions and post-op wound care to elderly companion wellness checks.',
-    keyPoints: [
-      'Select procedure or wellness service needed',
-      'Pick verified nurse profile with verified reviews & hourly rate (JMD)',
-      'Choose preferred date & time with instant calendar dispatch'
-    ],
-    visualTag: 'booking'
+    stepNumber: 2,
+    title: 'Enter Parish & Address',
+    subtitle: 'Specify residence location across Kingston, St. Andrew or Portmore',
+    durationSec: 6,
+    narrationText: 'Next, enter your Jamaican parish and address. We Care Jamaica matches you with nurses within a 15 to 30 minute travel radius.',
+    screenType: 'client_parish_address'
   },
   {
-    id: 3,
-    title: 'Add to Care Visit Bundles',
-    duration: '0:35',
-    startSec: 75,
-    endSec: 110,
-    badge: 'Medical Store',
-    summary: 'Bundle essential medical supplies—nitrile gloves, automated BP monitors, and wound dressings—with your nurse booking in one checkout.',
-    keyPoints: [
-      'Items arrive hand-delivered by your attending nurse',
-      'No separate delivery fees or pharmacy runs',
-      'Itemized Jamaican health insurance receipt (Sagicor, Medecus, Guardian)'
-    ],
-    visualTag: 'store'
+    stepNumber: 3,
+    title: 'Choose Verified NCJ Nurse',
+    subtitle: 'Compare licensed practitioner profiles, council badges & patient ratings',
+    durationSec: 6,
+    narrationText: 'Pick your preferred registered nurse. Every practitioner is 100% verified with the Nursing Council of Jamaica.',
+    screenType: 'client_pick_nurse'
   },
   {
-    id: 4,
-    title: 'Live GPS Tracking & Doorstep QR Check-In',
-    duration: '0:35',
-    startSec: 110,
-    endSec: 145,
-    badge: 'Safety',
-    summary: 'Watch your assigned nurse travel in real-time. Verify arrival with an audible chime and secure mutual QR code scan.',
-    keyPoints: [
-      'Real-time Jamaican community zone map ETA',
-      'Audible arrival doorbell chime alerts your household',
-      'Visit cannot start without mutual booking QR code scan'
-    ],
-    visualTag: 'tracking'
+    stepNumber: 4,
+    title: 'Escrow Payment Protection',
+    subtitle: 'Select Card or Cash on Delivery (Held safely in escrow until arrival)',
+    durationSec: 6,
+    narrationText: 'Review your total in Jamaican dollars. Funds remain locked in platform escrow and are never released until your visit is complete.',
+    screenType: 'client_escrow_payment'
   },
   {
-    id: 5,
-    title: 'Real Emergency SOS 119 Dispatch',
-    duration: '0:30',
-    startSec: 145,
-    endSec: 175,
-    badge: 'Emergency SOS',
-    summary: 'Instant panic distress dispatch linking real client GPS coordinates, police stations, and the last attending nurse—never simulated data.',
-    keyPoints: [
-      'One-tap 119 police & Jamaica Fire Brigade dispatch',
-      'Exact GPS latitude/longitude shared with emergency contacts',
-      'Displays real attending nurse profile for clinical continuity'
-    ],
-    visualTag: 'sos'
+    stepNumber: 5,
+    title: 'Booking Secured & Live GPS',
+    subtitle: 'Immediate confirmation with real-time nurse route dispatch & ETA',
+    durationSec: 6,
+    narrationText: 'Your booking is now secured! You will receive live GPS tracking, arrival doorbell alerts, and instant clinical continuity.',
+    screenType: 'client_booking_secured'
+  }
+];
+
+const NURSE_CONFIRM_STEPS: VideoStep[] = [
+  {
+    stepNumber: 1,
+    title: 'Instant Dispatch Alert',
+    subtitle: 'Nurse device sounds an audible chime with patient request & procedure',
+    durationSec: 6,
+    narrationText: 'On the nurse\'s side, when a patient books a visit, the practitioner phone chimes with a real-time dispatch alert.',
+    screenType: 'nurse_dispatch_alert'
   },
   {
-    id: 6,
-    title: 'Biometric Face Scan & Passkey Sign-In',
-    duration: '0:35',
-    startSec: 175,
-    endSec: 210,
-    badge: 'Biometrics',
-    summary: 'Staff security standard: Mandatory live camera face scan for nurses & admins, plus FIDO2 Touch ID & Face ID passkey sign-in.',
-    keyPoints: [
-      'Photo file uploads disabled for staff: only live camera scans accepted',
-      'Anti-spoofing oval reticle and compliance verification tokens',
-      'One-touch biometric login without typing passwords'
-    ],
-    visualTag: 'biometrics'
+    stepNumber: 2,
+    title: 'Review Medical Notes & Vitals',
+    subtitle: 'Inspect procedure history, allergies, emergency contacts & parish map',
+    durationSec: 6,
+    narrationText: 'The nurse reviews the patient\'s clinical condition, required sterile supplies, and home address before accepting.',
+    screenType: 'nurse_review_notes'
+  },
+  {
+    stepNumber: 3,
+    title: 'Accept & Confirm Booking',
+    subtitle: 'One-tap confirmation locks 85% practitioner earnings payout in escrow',
+    durationSec: 6,
+    narrationText: 'With one tap, the nurse accepts and confirms the visit. The client is immediately notified that their nurse is confirmed.',
+    screenType: 'nurse_confirm_accept'
+  },
+  {
+    stepNumber: 4,
+    title: 'GPS Route Navigation',
+    subtitle: 'Turn-by-turn routing with live telemetry sent to patient household',
+    durationSec: 6,
+    narrationText: 'The nurse initiates turn-by-turn directions. The patient can watch the nurse\'s vehicle approach in real time.',
+    screenType: 'nurse_route_navigation'
+  },
+  {
+    stepNumber: 5,
+    title: 'Doorstep Arrival QR Presentation',
+    subtitle: 'Present secure Job QR Code for mutual check-in & clinical start',
+    durationSec: 6,
+    narrationText: 'Upon arrival, the nurse presents their encrypted QR badge. The client scans it to verify identity and unlock clinical charting.',
+    screenType: 'nurse_doorstep_qr'
   }
 ];
 
@@ -145,80 +160,142 @@ export const AppVideoTutorialModal: React.FC<AppVideoTutorialModalProps> = ({
   onNavigateView,
   onOpenBooking,
   onOpenStore,
-  onOpenFaceScanTutorial
+  onOpenFaceScanTutorial,
+  onOpenQRGuide,
+  initialMode = 'client_booking'
 }) => {
+  const [activeMode, setActiveMode] = useState<VideoMode>(initialMode);
+  const [currentStepIdx, setCurrentStepIdx] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
-  const [currentTimeSec, setCurrentTimeSec] = useState<number>(0);
-  const [activeChapterIndex, setActiveChapterIndex] = useState<number>(0);
-  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
-  const [showCaptions, setShowCaptions] = useState<boolean>(true);
+  const [isAudioVoiceEnabled, setIsAudioVoiceEnabled] = useState<boolean>(false);
+  const [progressSec, setProgressSec] = useState<number>(0);
+  const timerRef = useRef<number | null>(null);
 
-  const totalDurationSec = 210; // 3 mins 30 secs
+  const activeSteps = activeMode === 'nurse_confirm' ? NURSE_CONFIRM_STEPS : CLIENT_BOOKING_STEPS;
+  const currentStep = activeSteps[currentStepIdx] || activeSteps[0];
+  const totalDuration = activeSteps.reduce((acc, s) => acc + s.durationSec, 0);
 
-  // Progress timer simulation for rich interactive video experience
-  useEffect(() => {
-    let interval: any = null;
-    if (isOpen && isPlaying) {
-      interval = setInterval(() => {
-        setCurrentTimeSec(prev => {
-          const next = prev + 1 * playbackSpeed;
-          if (next >= totalDurationSec) {
-            setIsPlaying(false);
-            return totalDurationSec;
-          }
-          return next;
-        });
-      }, 1000);
+  // Stop any active speech synthesis when closing or changing steps
+  const stopVoiceNarration = useCallback(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
-    return () => clearInterval(interval);
-  }, [isOpen, isPlaying, playbackSpeed]);
+  }, []);
 
-  // Keep active chapter aligned with current time
-  useEffect(() => {
-    const matchedIdx = VIDEO_CHAPTERS.findIndex(
-      ch => currentTimeSec >= ch.startSec && currentTimeSec < ch.endSec
-    );
-    if (matchedIdx !== -1 && matchedIdx !== activeChapterIndex) {
-      setActiveChapterIndex(matchedIdx);
+  // Speak narration text if audio is enabled
+  const speakNarration = useCallback((text: string) => {
+    if (!isAudioVoiceEnabled || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.05;
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn('SpeechSynthesis error:', e);
     }
-  }, [currentTimeSec]);
+  }, [isAudioVoiceEnabled]);
 
-  if (!isOpen) return null;
-
-  const currentChapter = VIDEO_CHAPTERS[activeChapterIndex] || VIDEO_CHAPTERS[0];
-
-  const handleSeek = (newSec: number) => {
-    setCurrentTimeSec(newSec);
-    soundFX.playToggleClick();
-  };
-
-  const handleSelectChapter = (idx: number) => {
-    setActiveChapterIndex(idx);
-    setCurrentTimeSec(VIDEO_CHAPTERS[idx].startSec);
+  // Sync mode changes
+  useEffect(() => {
+    setCurrentStepIdx(0);
+    setProgressSec(0);
     setIsPlaying(true);
-    soundFX.playTabSwitch();
+    stopVoiceNarration();
+  }, [activeMode, stopVoiceNarration]);
+
+  // Handle auto-advancing video timer
+  useEffect(() => {
+    if (!isOpen || !isPlaying) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    timerRef.current = window.setInterval(() => {
+      setProgressSec(prev => {
+        const next = prev + 1;
+        const currentStepEndTime = activeSteps
+          .slice(0, currentStepIdx + 1)
+          .reduce((acc, s) => acc + s.durationSec, 0);
+
+        if (next >= currentStepEndTime) {
+          if (currentStepIdx < activeSteps.length - 1) {
+            setCurrentStepIdx(c => c + 1);
+            soundFX.playTabSwitch();
+          } else {
+            // Reached end of mode
+            setIsPlaying(false);
+          }
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isOpen, isPlaying, currentStepIdx, activeSteps]);
+
+  // Trigger narration on step change
+  useEffect(() => {
+    if (isOpen && currentStep && isPlaying) {
+      speakNarration(currentStep.narrationText);
+    }
+  }, [currentStepIdx, isOpen, isPlaying, speakNarration, currentStep]);
+
+  // Cleanup on close
+  useEffect(() => {
+    if (!isOpen) {
+      stopVoiceNarration();
+      setIsPlaying(false);
+    }
+  }, [isOpen, stopVoiceNarration]);
+
+  const handleStepSelect = (idx: number) => {
+    stopVoiceNarration();
+    setCurrentStepIdx(idx);
+    const startSec = activeSteps
+      .slice(0, idx)
+      .reduce((acc, s) => acc + s.durationSec, 0);
+    setProgressSec(startSec);
+    setIsPlaying(true);
+    soundFX.playToggleClick();
   };
 
   const handleTogglePlay = () => {
-    if (currentTimeSec >= totalDurationSec) {
-      setCurrentTimeSec(0);
+    if (progressSec >= totalDuration) {
+      setProgressSec(0);
+      setCurrentStepIdx(0);
       setIsPlaying(true);
     } else {
       setIsPlaying(!isPlaying);
+      if (isPlaying) stopVoiceNarration();
     }
     soundFX.playToggleClick();
   };
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = Math.floor(secs % 60);
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  const handleToggleVoice = () => {
+    const newState = !isAudioVoiceEnabled;
+    setIsAudioVoiceEnabled(newState);
+    if (!newState) {
+      stopVoiceNarration();
+    } else {
+      speakNarration(currentStep.narrationText);
+    }
+    soundFX.playToggleClick();
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
-      <div className="relative w-full max-w-4xl rounded-3xl bg-[#0c0f2b] border border-blue-500/40 text-white shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
+      onClick={onClose}
+    >
+      <div 
+        className="relative w-full max-w-4xl rounded-3xl bg-[#0c102c] border border-blue-500/40 text-white shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
+        onClick={e => e.stopPropagation()}
+      >
         {/* Top EKG line */}
         <div className="h-1 bg-gradient-to-r from-blue-600 via-amber-400 to-emerald-400" />
 
@@ -227,14 +304,16 @@ export const AppVideoTutorialModal: React.FC<AppVideoTutorialModalProps> = ({
           <div className="flex items-center gap-3">
             <WeCareTrackLogo variant="horizontal" size="sm" inverted={true} />
             <div>
-              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                <span>Video Walkthrough: How to Use We Care Jamaica</span>
-                <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-mono font-bold">
-                  Full Feature Tour
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-black text-white">
+                  Step-by-Step App Video Walkthrough
+                </h3>
+                <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[10px] font-mono font-bold">
+                  Interactive Simulation
                 </span>
-              </h3>
+              </div>
               <p className="text-[11px] text-slate-300">
-                Official 3-minute video guide for patients, families, and healthcare staff
+                Real visual walkthrough: securing a patient booking &amp; nurse confirmation dispatch
               </p>
             </div>
           </div>
@@ -248,246 +327,493 @@ export const AppVideoTutorialModal: React.FC<AppVideoTutorialModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Scrollable Body */}
-        <div className="p-3 sm:p-6 overflow-y-auto space-y-5 flex-1">
-          {/* Main Video Screen Container */}
-          <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/20 shadow-2xl shadow-blue-950/60 flex flex-col justify-between">
-            {/* Visual Simulated Screen corresponding to Current Chapter */}
-            <div className="absolute inset-0 bg-gradient-to-br from-[#0c1033] via-[#151c4a] to-[#0a0d24] flex items-center justify-center p-4">
-              {/* Background ambient medical grid */}
-              <div className="absolute inset-0 opacity-15 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:16px_16px]" />
+        {/* Mode Selector Navigation Tabs (Zero-pill discipline) */}
+        <div className="px-4 sm:px-6 pt-3 pb-2 border-b border-white/10 bg-white/[0.02] flex items-center justify-between gap-2 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveMode('client_booking')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                activeMode === 'client_booking'
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-900/50'
+                  : 'text-slate-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>1. Client: How to Secure a Booking</span>
+            </button>
 
-              {/* Dynamic Screen Content for each Chapter */}
-              <div className="relative z-10 w-full max-w-xl mx-auto flex flex-col items-center text-center space-y-3 p-4 sm:p-6 rounded-2xl bg-black/60 border border-white/15 backdrop-blur-md">
-                {/* Chapter Icon Badge */}
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
-                  {currentChapter.visualTag === 'overview' && <Stethoscope className="w-7 h-7" />}
-                  {currentChapter.visualTag === 'booking' && <Clock className="w-7 h-7" />}
-                  {currentChapter.visualTag === 'store' && <ShoppingBag className="w-7 h-7" />}
-                  {currentChapter.visualTag === 'tracking' && <MapPin className="w-7 h-7 animate-bounce" />}
-                  {currentChapter.visualTag === 'sos' && <AlertTriangle className="w-7 h-7 text-rose-300 animate-pulse" />}
-                  {currentChapter.visualTag === 'biometrics' && <Scan className="w-7 h-7 text-cyan-300 animate-pulse" />}
-                </div>
-
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-amber-400">
-                    Chapter {currentChapter.id} of {VIDEO_CHAPTERS.length} • {currentChapter.badge}
-                  </span>
-                  <h4 className="text-base sm:text-lg font-black text-white">
-                    {currentChapter.title}
-                  </h4>
-                  <p className="text-xs text-slate-200 max-w-md mx-auto leading-relaxed">
-                    {currentChapter.summary}
-                  </p>
-                </div>
-
-                {/* Animated Graphic / Feature Pill Callout */}
-                <div className="w-full pt-1 flex flex-wrap items-center justify-center gap-2 text-[10px]">
-                  {currentChapter.keyPoints.map((pt, i) => (
-                    <span 
-                      key={i}
-                      className="px-2.5 py-1 rounded-xl bg-white/10 border border-white/15 text-slate-200 font-medium flex items-center gap-1 shadow-sm"
-                    >
-                      <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                      <span>{pt}</span>
-                    </span>
-                  ))}
-                </div>
-
-                {/* Subtitles / Closed Captions bar */}
-                {showCaptions && (
-                  <div className="mt-2 px-3 py-1 rounded-lg bg-black/80 text-amber-300 font-mono text-[11px] border border-amber-400/20 max-w-lg">
-                    💬 [Narrator]: "{currentChapter.summary}"
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Video Player Floating Controls Bar */}
-            <div className="relative z-20 mt-auto p-3 sm:p-4 bg-gradient-to-t from-black via-black/80 to-transparent flex flex-col gap-2">
-              {/* Scrubber Progress Bar */}
-              <div 
-                className="w-full h-2 rounded-full bg-white/20 hover:h-2.5 transition-all cursor-pointer relative overflow-hidden"
-                onClick={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const pos = (e.clientX - rect.left) / rect.width;
-                  handleSeek(pos * totalDurationSec);
-                }}
-              >
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 via-amber-400 to-emerald-400 rounded-full transition-all duration-150"
-                  style={{ width: `${(currentTimeSec / totalDurationSec) * 100}%` }}
-                />
-              </div>
-
-              {/* Control Buttons Bar */}
-              <div className="flex items-center justify-between text-xs text-slate-300 flex-wrap gap-2">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleTogglePlay}
-                    className="p-2 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer flex items-center gap-1.5 font-bold"
-                  >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
-                    <span className="hidden sm:inline">{isPlaying ? 'Pause' : 'Play'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSeek(0)}
-                    className="p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition cursor-pointer"
-                    title="Restart from beginning"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsMuted(!isMuted)}
-                    className="p-2 rounded-xl hover:bg-white/10 text-slate-300 hover:text-white transition cursor-pointer"
-                    title={isMuted ? 'Unmute' : 'Mute'}
-                  >
-                    {isMuted ? <VolumeX className="w-4 h-4 text-rose-400" /> : <Volume2 className="w-4 h-4" />}
-                  </button>
-
-                  <span className="font-mono text-[11px] text-slate-300">
-                    {formatTime(currentTimeSec)} / {formatTime(totalDurationSec)}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {/* Captions Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => setShowCaptions(!showCaptions)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer ${
-                      showCaptions
-                        ? 'bg-amber-400 text-slate-950 border-amber-300'
-                        : 'bg-white/10 text-slate-400 border-white/10 hover:text-white'
-                    }`}
-                  >
-                    CC
-                  </button>
-
-                  {/* Playback Speed selector */}
-                  <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10 text-[10px] font-mono">
-                    {[1, 1.25, 1.5].map((spd) => (
-                      <button
-                        key={spd}
-                        type="button"
-                        onClick={() => {
-                          setPlaybackSpeed(spd);
-                          soundFX.playToggleClick();
-                        }}
-                        className={`px-1.5 py-0.5 rounded transition ${
-                          playbackSpeed === spd
-                            ? 'bg-blue-600 text-white font-bold'
-                            : 'text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {spd}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setActiveMode('nurse_confirm')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                activeMode === 'nurse_confirm'
+                  ? 'bg-blue-600 text-white font-black shadow-md shadow-blue-900/50'
+                  : 'text-slate-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <Stethoscope className="w-3.5 h-3.5" />
+              <span>2. Nurse: How to Confirm a Booking</span>
+            </button>
           </div>
 
-          {/* Chapter Selector & Direct Jump Bar */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white flex items-center gap-1.5 uppercase tracking-wider">
-                <FileText className="w-3.5 h-3.5 text-blue-400" />
-                <span>Video Chapters &amp; Highlights</span>
+          <button
+            type="button"
+            onClick={handleToggleVoice}
+            className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition ${
+              isAudioVoiceEnabled 
+                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+            }`}
+            title="Toggle spoken voice narration"
+          >
+            {isAudioVoiceEnabled ? <Volume2 className="w-3.5 h-3.5 text-emerald-400" /> : <VolumeX className="w-3.5 h-3.5" />}
+            <span>Voice Narration: {isAudioVoiceEnabled ? 'ON' : 'OFF'}</span>
+          </button>
+        </div>
+
+        {/* Video Player & Live Simulated UI Screen Container */}
+        <div className="p-3 sm:p-5 overflow-y-auto space-y-4 flex-1">
+          {/* Main Simulated Phone Screen Frame */}
+          <div className="relative w-full rounded-2xl overflow-hidden bg-black border border-white/20 shadow-2xl flex flex-col justify-between min-h-[360px] sm:min-h-[420px]">
+            {/* Top Video Status Overlay */}
+            <div className="absolute top-3 inset-x-3 z-30 flex items-center justify-between text-xs pointer-events-none">
+              <span className="px-2.5 py-1 rounded-md bg-black/80 backdrop-blur-md text-amber-300 border border-white/10 font-mono font-bold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span>STEP {currentStep.stepNumber} OF {activeSteps.length}: {currentStep.title.toUpperCase()}</span>
               </span>
-              <span className="text-[11px] text-slate-400">Click any chapter to jump</span>
+
+              <span className="px-2.5 py-1 rounded-md bg-black/80 backdrop-blur-md text-slate-300 border border-white/10 font-mono text-[11px]">
+                {activeMode === 'client_booking' ? 'Client Mobile View' : 'Nurse Dispatch Terminal'}
+              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-              {VIDEO_CHAPTERS.map((ch, idx) => {
-                const isActive = activeChapterIndex === idx;
-                return (
-                  <button
-                    key={ch.id}
-                    type="button"
-                    onClick={() => handleSelectChapter(idx)}
-                    className={`p-3 rounded-2xl border text-left transition flex items-start gap-2.5 cursor-pointer ${
-                      isActive
-                        ? 'bg-blue-600/30 border-blue-400 text-white ring-2 ring-blue-400/50 shadow-lg shadow-blue-950/40'
-                        : 'bg-white/[0.03] border-white/10 hover:bg-white/[0.07] text-slate-300'
-                    }`}
-                  >
-                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 mt-0.5 ${
-                      isActive ? 'bg-blue-500 text-white' : 'bg-white/10 text-slate-400'
-                    }`}>
-                      {ch.id}
+            {/* Simulated Live UI Content corresponding to Step */}
+            <div className="relative z-10 w-full flex-1 flex items-center justify-center p-4 sm:p-8 pt-12 sm:pt-14">
+              {/* SCREEN 1: Client Select Procedure */}
+              {currentStep.screenType === 'client_select_procedure' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-blue-500/30 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-white flex items-center gap-1.5">
+                      <Stethoscope className="w-4 h-4 text-blue-400" />
+                      <span>Select Required Service</span>
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-white text-[11px] truncate">{ch.title}</span>
-                        <span className="text-[9px] font-mono text-slate-400 shrink-0">{ch.duration}</span>
-                      </div>
-                      <span className="text-[10px] text-blue-300 font-mono block">{ch.badge}</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    <span className="text-[10px] text-amber-400 font-mono">Step 1/5</span>
+                  </div>
 
-          {/* Quick Action Shortcuts */}
-          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div>
-              <h5 className="text-xs font-bold text-white flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-400" />
-                <span>Ready to explore these features?</span>
-              </h5>
-              <p className="text-[11px] text-slate-400">
-                Book a verified visit, order medical supplies, or review biometric security.
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-xl bg-blue-600/30 border-2 border-blue-400 flex items-center justify-between shadow-md">
+                      <div>
+                        <h5 className="font-extrabold text-white text-xs">Post-Op Wound Care &amp; Dressing</h5>
+                        <p className="text-[11px] text-slate-300">Sterile cleansing, diabetic ulcer care, gauze pack</p>
+                      </div>
+                      <span className="px-2 py-1 rounded-md bg-blue-500 text-white font-mono font-bold text-xs">
+                        JMD $6,500
+                      </span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between opacity-70">
+                      <div>
+                        <h5 className="font-bold text-white text-xs">IV Infusion &amp; Hydration</h5>
+                        <p className="text-[10px] text-slate-400">Normal saline drip, antibiotic infusion</p>
+                      </div>
+                      <span className="text-xs font-mono text-slate-300">JMD $8,000</span>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between opacity-70">
+                      <div>
+                        <h5 className="font-bold text-white text-xs">Elderly Bedside Vitals Check</h5>
+                        <p className="text-[10px] text-slate-400">Blood pressure, SPO2, glucose check</p>
+                      </div>
+                      <span className="text-xs font-mono text-slate-300">JMD $4,500</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 flex justify-end">
+                    <span className="px-4 py-1.5 rounded-xl bg-[#F59E0B] text-slate-950 font-black text-xs flex items-center gap-1 shadow-md">
+                      <span>Procedure Selected ✓</span>
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* SCREEN 2: Client Parish & Address */}
+              {currentStep.screenType === 'client_parish_address' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-blue-500/30 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-white flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 text-rose-400" />
+                      <span>Patient Home Address</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-mono">Step 2/5</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">Parish:</label>
+                      <div className="p-2.5 rounded-xl bg-white/10 border border-amber-400/60 font-bold text-xs text-white flex items-center justify-between">
+                        <span>Kingston &amp; St. Andrew</span>
+                        <Check className="w-4 h-4 text-amber-400" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-300 block mb-1">Street Address:</label>
+                      <div className="p-2.5 rounded-xl bg-white/5 border border-white/15 text-xs text-slate-200">
+                        14 Hope Road, Half Way Tree, Kingston 10
+                      </div>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2 text-[11px] text-emerald-300">
+                      <ShieldCheck className="w-4 h-4 shrink-0" />
+                      <span>GPS verified within verified 15–30 min nurse dispatch zone</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SCREEN 3: Client Pick Verified Nurse */}
+              {currentStep.screenType === 'client_pick_nurse' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-blue-500/30 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-white flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Choose Licensed NCJ Nurse</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-mono">Step 3/5</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-900/50 to-purple-900/40 border-2 border-emerald-400 space-y-2 shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-400 flex items-center justify-center font-black text-amber-300 text-sm">
+                        AS
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <h5 className="font-extrabold text-white text-xs">Nurse Althea Sterling, RN</h5>
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20" />
+                        </div>
+                        <p className="text-[10px] text-blue-300 font-mono">NCJ #8942-B • 8 Yrs Critical Care</p>
+                        <p className="text-[10px] text-amber-300 font-bold">★ 4.95 (84 visits in Kingston)</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-white/10 text-slate-300">
+                      <span>ETA to your door: <strong>22 Mins</strong></span>
+                      <span className="text-emerald-400 font-bold">Available Now</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SCREEN 4: Client Escrow Payment */}
+              {currentStep.screenType === 'client_escrow_payment' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-blue-500/30 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-white flex items-center gap-1.5">
+                      <Lock className="w-4 h-4 text-amber-400" />
+                      <span>Secure Escrow Checkout</span>
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-mono">Step 4/5</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-300">
+                      <span>Clinical Visit &amp; Procedure:</span>
+                      <span className="font-mono text-white font-bold">JMD $6,500</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300">
+                      <span>Sterile Dressing Pack:</span>
+                      <span className="font-mono text-white">Included</span>
+                    </div>
+                    <div className="flex justify-between text-slate-300 border-t border-white/10 pt-1 font-bold">
+                      <span className="text-amber-300">Total Held in Escrow:</span>
+                      <span className="font-mono text-emerald-400 text-sm">JMD $6,500</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-start gap-2">
+                    <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <span>Payment is locked safely in escrow and is NOT paid to the nurse until you complete doorstep QR check-in.</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="w-full py-2.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    <span>Confirm &amp; Secure Booking →</span>
+                  </button>
+                </div>
+              )}
+
+              {/* SCREEN 5: Client Booking Secured */}
+              {currentStep.screenType === 'client_booking_secured' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-emerald-500/40 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn text-center">
+                  <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-950/60">
+                    <Check className="w-7 h-7 stroke-[3]" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h5 className="font-black text-white text-base">Booking Confirmed &amp; Dispatched!</h5>
+                    <p className="text-xs text-emerald-300">Nurse Althea Sterling is en route to your home.</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/10 text-xs space-y-1 text-slate-300 text-left">
+                    <div className="flex justify-between">
+                      <span>Booking ID:</span>
+                      <span className="font-mono text-white font-bold">BK-JAM-8842</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Estimated Arrival:</span>
+                      <span className="font-mono text-amber-300 font-bold">22 Mins</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-slate-400">
+                    Ready your phone for the Doorstep Arrival QR check-in when the nurse knocks.
+                  </div>
+                </div>
+              )}
+
+              {/* NURSE SCREEN 1: Nurse Dispatch Alert */}
+              {currentStep.screenType === 'nurse_dispatch_alert' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-amber-500/40 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-amber-300 flex items-center gap-1.5">
+                      <Bell className="w-4 h-4 text-amber-400 animate-bounce" />
+                      <span>Incoming Visit Dispatch Alert</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/20 px-2 py-0.5 rounded">
+                      New Request
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h5 className="font-extrabold text-white text-xs">Patient: Mrs. Marjorie Campbell</h5>
+                        <p className="text-[11px] text-slate-300">14 Hope Road, Kingston 10</p>
+                      </div>
+                      <span className="text-xs font-mono font-black text-emerald-400">JMD $5,525 (85%)</span>
+                    </div>
+                    <p className="text-[11px] text-amber-200">
+                      Procedure: Sterile Wound Dressing (Post-Hip Surgery)
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-slate-400">
+                    <span>Distance: 3.2 km</span>
+                    <span>Response Window: <strong>5 Mins</strong></span>
+                  </div>
+                </div>
+              )}
+
+              {/* NURSE SCREEN 2: Review Notes */}
+              {currentStep.screenType === 'nurse_review_notes' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-blue-500/30 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-white flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-blue-400" />
+                      <span>Review Clinical Notes &amp; Supplies</span>
+                    </span>
+                    <span className="text-[10px] text-blue-300 font-mono">Clinical Pre-Check</span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-2 text-xs text-slate-300">
+                    <div>
+                      <strong className="text-white block">Medical History:</strong>
+                      <span>Type 2 Diabetes, Penicillin Allergy, Hypertensive.</span>
+                    </div>
+                    <div>
+                      <strong className="text-white block">Required PPE &amp; Pack:</strong>
+                      <span>Nitrile sterile gloves, saline wash, hydrocolloid dressing.</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Supplies confirmed in practitioner medical bag</span>
+                  </div>
+                </div>
+              )}
+
+              {/* NURSE SCREEN 3: Confirm & Accept */}
+              {currentStep.screenType === 'nurse_confirm_accept' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-emerald-500/40 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn text-center">
+                  <div className="space-y-1">
+                    <h5 className="font-black text-white text-sm">Lock Booking &amp; Begin Route</h5>
+                    <p className="text-xs text-slate-300">Confirming reserves your 85% visit fee in Jamaican escrow.</p>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-1.5">
+                    <div className="text-xs text-slate-300">Your Net Earnings:</div>
+                    <div className="text-xl font-mono font-black text-emerald-400">JMD $5,525.00</div>
+                    <div className="text-[10px] text-slate-400">Paid directly to your Jamaican bank or NCB account</div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs shadow-lg transition flex items-center justify-center gap-2"
+                  >
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>ACCEPT &amp; CONFIRM BOOKING</span>
+                  </button>
+                </div>
+              )}
+
+              {/* NURSE SCREEN 4: Route Navigation */}
+              {currentStep.screenType === 'nurse_route_navigation' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-blue-500/30 rounded-2xl p-5 shadow-2xl space-y-3.5 animate-fadeIn">
+                  <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                    <span className="text-xs font-black text-white flex items-center gap-1.5">
+                      <Navigation className="w-4 h-4 text-blue-400 animate-pulse" />
+                      <span>Live GPS Route Navigation</span>
+                    </span>
+                    <span className="text-[10px] font-mono text-amber-300">In Transit</span>
+                  </div>
+
+                  <div className="h-28 rounded-xl bg-slate-950 border border-white/10 flex flex-col items-center justify-center relative overflow-hidden text-center p-3">
+                    <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#3b82f6_1px,transparent_1px)] [background-size:12px_12px]" />
+                    <MapPin className="w-6 h-6 text-rose-500 animate-bounce" />
+                    <span className="text-xs font-bold text-white relative z-10 mt-1">14 Hope Road, Kingston 10</span>
+                    <span className="text-[10px] font-mono text-emerald-400 relative z-10">ETA: 18 Minutes (Light Traffic on Waterloo Rd)</span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 text-[11px] text-slate-300 flex justify-between">
+                    <span>Patient Telemetry:</span>
+                    <span className="text-emerald-400 font-bold">Connected • Real-time Location Active</span>
+                  </div>
+                </div>
+              )}
+
+              {/* NURSE SCREEN 5: Doorstep QR Presentation */}
+              {currentStep.screenType === 'nurse_doorstep_qr' && (
+                <div className="w-full max-w-md bg-[#13183d] border border-amber-500/40 rounded-2xl p-5 shadow-2xl space-y-3 animate-fadeIn text-center">
+                  <div className="space-y-0.5">
+                    <h5 className="font-black text-white text-sm">Present Doorstep Arrival QR</h5>
+                    <p className="text-[11px] text-slate-300">Client scans code with their smartphone camera</p>
+                  </div>
+
+                  <div className="w-32 h-32 mx-auto p-2 bg-white rounded-xl shadow-lg flex items-center justify-center">
+                    <QrCode className="w-full h-full text-slate-950" />
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-black/40 border border-white/10 text-[11px] font-mono text-amber-300">
+                    BK-JAM-8842 • PIN: 7491
+                  </div>
+
+                  <div className="text-[11px] text-emerald-300 font-bold flex items-center justify-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Mutual scan verifies visit &amp; starts clinical timer</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Narration Subtitle Bar at Bottom of Video */}
+            <div className="relative z-20 px-4 py-2.5 bg-black/90 border-t border-white/15 flex items-center gap-2">
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] font-bold shrink-0">
+                AUDIO / NARRATOR
+              </span>
+              <p className="text-xs text-slate-200 line-clamp-1 italic">
+                "{currentStep.narrationText}"
               </p>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              {onOpenBooking && (
+          {/* Video Scrubbing & Playback Controls Bar */}
+          <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 flex flex-col gap-2.5">
+            {/* Timeline Step Indicators */}
+            <div className="grid grid-cols-5 gap-1.5">
+              {activeSteps.map((step, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleStepSelect(idx)}
+                  className={`h-2 rounded-full transition-all cursor-pointer ${
+                    idx === currentStepIdx
+                      ? 'bg-amber-400 shadow-sm shadow-amber-400/80 ring-2 ring-amber-400/30'
+                      : idx < currentStepIdx
+                      ? 'bg-emerald-400'
+                      : 'bg-white/15 hover:bg-white/30'
+                  }`}
+                  title={`Step ${step.stepNumber}: ${step.title}`}
+                />
+              ))}
+            </div>
+
+            {/* Play/Pause & Step Buttons */}
+            <div className="flex items-center justify-between text-xs text-slate-300 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenBooking();
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-[#F59E0B] hover:bg-[#D97706] text-slate-950 font-black text-xs transition cursor-pointer shadow-md"
+                  onClick={handleTogglePlay}
+                  className="px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer flex items-center gap-1.5 font-bold"
                 >
-                  Book Nurse Visit
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 text-emerald-400" />}
+                  <span>{isPlaying ? 'Pause' : 'Play Walkthrough'}</span>
                 </button>
-              )}
 
-              {onOpenStore && (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenStore();
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition cursor-pointer"
+                  onClick={() => handleStepSelect(Math.max(0, currentStepIdx - 1))}
+                  disabled={currentStepIdx === 0}
+                  className="p-1.5 rounded-xl hover:bg-white/10 text-slate-300 disabled:opacity-30 cursor-pointer"
+                  title="Previous Step"
                 >
-                  Medical Store
+                  <ChevronLeft className="w-4 h-4" />
                 </button>
-              )}
 
-              {onOpenFaceScanTutorial && (
                 <button
                   type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenFaceScanTutorial();
-                  }}
-                  className="px-3.5 py-2 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 font-bold text-xs border border-cyan-400/30 transition cursor-pointer flex items-center gap-1"
+                  onClick={() => handleStepSelect(Math.min(activeSteps.length - 1, currentStepIdx + 1))}
+                  disabled={currentStepIdx === activeSteps.length - 1}
+                  className="p-1.5 rounded-xl hover:bg-white/10 text-slate-300 disabled:opacity-30 cursor-pointer"
+                  title="Next Step"
                 >
-                  <Scan className="w-3.5 h-3.5" />
-                  <span>Face Scan Tutorial</span>
+                  <ChevronRight className="w-4 h-4" />
                 </button>
-              )}
+
+                <button
+                  type="button"
+                  onClick={() => handleStepSelect(0)}
+                  className="p-1.5 rounded-xl hover:bg-white/10 text-slate-300 cursor-pointer"
+                  title="Restart Walkthrough"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Direct feature jump links */}
+              <div className="flex items-center gap-2">
+                {onOpenQRGuide && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenQRGuide();
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-400/30 text-[11px] font-bold transition flex items-center gap-1"
+                  >
+                    <QrCode className="w-3 h-3 text-blue-400" />
+                    <span>QR Guide</span>
+                  </button>
+                )}
+
+                {onOpenBooking && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenBooking();
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1"
+                  >
+                    <span>Book a Nurse Now</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -26,7 +26,8 @@ import {
   ArrowRight,
   ShieldCheck,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  QrCode
 } from 'lucide-react';
 import { UserAccount } from '../../types';
 
@@ -79,6 +80,7 @@ export interface AppFeatureSearchModalProps {
   onOpenPushLibrary?: () => void;
   onOpenOnboarding?: () => void;
   onSelectProcedure?: (procedureTitle: string) => void;
+  onOpenQRGuide?: () => void;
 }
 
 export const AppFeatureSearchModal: React.FC<AppFeatureSearchModalProps> = ({
@@ -103,7 +105,8 @@ export const AppFeatureSearchModal: React.FC<AppFeatureSearchModalProps> = ({
   onOpenShareApp,
   onOpenPushLibrary,
   onOpenOnboarding,
-  onSelectProcedure
+  onSelectProcedure,
+  onOpenQRGuide
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<FeatureCategory>('all');
@@ -438,6 +441,24 @@ export const AppFeatureSearchModal: React.FC<AppFeatureSearchModalProps> = ({
       action: () => {
         onClose();
         onOpenVideoTutorial();
+      }
+    },
+    {
+      id: 'tutorial_qr_checkin_guide',
+      title: 'Easy QR Doorstep Check-in Guide',
+      description: 'Step-by-step instructions for clients on scanning nurse arrival QR code for instant security logging',
+      category: 'tutorials',
+      categoryLabel: 'Interactive Guide',
+      keywords: ['qr', 'check-in', 'checkin', 'doorstep', 'arrival', 'scan nurse', 'scan qr', 'verify visit', 'pin'],
+      icon: QrCode,
+      iconColor: 'text-amber-400',
+      iconBg: 'bg-amber-500/15 border-amber-500/30',
+      badge: 'Anti-Fraud',
+      badgeColor: 'text-emerald-300 bg-emerald-500/20 border-emerald-500/30',
+      action: () => {
+        onClose();
+        if (onOpenQRGuide) onOpenQRGuide();
+        else onOpenHowItWorks();
       }
     },
     {
