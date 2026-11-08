@@ -219,7 +219,7 @@ export const AppLandingCover: React.FC<AppLandingCoverProps> = ({
     category: t.category,
     badgeColor: t.badge_color || 'from-blue-600 to-indigo-600 text-white',
     pictureUrl: t.image_url,
-    fallbackUrl: t.fallback_url || t.image_url || '/images/wound_dressing.webp',
+    fallbackUrl: t.fallback_url || t.image_url || '/images/nurse_careers.webp',
     icon: getTopicIcon(t.category, t.id),
     tags: Array.isArray(t.tags) ? t.tags : []
   }));

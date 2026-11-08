@@ -28,8 +28,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Special Deals',
     badge_text: 'Special Deals',
     badge_color: 'from-amber-500 to-orange-500 text-slate-950',
-    image_url: '/images/wound_dressing.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_promotions.webp',
+    fallback_url: '/images/topic_promotions.jpg',
     tags: ['Voucher WECARE2026', '3x Daily Elder Care', 'Sterile Wound Care', 'Save JMD $500'],
     is_active: true,
     sort_order: 1
@@ -43,8 +43,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Home Advantage',
     badge_text: 'Home Advantage',
     badge_color: 'from-rose-500 to-pink-500 text-white',
-    image_url: '/images/elderly_vitals.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_vip_home_sofa.webp',
+    fallback_url: '/images/topic_vip_home_sofa.jpg',
     tags: ['0 Min Wait Time', 'Zero Contagion Risk', 'No Taxi Gridlock', '1-on-1 Nurse Attention'],
     is_active: true,
     sort_order: 2
@@ -59,7 +59,7 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     badge_text: 'Procedures',
     badge_color: 'from-blue-600 to-indigo-600 text-white',
     image_url: '/images/iv_therapy.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=400',
+    fallback_url: '/images/iv_therapy.jpg',
     tags: ['Wound Dressings', 'IV Drip Therapy', 'Blood Pressure & Glucose', 'Transparent JMD Rates'],
     is_active: true,
     sort_order: 3
@@ -74,7 +74,7 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     badge_text: 'Supplies & Equipment',
     badge_color: 'from-emerald-500 to-teal-500 text-slate-950',
     image_url: '/images/bp_monitor.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1582719471384-894fbb16e074?w=500',
+    fallback_url: '/images/bp_monitor.jpg',
     tags: ['Digital BP Monitors', 'Pulse Oximeters', 'Foldable Wheelchairs', 'Adult Diapers & Kits'],
     is_active: true,
     sort_order: 4
@@ -88,8 +88,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Safety & Escrow',
     badge_text: 'Safety & Escrow',
     badge_color: 'from-purple-600 to-indigo-600 text-white',
-    image_url: '/images/senior_respite.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_escrow_security.webp',
+    fallback_url: '/images/topic_escrow_security.jpg',
     tags: ['100% Escrow Fund Safety', 'NCJ Verified Staff', 'Live Proximity Engine', 'EHR Clinical Notes'],
     is_active: true,
     sort_order: 5
@@ -103,8 +103,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Public Health',
     badge_text: 'Public Health',
     badge_color: 'from-sky-500 to-blue-600 text-white',
-    image_url: '/images/medication_management.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1505751172876-fa1923c5c528?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_health_news.webp',
+    fallback_url: '/images/topic_health_news.jpg',
     tags: ['MOHW Verified Alerts', 'Dengue Prevention', 'Clinic Bulletins', 'Community Wellness'],
     is_active: true,
     sort_order: 6
@@ -118,8 +118,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Emergency SOS',
     badge_text: 'Emergency SOS',
     badge_color: 'from-red-600 to-rose-600 text-white',
-    image_url: '/images/vitals_monitoring.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1587745416684-47953f16f02f?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_emergency_119.webp',
+    fallback_url: '/images/topic_emergency_119.jpg',
     tags: ['119 Police Speed Dial', '110 Fire & Ambulance', 'KPH & Spanish Town ER', 'GPS Beacon'],
     is_active: true,
     sort_order: 7
@@ -133,8 +133,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Reviews & Trust',
     badge_text: 'Reviews & Trust',
     badge_color: 'from-amber-400 to-yellow-500 text-slate-950',
-    image_url: '/images/mobility_hydration.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1584515933487-779824d29309?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_family_reviews.webp',
+    fallback_url: '/images/topic_family_reviews.jpg',
     tags: ['1,420+ Visits Completed', '4.9 Star Rating', 'Verified Patient Feedback', 'Real Jamaican Stories'],
     is_active: true,
     sort_order: 8
@@ -148,8 +148,8 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'How It Works',
     badge_text: 'How It Works',
     badge_color: 'from-cyan-500 to-blue-600 text-white',
-    image_url: '/images/palliative_comfort.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/topic_how_it_works.webp',
+    fallback_url: '/images/topic_how_it_works.jpg',
     tags: ['Step 1: Pick Service', 'Step 2: Rapid Dispatch (15-30m)', 'Step 3: Escrow Approval'],
     is_active: true,
     sort_order: 9
@@ -163,15 +163,47 @@ export const INITIAL_TOPICS_DIRECTORY: TopicDirectoryItem[] = [
     category: 'Careers & Earnings',
     badge_text: 'Careers & Earnings',
     badge_color: 'from-emerald-500 to-green-600 text-white',
-    image_url: '/images/gauze_dressing.webp',
-    fallback_url: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
+    image_url: '/images/nurse_careers.webp',
+    fallback_url: '/images/nurse_careers.jpg',
     tags: ['Highest Earnings in Jamaica', 'Weekly Bank Deposits', 'Flexible Hours', 'Full Independence'],
     is_active: true,
     sort_order: 10
   }
 ];
 
-const LOCAL_STORAGE_KEY = 'wecare_topics_directory_cache';
+// Helper to normalize and ensure accurate topic images even if old cache exists
+export function normalizeTopicImage(id: string, currentUrl?: string): string {
+  // If id is nurse_careers, ensure it NEVER displays gauze dressing or medication
+  if (id === 'nurse_careers') {
+    if (!currentUrl || currentUrl.includes('gauze') || currentUrl.includes('medication') || currentUrl.includes('dressing')) {
+      return '/images/nurse_careers.webp';
+    }
+  }
+  if (id === 'exclusive_promos' && (!currentUrl || currentUrl.includes('wound_dressing'))) {
+    return '/images/topic_promotions.webp';
+  }
+  if (id === 'hospital_vs_home' && (!currentUrl || currentUrl.includes('elderly_vitals'))) {
+    return '/images/topic_vip_home_sofa.webp';
+  }
+  if (id === 'escrow_security' && (!currentUrl || currentUrl.includes('senior_respite'))) {
+    return '/images/topic_escrow_security.webp';
+  }
+  if (id === 'jamaica_health_news' && (!currentUrl || currentUrl.includes('medication_management'))) {
+    return '/images/topic_health_news.webp';
+  }
+  if (id === 'emergency_119' && (!currentUrl || currentUrl.includes('vitals_monitoring'))) {
+    return '/images/topic_emergency_119.webp';
+  }
+  if (id === 'family_reviews' && (!currentUrl || currentUrl.includes('mobility_hydration'))) {
+    return '/images/topic_family_reviews.webp';
+  }
+  if (id === 'how_it_works' && (!currentUrl || currentUrl.includes('palliative_comfort'))) {
+    return '/images/topic_how_it_works.webp';
+  }
+  return currentUrl || '/images/nurse_careers.webp';
+}
+
+const LOCAL_STORAGE_KEY = 'wecare_topics_directory_cache_v4';
 
 export function getCachedTopics(): TopicDirectoryItem[] {
   try {
@@ -179,7 +211,10 @@ export function getCachedTopics(): TopicDirectoryItem[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.sort((a, b) => a.sort_order - b.sort_order);
+        return parsed.map((item: TopicDirectoryItem) => ({
+          ...item,
+          image_url: normalizeTopicImage(item.id, item.image_url)
+        })).sort((a: TopicDirectoryItem, b: TopicDirectoryItem) => a.sort_order - b.sort_order);
       }
     }
   } catch {}
@@ -211,7 +246,7 @@ export async function fetchTopicsDirectory(): Promise<TopicDirectoryItem[]> {
         title: d.title || '',
         subtitle: d.subtitle || '',
         description: d.description || '',
-        image_url: d.image_url || '/images/wound_dressing.webp',
+        image_url: normalizeTopicImage(d.id, d.image_url),
         fallback_url: d.fallback_url || '',
         category: d.category || 'Nursing & Care',
         badge_text: d.badge_text || d.category || '',
@@ -250,7 +285,7 @@ export async function fetchAdminTopicsDirectory(): Promise<TopicDirectoryItem[]>
         title: d.title || '',
         subtitle: d.subtitle || '',
         description: d.description || '',
-        image_url: d.image_url || '/images/wound_dressing.webp',
+        image_url: normalizeTopicImage(d.id, d.image_url),
         fallback_url: d.fallback_url || '',
         category: d.category || 'Nursing & Care',
         badge_text: d.badge_text || d.category || '',

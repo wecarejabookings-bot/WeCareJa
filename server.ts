@@ -140,7 +140,8 @@ const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes cache
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  // Port 3000 is required by AI Studio dev server reverse proxy
+  const PORT = process.env.NODE_ENV === "production" ? (Number(process.env.PORT) || 3000) : 3000;
 
   app.use(express.json());
 

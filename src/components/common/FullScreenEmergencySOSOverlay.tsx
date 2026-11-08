@@ -116,6 +116,79 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
     );
   };
 
+  const formatTelHref = (phone: string) => {
+    const digits = phone.replace(/[^0-9+]/g, '');
+    if (digits === '119' || digits === '110') return `tel:${digits}`;
+    if (digits.startsWith('+1')) return `tel:${digits}`;
+    if (digits.startsWith('1') && digits.length === 11) return `tel:+${digits}`;
+    if (digits.startsWith('876') && digits.length === 10) return `tel:+1${digits}`;
+    return `tel:${digits}`;
+  };
+
+  // 30-Second Automatic Failsafe Call Timer
+  const [autoCallSeconds, setAutoCallSeconds] = useState<number>(30);
+  const [isAutoCallActive, setIsAutoCallActive] = useState<boolean>(true);
+  const [selectedCallTarget, setSelectedCallTarget] = useState<{
+    name: string;
+    phone: string;
+    type: '119' | '110' | 'station' | 'auto_nearest';
+  } | null>(null);
+  const [hasAutoCalled, setHasAutoCalled] = useState<boolean>(false);
+
+  // Auto-call nearest station if no selection made in 30 seconds
+  useEffect(() => {
+    if (!isOpen || !isAutoCallActive || selectedCallTarget !== null || hasAutoCalled) return;
+
+    if (autoCallSeconds <= 0) {
+      if (nearestPolice) {
+        setSelectedCallTarget({
+          name: nearestPolice.name,
+          phone: nearestPolice.primaryPhone,
+          type: 'auto_nearest'
+        });
+        setHasAutoCalled(true);
+        setIsAutoCallActive(false);
+
+        try {
+          if ('speechSynthesis' in window) {
+            const utter = new SpeechSynthesisUtterance(`30 seconds elapsed with no selection. Calling nearest police station: ${nearestPolice.name} now.`);
+            utter.rate = 1.05;
+            window.speechSynthesis.speak(utter);
+          }
+        } catch {}
+
+        window.location.href = formatTelHref(nearestPolice.primaryPhone);
+      } else {
+        setSelectedCallTarget({
+          name: '119 Emergency Dispatch',
+          phone: '119',
+          type: 'auto_nearest'
+        });
+        setHasAutoCalled(true);
+        setIsAutoCallActive(false);
+        window.location.href = 'tel:119';
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setAutoCallSeconds((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [autoCallSeconds, isAutoCallActive, isOpen, selectedCallTarget, hasAutoCalled, nearestPolice]);
+
+  const handleSelectCall = (type: '119' | '110' | 'station', name: string, phone: string) => {
+    setIsAutoCallActive(false);
+    setSelectedCallTarget({ type, name, phone });
+    setHasAutoCalled(false);
+    window.location.href = formatTelHref(phone);
+  };
+
+  const handleCancelAutoCall = () => {
+    setIsAutoCallActive(false);
+  };
+
   const isClientView = currentUserRole === 'client';
   const isNurseView = currentUserRole === 'nurse';
 
@@ -238,15 +311,83 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
           nearestStationName={nearestPolice?.name}
           nearestStationPhone={nearestPolice?.primaryPhone}
           nearestStationDistanceKm={nearestPolice?.distanceKm}
-          autoStartCountdown={true}
+          autoStartCountdown={false}
         />
+
+        {/* 30-Second Automatic Failsafe Call Banner */}
+        <div className="p-4 sm:p-5 rounded-3xl bg-black/60 border-2 border-red-500 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-red-500 animate-ping" />
+              <span className="text-xs font-black uppercase tracking-wider text-red-200">
+                Automatic Emergency Failsafe
+              </span>
+            </div>
+
+            {isAutoCallActive && selectedCallTarget === null && (
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-yellow-400 text-slate-950 font-black text-xs shadow-md animate-pulse">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Auto-Call in {autoCallSeconds}s</span>
+              </div>
+            )}
+          </div>
+
+          {hasAutoCalled && selectedCallTarget ? (
+            <div className="p-3.5 rounded-2xl bg-red-600/30 border border-red-400/50 space-y-2">
+              <div className="flex items-center gap-2 text-yellow-300 font-black text-sm">
+                <PhoneCall className="w-4 h-4 animate-bounce" />
+                <span>AUTOMATIC CALL PLACED: {selectedCallTarget.name}</span>
+              </div>
+              <p className="text-xs text-slate-200">
+                30-second timer elapsed with no selection. WeCare automatically placed the call to your nearest station: <strong>{selectedCallTarget.phone}</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={() => handleSelectCall(selectedCallTarget.type as any, selectedCallTarget.name, selectedCallTarget.phone)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs shadow-lg transition cursor-pointer"
+              >
+                <PhoneCall className="w-4 h-4" />
+                <span>Redial {selectedCallTarget.phone}</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                Select <strong>119</strong> or your <strong>nearest station ({nearestPolice?.name || 'Local Police'})</strong> below. If no selection is made, your device will <strong>automatically call {nearestPolice?.name || 'nearest station'} in {autoCallSeconds} seconds</strong> based on your GPS location.
+              </p>
+
+              {isAutoCallActive && (
+                <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden border border-white/10">
+                  <div
+                    className="bg-gradient-to-r from-yellow-400 via-amber-500 to-red-500 h-full transition-all duration-1000 ease-linear"
+                    style={{ width: `${(autoCallSeconds / 30) * 100}%` }}
+                  />
+                </div>
+              )}
+
+              {isAutoCallActive && (
+                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                  <span>⚡ Auto-calling at 0s if no button is tapped</span>
+                  <button
+                    type="button"
+                    onClick={handleCancelAutoCall}
+                    className="px-2.5 py-0.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white font-bold transition cursor-pointer"
+                  >
+                    Cancel Auto-Call
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Primary Speed-Dial Bar - Ultra Large Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* 119 Police */}
-          <a
-            href="tel:119"
-            className="p-5 rounded-3xl bg-gradient-to-br from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white shadow-2xl shadow-red-950/80 border-2 border-yellow-300/80 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+          <button
+            type="button"
+            onClick={() => handleSelectCall('119', '119 Police & Tactical Dispatch', '119')}
+            className="p-5 rounded-3xl bg-gradient-to-br from-red-600 to-red-800 hover:from-red-500 hover:to-red-700 text-white shadow-2xl shadow-red-950/80 border-2 border-yellow-300/80 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group cursor-pointer text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-wider bg-yellow-400 text-slate-950 px-2 py-0.5 rounded-full">
@@ -260,12 +401,13 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
               <span className="text-2xl sm:text-3xl font-black block tracking-tight">CALL 119</span>
               <span className="text-xs text-red-100 font-bold block">Jamaica Police &amp; Tactical Dispatch</span>
             </div>
-          </a>
+          </button>
 
           {/* 110 Fire & Ambulance */}
-          <a
-            href="tel:110"
-            className="p-5 rounded-3xl bg-gradient-to-br from-orange-600 to-amber-800 hover:from-orange-500 hover:to-amber-700 text-white shadow-2xl shadow-orange-950/80 border-2 border-white/30 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+          <button
+            type="button"
+            onClick={() => handleSelectCall('110', '110 Fire Brigade & Ambulance', '110')}
+            className="p-5 rounded-3xl bg-gradient-to-br from-orange-600 to-amber-800 hover:from-orange-500 hover:to-amber-700 text-white shadow-2xl shadow-orange-950/80 border-2 border-white/30 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group cursor-pointer text-left"
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 text-white px-2 py-0.5 rounded-full">
@@ -279,7 +421,7 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
               <span className="text-2xl sm:text-3xl font-black block tracking-tight">CALL 110</span>
               <span className="text-xs text-orange-100 font-bold block">Jamaica Fire Brigade &amp; Emergency EMS</span>
             </div>
-          </a>
+          </button>
 
           {/* Attending Nurse, Last Visiting Nurse, or Direct We Care Emergency Operations */}
           {isClientView ? (
