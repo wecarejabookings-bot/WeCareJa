@@ -134,6 +134,31 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
     type: '119' | '110' | 'station' | 'auto_nearest';
   } | null>(null);
   const [hasAutoCalled, setHasAutoCalled] = useState<boolean>(false);
+  const [hasTriggeredImmediateCall, setHasTriggeredImmediateCall] = useState<boolean>(false);
+
+  // When SOS emergency is triggered, call closest police station immediately based on actual location
+  useEffect(() => {
+    if (!isOpen || hasTriggeredImmediateCall || !nearestPolice) return;
+
+    setHasTriggeredImmediateCall(true);
+    setSelectedCallTarget({
+      name: nearestPolice.name,
+      phone: nearestPolice.primaryPhone,
+      type: 'auto_nearest'
+    });
+    setHasAutoCalled(true);
+    setIsAutoCallActive(false);
+
+    try {
+      if ('speechSynthesis' in window) {
+        const utter = new SpeechSynthesisUtterance(`Emergency SOS: Calling closest police station, ${nearestPolice.name}, based on your actual location.`);
+        utter.rate = 1.05;
+        window.speechSynthesis.speak(utter);
+      }
+    } catch {}
+
+    window.location.href = formatTelHref(nearestPolice.primaryPhone);
+  }, [isOpen, nearestPolice, hasTriggeredImmediateCall]);
 
   // Auto-call nearest station if no selection made in 30 seconds
   useEffect(() => {
@@ -495,7 +520,7 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
           )}
 
           {/* Family Emergency Contact or Hospital ER */}
-          {emergencyData.emergencyContact?.phone ? (
+          {emergencyData.emergencyContact?.name && emergencyData.emergencyContact?.phone ? (
             <a
               href={`tel:${String(emergencyData.emergencyContact.phone).replace(/[^0-9+]/g, '')}`}
               className="p-5 rounded-3xl bg-gradient-to-br from-emerald-700 to-teal-900 hover:from-emerald-600 hover:to-teal-800 text-white shadow-2xl shadow-emerald-950/80 border-2 border-emerald-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
@@ -520,22 +545,22 @@ export const FullScreenEmergencySOSOverlay: React.FC<FullScreenEmergencySOSOverl
           ) : (
             <a
               href="tel:+18769271620"
-              className="p-5 rounded-3xl bg-gradient-to-br from-emerald-700 to-teal-900 hover:from-emerald-600 hover:to-teal-800 text-white shadow-2xl shadow-emerald-950/80 border-2 border-emerald-400/40 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
+              className="p-5 rounded-3xl bg-gradient-to-br from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white shadow-2xl shadow-black/80 border-2 border-white/20 transition transform hover:-translate-y-0.5 flex flex-col justify-between gap-2 group"
             >
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-500/40 text-emerald-200 px-2 py-0.5 rounded-full">
-                  Hospital ER Line
+                <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 text-slate-300 px-2 py-0.5 rounded-full">
+                  Next of Kin / Contact
                 </span>
                 <div className="p-2 rounded-xl bg-white/20 group-hover:scale-110 transition">
                   <PhoneCall className="w-5 h-5 text-white" />
                 </div>
               </div>
               <div>
-                <span className="text-lg sm:text-xl font-black block tracking-tight truncate">
-                  UHWI Mona Emergency
+                <span className="text-sm sm:text-base font-bold text-slate-300 block">
+                  Not Recorded on Profile
                 </span>
-                <span className="text-xs text-emerald-200 block truncate">
-                  +1 (876) 927-1620 • Level-1 Trauma
+                <span className="text-xs text-emerald-400 block truncate font-semibold mt-0.5">
+                  Call UHWI Trauma ER: +1 (876) 927-1620
                 </span>
               </div>
             </a>

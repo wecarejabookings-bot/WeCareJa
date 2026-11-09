@@ -707,7 +707,7 @@ export interface ClientPatientBioData {
   dietaryRestrictions?: string;
   specialCareInstructions?: string;
   medications: PatientMedication[];
-  trustedFamilyMember: TrustedFamilyMember;
+  trustedFamilyMember?: TrustedFamilyMember;
   profileSharedWith?: string[]; // email addresses or phone numbers
   vitalsLog?: SyncedHealthReading[];
 }

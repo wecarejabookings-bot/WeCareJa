@@ -13,6 +13,9 @@ interface PanicModalProps {
   userRole: 'client' | 'nurse' | 'admin';
   userName?: string;
   userAddress?: string;
+  initialLat?: number | null;
+  initialLng?: number | null;
+  autoCallOnOpen?: boolean;
 }
 
 export const PanicModal: React.FC<PanicModalProps> = ({
@@ -21,15 +24,45 @@ export const PanicModal: React.FC<PanicModalProps> = ({
   activeBooking,
   userRole,
   userName,
-  userAddress
+  userAddress,
+  initialLat = null,
+  initialLng = null,
+  autoCallOnOpen = true
 }) => {
   const [alertSent, setAlertSent] = useState(false);
   const [isPolicePopupOpen, setIsPolicePopupOpen] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  const effectiveAddress = activeBooking?.clientAddress || userAddress || 'Kingston & St. Andrew, Jamaica';
+  const effectiveAddress = (activeBooking?.clientAddress || userAddress || '').trim();
   const effectiveName = activeBooking?.clientName || userName || (userRole === 'nurse' ? 'WeCareJa Nurse' : 'WeCareJa Client');
-  const nearestPolice = findNearestPoliceStations(null, null, effectiveAddress, 1)[0];
+
+  const [liveCoords, setLiveCoords] = useState<{ lat: number; lng: number } | null>(() => {
+    if (initialLat && initialLng) {
+      return { lat: initialLat, lng: initialLng };
+    }
+    return null;
+  });
+
+  // Query live physical GPS immediately upon modal opening
+  useEffect(() => {
+    if (!isOpen) return;
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLiveCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        },
+        (err) => console.warn('Panic GPS note:', err.message),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
+      );
+    }
+  }, [isOpen]);
+
+  const nearestPolice = findNearestPoliceStations(
+    liveCoords?.lat ?? initialLat,
+    liveCoords?.lng ?? initialLng,
+    effectiveAddress || 'Kingston & St. Andrew, Jamaica',
+    1
+  )[0];
 
   const formatTelHref = (phone: string) => {
     const digits = phone.replace(/[^0-9+]/g, '');
@@ -49,6 +82,31 @@ export const PanicModal: React.FC<PanicModalProps> = ({
     phone: string;
   } | null>(null);
   const [hasAutoCalled, setHasAutoCalled] = useState<boolean>(false);
+  const [hasTriggeredImmediateCall, setHasTriggeredImmediateCall] = useState<boolean>(false);
+
+  // When SOS emergency is triggered, call closest police station immediately based on actual location
+  useEffect(() => {
+    if (!isOpen || !autoCallOnOpen || hasTriggeredImmediateCall || !nearestPolice) return;
+
+    setHasTriggeredImmediateCall(true);
+    setSelectedAction({
+      type: 'auto_nearest',
+      name: nearestPolice.name,
+      phone: nearestPolice.primaryPhone
+    });
+    setHasAutoCalled(true);
+    setIsAutoCallActive(false);
+
+    try {
+      if ('speechSynthesis' in window) {
+        const utter = new SpeechSynthesisUtterance(`Emergency SOS: Calling closest police station, ${nearestPolice.name}, based on your actual location.`);
+        utter.rate = 1.05;
+        window.speechSynthesis.speak(utter);
+      }
+    } catch {}
+
+    window.location.href = formatTelHref(nearestPolice.primaryPhone);
+  }, [isOpen, autoCallOnOpen, nearestPolice, hasTriggeredImmediateCall]);
 
   // 30-second countdown: if no selection is made, automatically call nearest station based on location
   useEffect(() => {

@@ -410,14 +410,14 @@ export const Header: React.FC<HeaderProps> = ({
             />
           )}
 
-          {/* 119 Emergency Panic Button (Always Visible) */}
+          {/* Emergency SOS Panic Button (Always Visible) */}
           <button
             onClick={onOpenPanic}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black shadow-md border border-red-400/40 transition group cursor-pointer shrink-0"
-            title="Immediate Speed Dial to 119 Emergency Dispatch"
+            title="Emergency SOS: Determines actual location and calls closest police station / 119"
           >
             <ShieldAlert className="w-4 h-4 text-white animate-pulse" />
-            <span>SOS 119</span>
+            <span>Emergency SOS</span>
           </button>
 
           {/* Medical Supplies Store (/store) - Rendered for Authenticated Users */}

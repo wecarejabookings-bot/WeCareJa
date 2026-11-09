@@ -55,13 +55,13 @@ export const PatientMedicationReminderCard: React.FC<PatientMedicationReminderCa
         purpose: 'Blood glucose regulation'
       }
     ],
-    trustedFamilyMember: {
-      name: booking.clientEmergencyContact?.name || 'David Campbell',
-      relation: booking.clientEmergencyContact?.relation || 'Son (Guardian)',
-      phone: booking.clientEmergencyContact?.phone || '+1 (876) 555-9988',
-      photoUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
+    trustedFamilyMember: booking.clientEmergencyContact?.name ? {
+      name: booking.clientEmergencyContact.name,
+      relation: booking.clientEmergencyContact.relation || 'Emergency Contact',
+      phone: booking.clientEmergencyContact.phone || '',
+      photoUrl: '',
       canManageCare: true
-    }
+    } : undefined
   };
 
   const [administeredMeds, setAdministeredMeds] = useState<Record<string, boolean>>({});

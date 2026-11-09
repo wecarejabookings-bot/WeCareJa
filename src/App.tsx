@@ -32,6 +32,7 @@ import { Header } from './components/common/Header';
 import { WeCareTrackLogo } from './components/common/WeCareTrackLogo';
 import { WeCareTrackSplashScreen } from './components/common/WeCareTrackSplashScreen';
 import type { EmergencySOSData } from './components/common/FullScreenEmergencySOSOverlay';
+import { findNearestPoliceStations } from './data/jamaicaPoliceStations';
 
 const ClientPortal = lazy(() => import('./components/client/ClientPortal').then(m => ({ default: m.ClientPortal })));
 const NursePortal = lazy(() => import('./components/nurse/NursePortal').then(m => ({ default: m.NursePortal })));
@@ -454,6 +455,25 @@ export default function App() {
   const [isFullScreenSOSOpen, setIsFullScreenSOSOpen] = useState<boolean>(() => {
     return Boolean(localStorage.getItem('wecare_active_emergency_sos'));
   });
+
+  // Continuous real-time GPS location tracking for emergency pinpointing
+  const [liveGpsCoords, setLiveGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setLiveGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        undefined,
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
+      );
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => setLiveGpsCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        undefined,
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+      );
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, []);
   const [isLegalTermsOpen, setIsLegalTermsOpen] = useState(false);
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -2064,9 +2084,10 @@ export default function App() {
       relation: ''
     }));
 
-    // Initial GPS Coordinates: standard fallback while querying real device GPS
-    const initialLat = currentUser?.currentLat || 18.0179;
-    const initialLng = currentUser?.currentLng || -76.8099;
+    // Live GPS Coordinates: prioritize live device sensor or user profile
+    const initialLat = liveGpsCoords?.lat ?? (currentUser?.currentLat ?? 18.0179);
+    const initialLng = liveGpsCoords?.lng ?? (currentUser?.currentLng ?? -76.8099);
+    const hasLiveLock = Boolean(liveGpsCoords?.lat && liveGpsCoords?.lng);
 
     const emergencyData: EmergencySOSData = {
       id: `sos-${Date.now()}`,
@@ -2092,7 +2113,7 @@ export default function App() {
         lat: initialLat,
         lng: initialLng
       },
-      gpsAccuracyStatus: 'acquiring',
+      gpsAccuracyStatus: hasLiveLock ? 'locked' : 'acquiring',
       status: 'active'
     };
 
@@ -2149,6 +2170,31 @@ export default function App() {
   const handleOpenPanic = (booking?: Booking) => {
     const target = booking || bookings.find(b => ['accepted', 'en_route', 'in_progress'].includes(b.status)) || null;
     setEmergencyActiveBooking(target);
+
+    // 1. Determine actual user location: live GPS coordinates first, or real profile address
+    const actualLat = liveGpsCoords?.lat ?? (currentUser?.currentLat ?? null);
+    const actualLng = liveGpsCoords?.lng ?? (currentUser?.currentLng ?? null);
+    const actualAddress = (
+      currentUser?.address || 
+      currentUser?.patientBioData?.residentialAddress || 
+      target?.clientAddress || 
+      currentUser?.zone || 
+      ''
+    ).trim();
+
+    // 2. Identify the closest police station based on actual location without guessing
+    const closestStations = findNearestPoliceStations(actualLat, actualLng, actualAddress, 1);
+    const closestStation = closestStations[0];
+
+    // 3. Place actual phone call immediately to closest police station
+    if (closestStation && closestStation.primaryPhone) {
+      try {
+        const cleanPhone = closestStation.primaryPhone.replace(/[^0-9+]/g, '');
+        const telHref = cleanPhone.startsWith('+1') ? `tel:${cleanPhone}` : cleanPhone.length === 10 ? `tel:+1${cleanPhone}` : `tel:${cleanPhone}`;
+        window.location.href = telHref;
+      } catch {}
+    }
+
     setIsNearestPoliceModalOpen(true);
     handleTriggerFullScreenSOS(target, currentRole);
   };
@@ -2157,9 +2203,7 @@ export default function App() {
   useEffect(() => {
     const handleSosEvent = (e: any) => {
       const detail = e?.detail;
-      setEmergencyActiveBooking(detail?.booking || null);
-      setIsNearestPoliceModalOpen(true);
-      handleTriggerFullScreenSOS(detail?.booking, detail?.userRole);
+      handleOpenPanic(detail?.booking || null);
     };
 
     const handleStorageChange = (e: StorageEvent) => {
@@ -2890,11 +2934,12 @@ export default function App() {
         <NearestPoliceStationModal
           isOpen={isNearestPoliceModalOpen}
           onClose={() => setIsNearestPoliceModalOpen(false)}
-          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || ''}
-          initialLat={emergencyActiveBooking?.clientAddress ? null : (currentUser?.currentLat || null)}
-          initialLng={emergencyActiveBooking?.clientAddress ? null : (currentUser?.currentLng || null)}
+          userAddress={currentUser?.address || currentUser?.patientBioData?.residentialAddress || emergencyActiveBooking?.clientAddress || ''}
+          initialLat={liveGpsCoords?.lat || currentUser?.currentLat || null}
+          initialLng={liveGpsCoords?.lng || currentUser?.currentLng || null}
           userRole={currentRole}
           userName={currentUser ? getDisplayName(currentUser, currentUser) : undefined}
+          autoCallOnOpen={true}
         />
       )}
 
@@ -2905,7 +2950,10 @@ export default function App() {
           activeBooking={emergencyActiveBooking}
           userRole={currentRole}
           userName={currentUser ? getDisplayName(currentUser, currentUser) : undefined}
-          userAddress={currentUser?.address || emergencyActiveBooking?.clientAddress || ''}
+          userAddress={currentUser?.address || currentUser?.patientBioData?.residentialAddress || emergencyActiveBooking?.clientAddress || ''}
+          initialLat={liveGpsCoords?.lat || currentUser?.currentLat || null}
+          initialLng={liveGpsCoords?.lng || currentUser?.currentLng || null}
+          autoCallOnOpen={true}
         />
       )}
 

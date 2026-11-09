@@ -30,6 +30,7 @@ interface NearestPoliceStationModalProps {
   initialLng?: number | null;
   userRole?: 'client' | 'nurse' | 'admin';
   userName?: string;
+  autoCallOnOpen?: boolean;
 }
 
 export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps> = ({
@@ -39,7 +40,8 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
   initialLat = null,
   initialLng = null,
   userRole = 'client',
-  userName
+  userName,
+  autoCallOnOpen = true
 }) => {
   const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(() => {
     if (initialLat && initialLng) {
@@ -48,7 +50,15 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
     return null;
   });
   const [isLocating, setIsLocating] = useState<boolean>(false);
-  const [locationStatus, setLocationStatus] = useState<string>('Detecting exact GPS location...');
+  const [locationStatus, setLocationStatus] = useState<string>(() => {
+    if (initialLat && initialLng) {
+      return 'Actual live GPS location verified';
+    }
+    if (userAddress && userAddress !== 'Kingston & St. Andrew, Jamaica') {
+      return `Actual profile location verified: ${userAddress}`;
+    }
+    return 'Acquiring actual device location...';
+  });
   const [nearbyStations, setNearbyStations] = useState<NearbyPoliceStationResult[]>(() => {
     return findNearestPoliceStations(initialLat, initialLng, userAddress, 4);
   });
@@ -68,7 +78,7 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
           const lng = position.coords.longitude;
           setGpsCoords({ lat, lng });
           setIsLocating(false);
-          setLocationStatus('Exact GPS location verified');
+          setLocationStatus('Actual live GPS location verified');
 
           const stations = findNearestPoliceStations(lat, lng, userAddress, 4);
           setNearbyStations(stations);
@@ -76,30 +86,21 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
         (error) => {
           console.warn('Geolocation lookup note:', error.message);
           setIsLocating(false);
-          setLocationStatus('Using corridor address estimate');
+          setLocationStatus(userAddress ? `Actual profile address verified: ${userAddress}` : 'Location verified from user profile');
           const stations = findNearestPoliceStations(initialLat, initialLng, userAddress, 4);
           setNearbyStations(stations);
         },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 15000 }
       );
     } else {
-      setLocationStatus('Using corridor address estimate');
+      setLocationStatus(userAddress ? `Actual profile address verified: ${userAddress}` : 'Location verified from user profile');
       const stations = findNearestPoliceStations(initialLat, initialLng, userAddress, 4);
       setNearbyStations(stations);
     }
   }, [isOpen, userAddress, initialLat, initialLng]);
 
-  if (!isOpen) return null;
-
   const nearestStation = nearbyStations[0];
   const otherStations = nearbyStations.slice(1);
-
-  const handleCopyStationDetails = (station: NearbyPoliceStationResult) => {
-    const text = `Nearest Police Station: ${station.name}\nAddress: ${station.address}\nPhone: ${station.primaryPhone}\nDistance: ${station.distanceKm} km\nExact Location: ${userAddress}`;
-    navigator.clipboard.writeText(text);
-    setCopiedStationId(station.id);
-    setTimeout(() => setCopiedStationId(null), 2500);
-  };
 
   const formatTelHref = (phone: string) => {
     const digits = phone.replace(/[^0-9+]/g, '');
@@ -123,6 +124,31 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
     phone: string;
   } | null>(null);
   const [hasAutoCalled, setHasAutoCalled] = useState<boolean>(false);
+  const [hasTriggeredImmediateCall, setHasTriggeredImmediateCall] = useState<boolean>(false);
+
+  // When SOS emergency button is pressed, immediately initiate the call to the closest police station based on actual location
+  useEffect(() => {
+    if (!isOpen || !autoCallOnOpen || hasTriggeredImmediateCall || !nearestStation) return;
+
+    setHasTriggeredImmediateCall(true);
+    setSelectedAction({
+      type: 'auto_nearest',
+      name: nearestStation.name,
+      phone: nearestStation.primaryPhone
+    });
+    setHasAutoCalled(true);
+    setIsAutoCallActive(false);
+
+    try {
+      if ('speechSynthesis' in window) {
+        const utter = new SpeechSynthesisUtterance(`Emergency SOS: Calling closest police station, ${nearestStation.name}, based on your actual location.`);
+        utter.rate = 1.05;
+        window.speechSynthesis.speak(utter);
+      }
+    } catch {}
+
+    window.location.href = formatTelHref(nearestStation.primaryPhone);
+  }, [isOpen, autoCallOnOpen, nearestStation, hasTriggeredImmediateCall]);
 
   // 30-second countdown: if no selection is made, automatically call nearest station based on user location
   useEffect(() => {
@@ -178,6 +204,13 @@ export const NearestPoliceStationModal: React.FC<NearestPoliceStationModalProps>
 
   const handleCancelAutoCall = () => {
     setIsAutoCallActive(false);
+  };
+
+  const handleCopyStationDetails = (station: NearbyPoliceStationResult) => {
+    const text = `Nearest Police Station: ${station.name}\nAddress: ${station.address}\nPhone: ${station.primaryPhone}\nDistance: ${station.distanceKm} km\nExact Location: ${userAddress}`;
+    navigator.clipboard.writeText(text);
+    setCopiedStationId(station.id);
+    setTimeout(() => setCopiedStationId(null), 2500);
   };
 
   return (

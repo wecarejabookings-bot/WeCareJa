@@ -277,31 +277,31 @@ export const VisualMedicationSchedule: React.FC<VisualMedicationScheduleProps> =
         ...currentUser,
         patientBioData: {
           ...(currentUser.patientBioData || {
-            knownIllnesses: ['Hypertension'],
-            allergies: ['Penicillin'],
+            knownIllnesses: [],
+            allergies: [],
             medications: [],
-            trustedFamilyMember: {
-              name: 'David Campbell',
-              relation: 'Son',
-              phone: '1876-555-0199',
+            trustedFamilyMember: currentUser.emergencyContact ? {
+              name: currentUser.emergencyContact.name,
+              relation: currentUser.emergencyContact.relation || '',
+              phone: currentUser.emergencyContact.phone || '',
               photoUrl: '',
               canManageCare: true
-            }
+            } : undefined
           }),
           medications: updatedMeds
         },
         bioData: {
           ...(currentUser.bioData || currentUser.patientBioData || {
-            knownIllnesses: ['Hypertension'],
-            allergies: ['Penicillin'],
+            knownIllnesses: [],
+            allergies: [],
             medications: [],
-            trustedFamilyMember: {
-              name: 'David Campbell',
-              relation: 'Son',
-              phone: '1876-555-0199',
+            trustedFamilyMember: currentUser.emergencyContact ? {
+              name: currentUser.emergencyContact.name,
+              relation: currentUser.emergencyContact.relation || '',
+              phone: currentUser.emergencyContact.phone || '',
               photoUrl: '',
               canManageCare: true
-            }
+            } : undefined
           }),
           medications: updatedMeds
         }
