@@ -397,6 +397,7 @@ export interface Booking {
   distanceKm?: number;
   nurseLiveLat?: number;
   nurseLiveLng?: number;
+  offlinePendingCreation?: boolean;
   offlinePendingNotes?: boolean;
   offlinePendingArrival?: boolean;
   offlinePendingCheckout?: boolean;

@@ -82,6 +82,7 @@ import {
   Plus, 
   Globe, 
   Newspaper,
+  HardDrive,
   Map as MapIcon,
   LayoutGrid,
   Car,
@@ -123,6 +124,16 @@ import { CaregiverPromptModal, PromptModalType } from './CaregiverPromptModal';
 import { SuppliesChecklistModal } from '../common/SuppliesChecklistModal';
 import { NursingTeamDirectoryModal } from './NursingTeamDirectoryModal';
 import { LovedOneCheckReminderBanner } from './LovedOneCheckReminderBanner';
+import { 
+  saveBookingFormDraft, 
+  getBookingFormDraft, 
+  clearBookingFormDraft, 
+  hasBookingFormDraft,
+  isNetworkOnline,
+  enqueueOfflineBooking,
+  useNetworkStatus,
+  BookingFormDraft
+} from '../../utils/offlineSyncManager';
 
 interface ClientPortalProps {
   services: ServiceItem[];
@@ -248,6 +259,115 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
     type: 'dispatched',
     booking: null
   });
+
+  // Offline sync & draft manager state
+  const {
+    isOnline: isNetworkCurrentOnline,
+    showRestoredAlert,
+    dismissRestoredAlert,
+    pendingCount
+  } = useNetworkStatus();
+  const [restorableDraft, setRestorableDraft] = useState<BookingFormDraft | null>(null);
+  const [hasDismissedDraftBanner, setHasDismissedDraftBanner] = useState<boolean>(false);
+  const [draftLastSavedTime, setDraftLastSavedTime] = useState<string | null>(null);
+
+  // Check on mount if an unsaved booking draft exists in localStorage
+  useEffect(() => {
+    const draft = getBookingFormDraft();
+    if (draft && (draft.serviceId || draft.clientAddress || draft.notes || draft.selectedNurseId)) {
+      setRestorableDraft(draft);
+      setDraftLastSavedTime(draft.lastSavedAt);
+    }
+  }, []);
+
+  // Auto-save form state to localStorage as user enters booking information
+  useEffect(() => {
+    // Only auto-save if inside wizard steps and some field is entered
+    if (currentStep !== 'browse' && currentStep !== 'success') {
+      const draftData: Partial<BookingFormDraft> = {
+        serviceId: selectedService?.id,
+        serviceName: selectedService?.name,
+        zone: selectedZone,
+        clientAddress,
+        clientName,
+        clientPhone,
+        emergencyName,
+        emergencyPhone,
+        emergencyRelation,
+        visitDate,
+        visitTime,
+        notes,
+        selectedNurseId: selectedNurse?.id,
+        selectedNurseName: selectedNurse?.name,
+        paymentMethod,
+        currentStep
+      };
+      saveBookingFormDraft(draftData);
+      setDraftLastSavedTime(new Date().toISOString());
+    }
+  }, [
+    currentStep,
+    selectedService,
+    selectedZone,
+    clientAddress,
+    clientName,
+    clientPhone,
+    emergencyName,
+    emergencyPhone,
+    emergencyRelation,
+    visitDate,
+    visitTime,
+    notes,
+    selectedNurse,
+    paymentMethod
+  ]);
+
+  const handleRestoreBookingDraft = () => {
+    const draft = restorableDraft || getBookingFormDraft();
+    if (!draft) return;
+
+    if (draft.serviceId) {
+      const srv = services.find(s => s.id === draft.serviceId);
+      if (srv) setSelectedService(srv);
+    }
+    if (draft.zone) setSelectedZone(draft.zone);
+    if (draft.clientAddress) setClientAddress(draft.clientAddress);
+    if (draft.clientName) setClientName(draft.clientName);
+    if (draft.clientPhone) setClientPhone(draft.clientPhone);
+    if (draft.emergencyName) setEmergencyName(draft.emergencyName);
+    if (draft.emergencyPhone) setEmergencyPhone(draft.emergencyPhone);
+    if (draft.emergencyRelation) setEmergencyRelation(draft.emergencyRelation);
+    if (draft.visitDate) setVisitDate(draft.visitDate);
+    if (draft.visitTime) setVisitTime(draft.visitTime);
+    if (draft.notes) setNotes(draft.notes);
+    if (draft.selectedNurseId) {
+      const nurse = nurses.find(n => n.id === draft.selectedNurseId);
+      if (nurse) setSelectedNurse(nurse);
+    }
+    if (draft.paymentMethod) {
+      setPaymentMethod(draft.paymentMethod as any);
+    }
+
+    if (draft.currentStep && draft.currentStep !== 'browse' && draft.currentStep !== 'success') {
+      setCurrentStep(draft.currentStep);
+    } else if (draft.selectedNurseId) {
+      setCurrentStep('payment_confirm');
+    } else if (draft.serviceId) {
+      setCurrentStep('schedule_location');
+    } else {
+      setCurrentStep('select_service');
+    }
+
+    setRestorableDraft(null);
+    soundFX.playSuccessPing();
+  };
+
+  const handleDiscardBookingDraft = () => {
+    clearBookingFormDraft();
+    setRestorableDraft(null);
+    setHasDismissedDraftBanner(true);
+    soundFX.playGentleDing();
+  };
 
   // Proactive periodic reminder alerting client to check on loved ones
   useEffect(() => {
@@ -668,10 +788,23 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
   const handleCompleteChecklistAndBook = () => {
     if (!pendingBookingToConfirm) return;
+    const isOnline = isNetworkOnline();
+
     const finalizedBooking: Booking = {
       ...pendingBookingToConfirm,
-      supplies_checklist_ack: true
+      supplies_checklist_ack: true,
+      offlinePendingCreation: !isOnline
     };
+
+    if (!isOnline) {
+      // Save locally to offline queue in localStorage!
+      enqueueOfflineBooking(finalizedBooking);
+      clearBookingFormDraft();
+      setRestorableDraft(null);
+    } else {
+      clearBookingFormDraft();
+      setRestorableDraft(null);
+    }
 
     onCreateBooking(finalizedBooking);
     setPromptModal({
@@ -684,19 +817,35 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
     
     // Play gentle 'ding' notification sound & booking request dispatched chime
     soundFX.playGentleDing();
-    soundFX.playBookingRequest();
-    soundFX.triggerNotification(
-      '📩 Booking Request Sent!',
-      `Caregiver ${finalizedBooking.nurseName} has received your booking request for ${new Date(finalizedBooking.scheduledDateTime).toLocaleDateString()} in ${finalizedBooking.zone}. Supplies checklist verified and recorded.`,
-      'booking_confirmed'
-    );
-
-    if (onTriggerNotification) {
-      onTriggerNotification(
-        'booking_confirmed',
-        'Booking Request Dispatched (Pending Acceptance)',
-        `Caregiver ${finalizedBooking.nurseName} notified for visit #${(finalizedBooking?.id || '').slice(0, 8)} (${finalizedBooking.zone}). Supplies verified.`
+    if (isOnline) {
+      soundFX.playBookingRequest();
+      soundFX.triggerNotification(
+        '📩 Booking Request Sent!',
+        `Caregiver ${finalizedBooking.nurseName} has received your booking request for ${new Date(finalizedBooking.scheduledDateTime).toLocaleDateString()} in ${finalizedBooking.zone}. Supplies checklist verified and recorded.`,
+        'booking_confirmed'
       );
+
+      if (onTriggerNotification) {
+        onTriggerNotification(
+          'booking_confirmed',
+          'Booking Request Dispatched (Pending Acceptance)',
+          `Caregiver ${finalizedBooking.nurseName} notified for visit #${(finalizedBooking?.id || '').slice(0, 8)} (${finalizedBooking.zone}). Supplies verified.`
+        );
+      }
+    } else {
+      soundFX.triggerNotification(
+        '💾 Saved to Offline Queue',
+        `Your booking request for ${finalizedBooking.serviceName} is safely saved in local storage. It will synchronize automatically when your internet connection is restored.`,
+        'booking_confirmed'
+      );
+
+      if (onTriggerNotification) {
+        onTriggerNotification(
+          'booking_confirmed',
+          '💾 Offline Booking Queued',
+          `Booking saved in offline queue for ${finalizedBooking.nurseName} (${finalizedBooking.zone}). Will auto-sync when online.`
+        );
+      }
     }
 
     confetti({
@@ -822,6 +971,90 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             onOpenChat={(b) => onOpenChat(b)}
           />
         ))}
+
+      {/* Connection Restored Alert Banner (Prompt user to synchronize queued data) */}
+      {showRestoredAlert && isNetworkCurrentOnline && (
+        <div className="p-4 rounded-3xl bg-gradient-to-r from-emerald-950/80 via-teal-950/60 to-purple-950/80 border border-emerald-400/40 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 shrink-0">
+              <Sparkles className="w-5 h-5 text-emerald-400 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-white">Connection Restored</span>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/30">
+                  Online
+                </span>
+                {pendingCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-200 text-[10px] font-black border border-amber-400/30">
+                    {pendingCount} Queued
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                Your internet connection is back online. Locally saved booking submissions and clinical updates are ready to synchronize with our live Jamaica server.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => {
+                dismissRestoredAlert();
+                window.dispatchEvent(new CustomEvent('wecare_network_status_changed', { detail: { isOnline: true } }));
+                soundFX.playSuccessPing();
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Synchronize Now</span>
+            </button>
+            <button
+              onClick={dismissRestoredAlert}
+              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 text-xs transition cursor-pointer"
+              title="Dismiss alert"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved Booking Form Draft Banner (Preserved in localStorage) */}
+      {restorableDraft && !hasDismissedDraftBanner && currentStep === 'browse' && (
+        <div className="p-4 rounded-3xl bg-gradient-to-r from-purple-950/70 via-indigo-950/50 to-blue-950/60 border border-purple-400/40 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fadeIn">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-purple-500/20 text-purple-300 border border-purple-400/30 shrink-0">
+              <FileText className="w-5 h-5 text-purple-300" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-white">Unsaved Booking Draft Found</span>
+                <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 text-[10px] font-mono">
+                  Saved at {new Date(restorableDraft.lastSavedAt).toLocaleTimeString()}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                We preserved the booking details you entered for <strong>{restorableDraft.serviceName || 'Home Care Service'}</strong> in <strong>{restorableDraft.zone || 'Kingston'}</strong> in your browser's localStorage.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleRestoreBookingDraft}
+              className="px-3.5 py-2 rounded-xl text-xs font-black bg-[#C77DFF] hover:bg-[#b058f5] text-slate-950 transition flex items-center gap-1.5 shadow-md shadow-purple-950/40 cursor-pointer"
+            >
+              <span>Resume Booking</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={handleDiscardBookingDraft}
+              className="px-3 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-red-300 hover:bg-white/5 transition cursor-pointer"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Client Onboarding Hero Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-950/80 via-[#1E1B4B]/40 to-red-950/50 backdrop-blur-xl border border-white/15 text-white p-6 md:p-8 shadow-2xl">
@@ -1311,14 +1544,24 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
 
-            <div className="flex items-center gap-2 text-xs font-bold">
-              <span className={currentStep === 'select_service' ? 'text-[#C77DFF]' : 'text-slate-500'}>1. Service</span>
-              <span className="text-slate-600">→</span>
-              <span className={currentStep === 'schedule_location' ? 'text-[#C77DFF]' : 'text-slate-500'}>2. Schedule</span>
-              <span className="text-slate-600">→</span>
-              <span className={currentStep === 'select_nurse' ? 'text-[#C77DFF]' : 'text-slate-500'}>3. Caregiver</span>
-              <span className="text-slate-600">→</span>
-              <span className={currentStep === 'payment_confirm' ? 'text-[#C77DFF]' : 'text-slate-500'}>4. Payment</span>
+            <div className="flex items-center gap-3">
+              {/* Local Storage Auto-Save Indicator */}
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 border border-white/10 text-[10px] text-slate-300">
+                <span className={`w-2 h-2 rounded-full ${isNetworkCurrentOnline ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
+                <span>
+                  {isNetworkCurrentOnline ? 'Online' : 'Offline'} • Auto-saving to localStorage
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <span className={currentStep === 'select_service' ? 'text-[#C77DFF]' : 'text-slate-500'}>1. Service</span>
+                <span className="text-slate-600">→</span>
+                <span className={currentStep === 'schedule_location' ? 'text-[#C77DFF]' : 'text-slate-500'}>2. Schedule</span>
+                <span className="text-slate-600">→</span>
+                <span className={currentStep === 'select_nurse' ? 'text-[#C77DFF]' : 'text-slate-500'}>3. Caregiver</span>
+                <span className="text-slate-600">→</span>
+                <span className={currentStep === 'payment_confirm' ? 'text-[#C77DFF]' : 'text-slate-500'}>4. Payment</span>
+              </div>
             </div>
           </div>
 
@@ -2508,6 +2751,12 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                               {statusLabel[booking.status]}
                             </span>
                             <span className="text-xs font-mono text-purple-300">#{booking.id}</span>
+                            {booking.offlinePendingCreation && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-400/40 flex items-center gap-1 animate-pulse" title="Saved locally in offline queue • Will synchronize when connected">
+                                <HardDrive className="w-3 h-3 text-amber-400" />
+                                <span>Queued Offline</span>
+                              </span>
+                            )}
                             <PPEReadyBadge booking={booking} />
                           </div>
                           <h4 className="font-bold text-white text-base">{booking.serviceName}</h4>

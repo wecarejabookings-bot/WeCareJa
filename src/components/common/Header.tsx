@@ -127,7 +127,12 @@ export const Header: React.FC<HeaderProps> = ({
     toggleSimulatedOffline, 
     pendingCount, 
     pendingQueue,
-    lastSyncedAt 
+    bookingDraft,
+    hasDraft,
+    lastSyncedAt,
+    showRestoredAlert,
+    dismissRestoredAlert,
+    clearDraft
   } = useNetworkStatus();
 
   const handleToggleSound = () => {
@@ -285,45 +290,64 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Local State & Network Status Indicator - ONLY for Admin */}
-          {isAdmin && (
-            <div className="relative">
-              <button
-                onClick={() => setIsSyncPopoverOpen(prev => !prev)}
+          {/* Network Status & Offline Sync Indicator (Visible to all users) */}
+          <div className="relative">
+            <button
+              onClick={() => setIsSyncPopoverOpen(prev => !prev)}
               className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border backdrop-blur-md text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                isOnline
-                  ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
-                  : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25 shadow-xs'
+                showRestoredAlert && isOnline
+                  ? 'bg-amber-500/25 text-amber-200 border-amber-400 ring-2 ring-amber-400/50 animate-pulse'
+                  : isOnline
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/25 hover:bg-emerald-500/20'
+                    : 'bg-amber-500/15 text-amber-300 border-amber-500/30 hover:bg-amber-500/25 shadow-xs'
               }`}
-              title={isOnline ? 'Online • Synchronized' : 'Offline • Saving to localStorage'}
+              title={
+                showRestoredAlert
+                  ? 'Connection Restored! Click to synchronize your offline data'
+                  : isOnline 
+                    ? 'Online • Synchronized with live database' 
+                    : 'Offline • Form data is safely preserved in localStorage'
+              }
             >
-              <span className="relative flex h-2 w-2">
-                <span
-                  className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    isOnline ? 'bg-emerald-400' : 'bg-amber-400'
-                  }`}
-                />
-                <span
-                  className={`relative inline-flex rounded-full h-2 w-2 ${
-                    isOnline ? 'bg-emerald-400' : 'bg-amber-400'
-                  }`}
-                />
-              </span>
+              {isOnline ? (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                </span>
+              ) : (
+                <WifiOff className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              )}
+              
               <span className="hidden sm:inline">
                 {isOnline ? 'Online' : 'Offline'}
               </span>
+
+              {/* Show pending badge if items in queue */}
               {pendingCount > 0 && (
-                <span className="px-1.5 py-0.2 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/30 text-[9px] font-black">
-                  {pendingCount}
+                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-black ${
+                  isOnline 
+                    ? 'bg-emerald-400/25 text-emerald-200 border border-emerald-400/30 animate-pulse' 
+                    : 'bg-amber-400/20 text-amber-200 border border-amber-400/30'
+                }`}>
+                  {pendingCount} {pendingCount === 1 ? 'Queue' : 'Queued'}
+                </span>
+              )}
+
+              {/* If unsaved booking form draft exists but nothing queued yet */}
+              {pendingCount === 0 && hasDraft && (
+                <span className="px-1.5 py-0.2 rounded-full bg-purple-400/20 text-purple-200 border border-purple-400/30 text-[9px] font-bold" title="Unsaved booking draft saved in localStorage">
+                  Draft
                 </span>
               )}
             </button>
+
             {/* Offline Sync Popover Dropdown */}
             {isSyncPopoverOpen && (
               <div 
-                className="absolute right-0 mt-2 w-72 sm:w-80 p-4 rounded-2xl bg-[#140622]/98 border border-white/15 backdrop-blur-2xl shadow-2xl text-white z-50 animate-fadeIn space-y-3"
+                className="absolute right-0 mt-2 w-72 sm:w-88 p-4 rounded-2xl bg-[#140622]/98 border border-white/15 backdrop-blur-2xl shadow-2xl text-white z-50 animate-fadeIn space-y-3"
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Popover Header */}
                 <div className="flex items-center justify-between pb-2 border-b border-white/10">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
@@ -333,22 +357,56 @@ export const Header: React.FC<HeaderProps> = ({
                   </div>
                   <button
                     onClick={() => setIsSyncPopoverOpen(false)}
-                    className="text-slate-400 hover:text-white text-xs font-bold px-1"
+                    className="text-slate-400 hover:text-white text-xs font-bold px-1 cursor-pointer"
                   >
                     ✕
                   </button>
                 </div>
 
+                {/* Connection Restored Alert Banner */}
+                {showRestoredAlert && (
+                  <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs space-y-1.5 animate-fadeIn">
+                    <div className="flex items-center justify-between font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        Connection Restored!
+                      </span>
+                      <button 
+                        onClick={dismissRestoredAlert}
+                        className="text-amber-400 hover:text-white text-[11px] font-bold"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-amber-100/90 leading-tight">
+                      Internet connection is back. You have offline records ready to synchronize.
+                    </p>
+                    {pendingCount > 0 && (
+                      <button
+                        onClick={() => {
+                          handleManualSync();
+                          dismissRestoredAlert();
+                        }}
+                        className="w-full mt-1 py-1 px-2.5 rounded-lg text-[11px] font-black bg-amber-400 hover:bg-amber-300 text-slate-950 transition flex items-center justify-center gap-1 shadow cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Synchronize Queued Records Now
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Status description */}
                 <div className="text-[11px] text-slate-300 leading-relaxed">
                   {isOnline ? (
                     <p className="flex items-start gap-1.5 text-emerald-200">
                       <Wifi className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                      <span>Live connectivity verified. Clinical notes, vitals, and visit check-ins are actively synced in real time.</span>
+                      <span>Live connectivity active. Booking forms, clinical notes, and doorstep check-ins are synced in real time.</span>
                     </p>
                   ) : (
                     <p className="flex items-start gap-1.5 text-amber-200">
                       <WifiOff className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                      <span>Currently operating offline. Clinical notes and doorstep visit check-ins are saved directly to <strong>localStorage</strong> and queued for automatic state synchronization.</span>
+                      <span>Operating offline. Booking forms, client details, and visits are securely preserved in <strong>localStorage</strong>.</span>
                     </p>
                   )}
                 </div>
@@ -368,35 +426,82 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 </div>
 
+                {/* Pending Actions List */}
                 {pendingCount > 0 && (
                   <div className="max-h-28 overflow-y-auto space-y-1.5 pr-1">
                     {pendingQueue.map((item) => (
-                      <div key={item.id} className="p-2 rounded-lg bg-white/[0.03] border border-white/5 text-[10px] flex items-center justify-between">
+                      <div key={item.id} className="p-2 rounded-lg bg-white/[0.04] border border-white/10 text-[10px] flex items-center justify-between">
                         <span className="capitalize text-slate-200 font-bold">
-                          {String(item?.actionType || 'action').replace(/_/g, ' ')}
+                          {item.actionType === 'create_booking' 
+                            ? `Booking: ${item.data?.booking?.serviceName || 'New Care Request'}`
+                            : String(item.actionType).replace(/_/g, ' ')}
                         </span>
-                        <span className="text-slate-400 font-mono">#{item.bookingId}</span>
+                        <span className="text-slate-400 font-mono text-[9px]">#{item.bookingId.slice(0, 8)}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Controls */}
-                {pendingCount > 0 && isOnline && (
-                  <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
+                {/* Local Booking Form Draft indicator */}
+                {hasDraft && bookingDraft && (
+                  <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-400/30 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-purple-300 font-bold text-[11px] flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5" />
+                        Saved Booking Form Draft
+                      </span>
+                      <button
+                        onClick={clearDraft}
+                        className="text-purple-300 hover:text-red-300 text-[10px] font-bold underline cursor-pointer"
+                        title="Discard saved form draft"
+                      >
+                        Discard
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-slate-300">
+                      <span>{bookingDraft.serviceName || 'Home Nursing Service'}</span>
+                      {bookingDraft.visitDate && <span> • {bookingDraft.visitDate}</span>}
+                      {bookingDraft.zone && <span> ({bookingDraft.zone})</span>}
+                    </div>
+                    <div className="text-[9px] text-slate-400">
+                      Preserved in localStorage at {new Date(bookingDraft.lastSavedAt).toLocaleTimeString()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Last synced timestamp */}
+                {lastSyncedAt && (
+                  <div className="text-[10px] text-slate-400 text-right">
+                    Last synchronized: {new Date(lastSyncedAt).toLocaleTimeString()}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="pt-2 border-t border-white/10 flex flex-col gap-2">
+                  {/* Push sync button if online with queue */}
+                  {pendingCount > 0 && isOnline && (
                     <button
                       onClick={handleManualSync}
                       className="w-full py-1.5 px-3 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-500 hover:opacity-90 text-slate-950 transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/40 cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Push &amp; Synchronize Now</span>
+                      <span>Synchronize Queued Data Now</span>
                     </button>
-                  </div>
-                )}
+                  )}
+
+                  {/* Testing toggle for offline mode */}
+                  <button
+                    onClick={toggleSimulatedOffline}
+                    className="w-full py-1.5 px-3 rounded-xl text-[11px] font-bold bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    title="Toggle simulated network disconnection to test offline form auto-saving and sync queues"
+                  >
+                    <Smartphone className="w-3.5 h-3.5 text-blue-400" />
+                    <span>{isSimulatedOffline ? 'Exit Simulated Offline' : 'Test Offline Mode'}</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
-          )}
 
           {/* Active Booking Quick-SOS Instant Button */}
           {activeBooking && (

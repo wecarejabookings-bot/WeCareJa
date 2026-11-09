@@ -1553,6 +1553,25 @@ export default function App() {
     if (!isNetworkOnline()) return;
 
     const count = processOfflineSyncQueue((action) => {
+      if (action.actionType === 'create_booking' && action.data.booking) {
+        const syncedBooking: Booking = {
+          ...action.data.booking,
+          offlinePendingCreation: false,
+          lastOfflineSyncAt: new Date().toISOString()
+        };
+        setBookings(prev => {
+          const exists = prev.some(b => b.id === syncedBooking.id);
+          if (exists) {
+            return prev.map(b => b.id === syncedBooking.id ? syncedBooking : b);
+          }
+          return [syncedBooking, ...prev];
+        });
+        createBookingInSupabase(syncedBooking).catch(err => {
+          console.warn('Could not write synced booking to Supabase:', err);
+        });
+        return;
+      }
+
       setBookings(prev => prev.map(b => {
         if (b.id === action.bookingId) {
           if (action.actionType === 'save_clinical_notes') {
@@ -1596,7 +1615,7 @@ export default function App() {
       handleTriggerNotification(
         'system_alert',
         '🔄 Local Offline Records Synchronized',
-        `Pushed ${count} locally stored clinical update${count > 1 ? 's' : ''} and visit check-in record${count > 1 ? 's' : ''} to active state.`,
+        `Pushed ${count} locally stored record${count > 1 ? 's' : ''} (including booking submissions) to active state and database.`,
         undefined
       );
     }
