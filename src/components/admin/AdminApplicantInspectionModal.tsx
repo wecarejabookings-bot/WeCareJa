@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { soundFX } from '../../utils/soundEffects';
 import { supabase } from '../../lib/supabase';
+import { fetchApplicantDossier, updateApplicantStatusInDb } from '../../utils/dossierStore';
 
 export interface AdminApplicantInspectionModalProps {
   applicant: any;
@@ -76,6 +77,7 @@ export const isImageUrl = (url: string): boolean => {
   const s = url.toLowerCase();
   if (s.startsWith('data:image/')) return true;
   if (s.startsWith('blob:')) return true;
+  if (s.startsWith('/uploads/')) return true;
   if (s.includes('images.unsplash.com')) return true;
   if (s.includes('format=jpg') || s.includes('format=jpeg') || s.includes('format=png') || s.includes('format=webp')) return true;
   if (/\.(jpe?g|png|webp|gif|svg|bmp|avif)($|\?)/i.test(s)) return true;
@@ -111,6 +113,28 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
   // Storage paths signed URL cache
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
 
+  // Remote server dossier state for full documents
+  const [remoteDossier, setRemoteDossier] = useState<any | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRemote = async () => {
+      const identifier = applicant?.id || applicant?.email;
+      if (identifier) {
+        try {
+          const d = await fetchApplicantDossier(identifier);
+          if (d && isMounted) {
+            setRemoteDossier(d);
+          }
+        } catch (e) {
+          console.warn('[AdminInspection] Failed to fetch remote dossier:', e);
+        }
+      }
+    };
+    fetchRemote();
+    return () => { isMounted = false; };
+  }, [applicant?.id, applicant?.email]);
+
   // Rejection Step 2 Workflow State
   const [modalStep, setModalStep] = useState<'inspect' | 'reject'>('inspect');
   const [selectedRejectDocs, setSelectedRejectDocs] = useState<string[]>(['dl_front']);
@@ -127,15 +151,15 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
 
   if (!applicant) return null;
 
-  // Extract dossier from local storage, embedded JSON in trn, or direct properties
+  // Extract dossier from remote database, local storage, embedded JSON in trn, or direct properties
   const dossier = useMemo(() => {
-    let parsed: any = null;
+    let parsed: any = remoteDossier || null;
 
     // 1. Try localStorage with email
     if (applicant.email) {
       try {
         const raw = localStorage.getItem(`wecare_dossier_${applicant.email.trim().toLowerCase()}`);
-        if (raw) parsed = JSON.parse(raw);
+        if (raw) parsed = { ...JSON.parse(raw), ...parsed };
       } catch {}
     }
 
@@ -420,7 +444,7 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
 
       for (const doc of rawDocumentsList) {
         const u = doc.url;
-        if (u && !u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('data:') && !u.startsWith('blob:')) {
+        if (u && !u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('data:') && !u.startsWith('blob:') && !u.startsWith('/uploads/') && !u.startsWith('/')) {
           try {
             const cleanPath = u.replace(/^(nurse-documents|admin-documents)\//, '');
             const targetBucket = u.startsWith('admin-documents') ? 'admin-documents' : bucket;
@@ -592,6 +616,16 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
         }
       } catch (locErr) {
         console.warn('[AdminInspection] Local storage update notice:', locErr);
+      }
+
+      // 3. Update central server dossiers database
+      try {
+        const identifier = applicant.id || applicant.email;
+        if (identifier) {
+          await updateApplicantStatusInDb(identifier, 'rejected', rejectReason.trim(), selectedRejectDocs);
+        }
+      } catch (dbSyncErr) {
+        console.warn('[AdminInspection] Central database rejection sync notice:', dbSyncErr);
       }
 
       soundFX.playStepComplete();

@@ -49,6 +49,7 @@ import { CameraCaptureModal } from '../common/CameraCaptureModal';
 import { MandatoryBiometricFaceScanner } from './MandatoryBiometricFaceScanner';
 import { compressImageFile } from '../../utils/imageCompression';
 import { supabase, saveNurseProfileToSupabase, saveUsernameToCache } from '../../lib/supabase';
+import { uploadDocument, saveApplicantDossier } from '../../utils/dossierStore';
 import confetti from 'canvas-confetti';
 import { AgreementSignatureBox, SignatureData } from '../common/AgreementSignatureBox';
 import { WeCareTrackLogo } from '../common/WeCareTrackLogo';
@@ -617,35 +618,19 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     setErrorMsg(null);
     if (fileNameSetter) fileNameSetter(file.name);
 
-    // 3. Attempt direct upload to private bucket in Supabase storage
+    // 3. Upload directly to permanent server database storage
     try {
-      const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const storagePath = `uploads/${Date.now()}-${sanitizedName}`;
-
-      const { data: uploadData, error: uploadErr } = await supabase.storage
-        .from(bucket)
-        .upload(storagePath, file, {
-          contentType: file.type,
-          upsert: true
-        });
-
-      if (!uploadErr && uploadData?.path) {
-        // Retrieve signed URL for private bucket
-        const { data: signedData } = await supabase.storage
-          .from(bucket)
-          .createSignedUrl(uploadData.path, 60 * 60 * 24);
-
-        if (signedData?.signedUrl) {
-          setter(signedData.signedUrl);
-          soundFX.playSuccessPing();
-          return;
-        }
+      const uploadRes = await uploadDocument(file, file.name, bucket);
+      if (uploadRes && uploadRes.url) {
+        setter(uploadRes.url);
+        soundFX.playSuccessPing();
+        return;
       }
-    } catch (storageErr) {
-      console.warn('Supabase private storage upload fallback:', storageErr);
+    } catch (uploadErr) {
+      console.warn('[SignupPortal] Server upload error, falling back:', uploadErr);
     }
 
-    // 4. Safe fallback for preview in local wizard before auth session exists
+    // 4. Safe fallback for preview in local wizard
     if (file.type === 'application/pdf') {
       const reader = new FileReader();
       reader.onload = () => {
@@ -998,7 +983,39 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           proofOfAddressUrl: proofOfAddressUrl || undefined
         },
         submittedAt: new Date().toISOString()
-      } : null);
+      } : {
+        type: 'client',
+        role: 'client',
+        fullName: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish: parish,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        photoUrl: profilePhotoUrl || undefined,
+        profilePhotoUrl: profilePhotoUrl || undefined,
+        governmentIdUrl: govIdUrl || undefined,
+        driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
+        driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
+        trnCertificateUrl: trnCertUrl || undefined,
+        proofOfAddressUrl: proofOfAddressUrl || undefined,
+        driversLicenseNumber: driversLicenseNumber.trim() || undefined,
+        emergencyContact: {
+          name: repName.trim() || cleanFullName,
+          phone: repPhone.trim() || cleanPhone,
+          relation: repRelation.trim() || 'Trusted Family'
+        },
+        documents: {
+          profilePhotoUrl: profilePhotoUrl || undefined,
+          governmentIdUrl: govIdUrl || undefined,
+          driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
+          driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
+          trnCertificateUrl: trnCertUrl || undefined,
+          proofOfAddressUrl: proofOfAddressUrl || undefined
+        },
+        submittedAt: new Date().toISOString()
+      });
 
       const dossierJson = dossierPayload ? JSON.stringify(dossierPayload) : '';
       const trnValue = role === 'nurse'
@@ -1006,10 +1023,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         : (role === 'admin' ? `ADMIN-STAFF-${adminStaffId} | DEPT:${adminDepartment} | DOSSIER:${dossierJson}` : '');
 
       if (dossierPayload) {
-        try {
-          localStorage.setItem(`wecare_dossier_${cleanEmail}`, dossierJson);
-          localStorage.setItem(`wecare_dossier_${userId}`, dossierJson);
-        } catch {}
+        // Save to central server database and local cache
+        saveApplicantDossier({
+          ...dossierPayload,
+          id: userId,
+          role: dbRole
+        }).catch(() => {});
       }
 
       // If Admin, verify clearance key and provision via server Edge Function

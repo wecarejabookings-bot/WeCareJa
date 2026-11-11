@@ -143,7 +143,18 @@ async function startServer() {
   // Port 3000 is required by AI Studio dev server reverse proxy
   const PORT = process.env.NODE_ENV === "production" ? (Number(process.env.PORT) || 3000) : 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  const UPLOADS_DIR = path.join(process.cwd(), "public", "uploads");
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+  const DATA_DIR = path.join(process.cwd(), "data");
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  app.use("/uploads", express.static(UPLOADS_DIR));
 
   // Public CORS and iOS Safari cookie/security headers
   app.use((req, res, next) => {
@@ -701,6 +712,307 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     }
 
     return res.json({ success: false, message: "RPCs not configured on Supabase, fallback code handling active" });
+  });
+
+  // ==========================================
+  // APPLICANT DOSSIER & DOCUMENT DATABASE
+  // ==========================================
+  const DOSSIERS_FILE = path.join(DATA_DIR, "dossiers.json");
+
+  function loadDossiers(): Record<string, any> {
+    try {
+      if (fs.existsSync(DOSSIERS_FILE)) {
+        const raw = fs.readFileSync(DOSSIERS_FILE, "utf-8");
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn("[ServerDossier] Failed to read dossiers.json:", e);
+    }
+    return {};
+  }
+
+  function saveDossiers(dossiers: Record<string, any>) {
+    try {
+      fs.writeFileSync(DOSSIERS_FILE, JSON.stringify(dossiers, null, 2), "utf-8");
+    } catch (e) {
+      console.error("[ServerDossier] Failed to write dossiers.json:", e);
+    }
+  }
+
+  // 1. Upload Document (Image or PDF) to permanent server disk storage
+  app.post("/api/documents/upload", async (req, res) => {
+    try {
+      const { dataUrl, fileName, category, userId } = req.body || {};
+      if (!dataUrl || typeof dataUrl !== "string") {
+        return res.status(400).json({ success: false, message: "dataUrl is required" });
+      }
+
+      const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      let mimeType = "image/jpeg";
+      let buffer: Buffer;
+      let extension = "jpg";
+
+      if (matches && matches.length === 3) {
+        mimeType = matches[1];
+        buffer = Buffer.from(matches[2], "base64");
+        if (mimeType.includes("png")) extension = "png";
+        else if (mimeType.includes("webp")) extension = "webp";
+        else if (mimeType.includes("pdf")) extension = "pdf";
+      } else {
+        buffer = Buffer.from(dataUrl, "base64");
+      }
+
+      const cleanBase = (fileName || "doc").replace(/[^a-zA-Z0-9_-]/g, "_").replace(/\.[^/.]+$/, "");
+      const fileId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const diskFileName = `${fileId}_${cleanBase}.${extension}`;
+      const filePath = path.join(UPLOADS_DIR, diskFileName);
+
+      fs.writeFileSync(filePath, buffer);
+      const publicUrl = `/uploads/${diskFileName}`;
+
+      return res.json({
+        success: true,
+        url: publicUrl,
+        fileId,
+        fileName: diskFileName,
+        size: buffer.length,
+        mimeType
+      });
+    } catch (err: any) {
+      console.error("[DocumentUpload] Error:", err);
+      return res.status(500).json({ success: false, message: err?.message || "Failed to save document" });
+    }
+  });
+
+  // 2. Save or update applicant dossier in persistent database
+  app.post("/api/applicants/dossier", async (req, res) => {
+    try {
+      const dossier = req.body || {};
+      const id = dossier.id || dossier.userId || `applicant-${Date.now()}`;
+      const email = (dossier.email || "").toLowerCase().trim();
+
+      if (!email && !id) {
+        return res.status(400).json({ success: false, message: "Email or ID is required" });
+      }
+
+      const dossiers = loadDossiers();
+      const existing = dossiers[id] || (email ? dossiers[email] : null) || {};
+
+      const merged = {
+        ...existing,
+        ...dossier,
+        id,
+        email: email || existing.email,
+        updatedAt: new Date().toISOString(),
+        submittedAt: existing.submittedAt || dossier.submittedAt || new Date().toISOString(),
+        status: dossier.status || existing.status || "pending_approval"
+      };
+
+      dossiers[id] = merged;
+      if (email) {
+        dossiers[email] = merged;
+      }
+
+      saveDossiers(dossiers);
+
+      // Sync compact dossier to Supabase profiles so it is also backed up there
+      if (serverSupabase && email) {
+        try {
+          const roleStr = merged.role || "nurse_pending";
+          const compactDossier = {
+            id,
+            email,
+            photoUrl: merged.photoUrl || merged.profilePhotoUrl,
+            driversLicenseFrontUrl: merged.driversLicenseFrontUrl,
+            driversLicenseBackUrl: merged.driversLicenseBackUrl,
+            trnCertificateUrl: merged.trnCertificateUrl,
+            licenseDocumentUrl: merged.licenseDocumentUrl,
+            governmentIdUrl: merged.governmentIdUrl,
+            policeRecordUrl: merged.policeRecordUrl,
+            bankLetterUrl: merged.bankLetterUrl,
+            proofOfAddressUrl: merged.proofOfAddressUrl,
+            driversLicenseNumber: merged.driversLicenseNumber
+          };
+          const trnVal = `${merged.ncjLicense || ''} | TRN: ${merged.trnNumber || merged.trn || ''} | DOSSIER:${JSON.stringify(compactDossier)}`;
+          await serverSupabase.from("profiles").upsert({
+            id,
+            email,
+            full_name: merged.fullName || merged.name,
+            phone: merged.phone,
+            address: merged.address,
+            role: roleStr,
+            trn: trnVal
+          }, { onConflict: "id" });
+        } catch (sbErr) {
+          console.warn("[ServerDossier] Supabase mirror notice:", sbErr);
+        }
+      }
+
+      return res.json({ success: true, dossier: merged });
+    } catch (err: any) {
+      console.error("[ServerDossier] Error saving dossier:", err);
+      return res.status(500).json({ success: false, message: err?.message || "Failed to save dossier" });
+    }
+  });
+
+  // 3. Get all applicant dossiers for Admin Inspection
+  app.get("/api/applicants/dossiers", async (req, res) => {
+    try {
+      const dossiers = loadDossiers();
+      const uniqueList: any[] = [];
+      const seenIds = new Set<string>();
+
+      for (const val of Object.values(dossiers)) {
+        if (val?.id && !seenIds.has(val.id)) {
+          seenIds.add(val.id);
+          uniqueList.push(val);
+        }
+      }
+
+      // Also merge any Supabase profiles that have DOSSIER in trn
+      if (serverSupabase) {
+        try {
+          const { data: profiles } = await serverSupabase
+            .from("profiles")
+            .select("*")
+            .in("role", ["nurse_pending", "admin_pending", "nurse", "caregiver"]);
+
+          if (profiles && Array.isArray(profiles)) {
+            for (const p of profiles) {
+              if (!seenIds.has(p.id)) {
+                let enriched: any = {
+                  id: p.id,
+                  email: p.email,
+                  fullName: p.full_name,
+                  phone: p.phone,
+                  address: p.address,
+                  role: p.role,
+                  status: p.role === "nurse" ? "approved" : "pending_approval"
+                };
+
+                if (p.trn && p.trn.includes("DOSSIER:")) {
+                  try {
+                    const jsonStart = p.trn.indexOf("DOSSIER:");
+                    const parsed = JSON.parse(p.trn.substring(jsonStart + 8).trim());
+                    enriched = { ...parsed, ...enriched };
+                  } catch {}
+                }
+
+                seenIds.add(p.id);
+                uniqueList.push(enriched);
+              }
+            }
+          }
+        } catch {}
+      }
+
+      return res.json({ success: true, dossiers: uniqueList });
+    } catch (err: any) {
+      console.error("[ServerDossier] Error getting dossiers:", err);
+      return res.status(500).json({ success: false, message: "Failed to get dossiers" });
+    }
+  });
+
+  // 4. Get a specific dossier by id or email
+  app.get("/api/applicants/dossier/:identifier", async (req, res) => {
+    try {
+      const identifier = decodeURIComponent(req.params.identifier).toLowerCase().trim();
+      const dossiers = loadDossiers();
+      let match = dossiers[identifier] || Object.values(dossiers).find((d: any) => 
+        (d.id && d.id.toLowerCase() === identifier) || 
+        (d.email && d.email.toLowerCase() === identifier) ||
+        (d.username && d.username.toLowerCase() === identifier)
+      );
+
+      if (!match && serverSupabase) {
+        try {
+          const { data: p } = await serverSupabase
+            .from("profiles")
+            .select("*")
+            .or(`id.eq.${identifier},email.ilike.${identifier}`)
+            .maybeSingle();
+
+          if (p) {
+            match = {
+              id: p.id,
+              email: p.email,
+              fullName: p.full_name,
+              phone: p.phone,
+              address: p.address,
+              role: p.role,
+              status: p.role === "nurse" ? "approved" : "pending_approval"
+            };
+            if (p.trn && p.trn.includes("DOSSIER:")) {
+              try {
+                const jsonStart = p.trn.indexOf("DOSSIER:");
+                const parsed = JSON.parse(p.trn.substring(jsonStart + 8).trim());
+                match = { ...parsed, ...match };
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+
+      if (match) {
+        return res.json({ success: true, dossier: match });
+      }
+
+      return res.status(404).json({ success: false, message: "Dossier not found" });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: "Error loading dossier" });
+    }
+  });
+
+  // 5. Update applicant approval/rejection status
+  app.put("/api/applicants/dossier/:identifier/status", async (req, res) => {
+    try {
+      const identifier = decodeURIComponent(req.params.identifier).toLowerCase().trim();
+      const { status, reason, rejectedDocuments } = req.body || {};
+      const dossiers = loadDossiers();
+
+      let match = dossiers[identifier] || Object.values(dossiers).find((d: any) => 
+        (d.id && d.id.toLowerCase() === identifier) || 
+        (d.email && d.email.toLowerCase() === identifier)
+      );
+
+      if (!match) {
+        match = { id: identifier, status };
+      }
+
+      match.status = status;
+      match.updatedAt = new Date().toISOString();
+      if (status === "approved") {
+        match.approvalStatus = "approved";
+        match.role = match.role?.includes("admin") ? "admin" : "nurse";
+        match.approvedAt = new Date().toISOString();
+      } else if (status === "rejected") {
+        match.approvalStatus = "rejected";
+        match.rejection_reason = reason || "Documentation requirements not met";
+        match.rejected_documents = rejectedDocuments || [];
+        match.rejection_date = new Date().toISOString();
+      }
+
+      dossiers[match.id] = match;
+      if (match.email) dossiers[match.email.toLowerCase()] = match;
+      saveDossiers(dossiers);
+
+      // Sync with Supabase
+      if (serverSupabase) {
+        try {
+          const newRole = status === "approved" 
+            ? (match.role?.includes("admin") ? "admin" : "nurse")
+            : "rejected";
+          await serverSupabase.from("profiles").update({
+            role: newRole,
+            trn: status === "rejected" ? `[REJECTED: ${reason || ''}]` : match.trn
+          }).eq("id", match.id);
+        } catch {}
+      }
+
+      return res.json({ success: true, dossier: match });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: "Error updating status" });
+    }
   });
 
   // ==========================================

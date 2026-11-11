@@ -83,6 +83,7 @@ import { supabase, updateBookingPriceInSupabase, saveNurseProfileToSupabase } fr
 import { getDisplayName } from '../../utils/privacy';
 import { AdminApplicantInspectionModal } from './AdminApplicantInspectionModal';
 import { AdminRejectApplicantModal } from './AdminRejectApplicantModal';
+import { fetchAllApplicantDossiers, fetchApplicantDossier, updateApplicantStatusInDb } from '../../utils/dossierStore';
 
 export interface PendingNurseProfile {
   id: string;
@@ -514,6 +515,67 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         console.warn('[AdminPortal] Local pending nurses check notice:', lErr);
       }
 
+      // Merge central server dossiers from persistent database
+      try {
+        const serverDossiers = await fetchAllApplicantDossiers();
+        for (const sd of serverDossiers) {
+          const sdEmail = (sd.email || '').toLowerCase().trim();
+          if (sd.status === 'approved' || sd.approvalStatus === 'approved') continue;
+          if (sdEmail === 'wecareja.bookings@gmail.com' || sdEmail === 'sydney@wecareja.com') continue;
+
+          const matchIdx = list.findIndex(p => (p.email && p.email.toLowerCase() === sdEmail) || (p.id && p.id === sd.id));
+          if (matchIdx !== -1) {
+            list[matchIdx] = {
+              ...list[matchIdx],
+              rejection_date: list[matchIdx].rejection_date || sd.rejection_date,
+              rejection_reason: list[matchIdx].rejection_reason || sd.rejection_reason,
+              rejected_documents: list[matchIdx].rejected_documents || sd.rejected_documents,
+              dossier: sd,
+              photoUrl: list[matchIdx].photoUrl || sd.photoUrl || sd.profilePhotoUrl || sd.documents?.profilePhotoUrl,
+              profilePhotoUrl: list[matchIdx].profilePhotoUrl || sd.profilePhotoUrl || sd.photoUrl || sd.documents?.profilePhotoUrl,
+              trnCertificateUrl: list[matchIdx].trnCertificateUrl || sd.trnCertificateUrl || sd.documents?.trnCertificateUrl,
+              driversLicenseFrontUrl: list[matchIdx].driversLicenseFrontUrl || sd.driversLicenseFrontUrl || sd.documents?.driversLicenseFrontUrl,
+              driversLicenseBackUrl: list[matchIdx].driversLicenseBackUrl || sd.driversLicenseBackUrl || sd.documents?.driversLicenseBackUrl,
+              governmentIdUrl: list[matchIdx].governmentIdUrl || sd.governmentIdUrl || sd.documents?.governmentIdUrl,
+              licenseDocumentUrl: list[matchIdx].licenseDocumentUrl || sd.licenseDocumentUrl || sd.documents?.licenseDocumentUrl,
+              policeRecordUrl: list[matchIdx].policeRecordUrl || sd.policeRecordUrl || sd.documents?.policeRecordUrl,
+              bankLetterUrl: list[matchIdx].bankLetterUrl || sd.bankLetterUrl || sd.documents?.bankLetterUrl,
+              proofOfAddressUrl: list[matchIdx].proofOfAddressUrl || sd.proofOfAddressUrl || sd.documents?.proofOfAddressUrl,
+            };
+          } else {
+            list.push({
+              id: sd.id || `dossier-${sdEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              full_name: sd.fullName || sd.name || 'Applicant',
+              username: sdEmail ? sdEmail.split('@')[0] : 'applicant_pending',
+              email: sdEmail || null,
+              role: (sd.role && sd.role.includes('admin')) ? 'admin_pending' : 'nurse_pending',
+              phone: sd.phone || null,
+              address: sd.address ? `${sd.address}, ${sd.parish || 'Kingston'}` : (sd.parish || 'Kingston'),
+              trn: sd.trnNumber || sd.trn || 'Statutory TRN on Record',
+              created_at: sd.submittedAt || new Date().toISOString(),
+              status: sd.status || 'pending',
+              rejection_date: sd.rejection_date || null,
+              rejection_reason: sd.rejection_reason || null,
+              rejected_documents: sd.rejected_documents || null,
+              photoUrl: sd.photoUrl || sd.profilePhotoUrl || sd.documents?.profilePhotoUrl,
+              profilePhotoUrl: sd.profilePhotoUrl || sd.photoUrl || sd.documents?.profilePhotoUrl,
+              trnCertificateUrl: sd.trnCertificateUrl || sd.documents?.trnCertificateUrl,
+              driversLicenseFrontUrl: sd.driversLicenseFrontUrl || sd.documents?.driversLicenseFrontUrl,
+              driversLicenseBackUrl: sd.driversLicenseBackUrl || sd.documents?.driversLicenseBackUrl,
+              governmentIdUrl: sd.governmentIdUrl || sd.documents?.governmentIdUrl,
+              licenseDocumentUrl: sd.licenseDocumentUrl || sd.documents?.licenseDocumentUrl,
+              policeRecordUrl: sd.policeRecordUrl || sd.documents?.policeRecordUrl,
+              bankLetterUrl: sd.bankLetterUrl || sd.documents?.bankLetterUrl,
+              proofOfAddressUrl: sd.proofOfAddressUrl || sd.documents?.proofOfAddressUrl,
+              documents: sd.documents ? (Object.values(sd.documents).filter(Boolean) as string[]) : [],
+              dossier: sd
+            });
+          }
+        }
+      } catch (sdErr) {
+        console.warn('[AdminPortal] Central server dossiers fetch notice:', sdErr);
+      }
+
       // Safeguard: Ensure no approved or active nurses or admins are ever displayed in pending verification
       list = list.filter(p => {
         const pStatus = (p.status || '').toLowerCase().trim();
@@ -545,13 +607,38 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     };
   }, [activeTab]);
 
-  const handleInspect = (applicant: any) => {
+  const handleInspect = async (applicant: any) => {
     soundFX.playToggleClick();
     
-    // Enrich applicant with any local dossier, nurses roster, or userAccounts records
+    // Enrich applicant with central server database, local dossier, nurses roster, or userAccounts records
     let enriched = { ...applicant };
     const email = (applicant.email || '').toLowerCase().trim();
     const id = applicant.id;
+
+    // Fetch from central server database first to guarantee full documents access
+    try {
+      const remote = await fetchApplicantDossier(id || email);
+      if (remote) {
+        enriched = {
+          ...remote,
+          ...enriched,
+          dossier: remote,
+          photoUrl: enriched.photoUrl || remote.photoUrl || remote.profilePhotoUrl || remote.documents?.profilePhotoUrl,
+          profilePhotoUrl: enriched.profilePhotoUrl || remote.profilePhotoUrl || remote.photoUrl || remote.documents?.profilePhotoUrl,
+          trnCertificateUrl: enriched.trnCertificateUrl || remote.trnCertificateUrl || remote.documents?.trnCertificateUrl,
+          driversLicenseFrontUrl: enriched.driversLicenseFrontUrl || remote.driversLicenseFrontUrl || remote.documents?.driversLicenseFrontUrl,
+          driversLicenseBackUrl: enriched.driversLicenseBackUrl || remote.driversLicenseBackUrl || remote.documents?.driversLicenseBackUrl,
+          governmentIdUrl: enriched.governmentIdUrl || remote.governmentIdUrl || remote.documents?.governmentIdUrl,
+          licenseDocumentUrl: enriched.licenseDocumentUrl || remote.licenseDocumentUrl || remote.documents?.licenseDocumentUrl,
+          policeRecordUrl: enriched.policeRecordUrl || remote.policeRecordUrl || remote.documents?.policeRecordUrl,
+          bankLetterUrl: enriched.bankLetterUrl || remote.bankLetterUrl || remote.documents?.bankLetterUrl,
+          proofOfAddressUrl: enriched.proofOfAddressUrl || remote.proofOfAddressUrl || remote.documents?.proofOfAddressUrl,
+          documents: remote.documents || enriched.documents
+        };
+      }
+    } catch (e) {
+      console.warn('[AdminPortal] Remote dossier fetch notice:', e);
+    }
 
     if (applicant.trn && typeof applicant.trn === 'string' && applicant.trn.includes('DOSSIER:')) {
       try {
@@ -692,7 +779,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         }
       } catch (e) {}
 
-      // 3. Update parent app state for active nurses and user accounts
+      // 3. Update central server dossiers database
+      try {
+        const ident = applicant.id || applicant.email;
+        if (ident) {
+          await updateApplicantStatusInDb(ident, 'approved');
+        }
+      } catch (dbApproveErr) {
+        console.warn('[AdminPortal] Database approval update notice:', dbApproveErr);
+      }
+
+      // 4. Update parent app state for active nurses and user accounts
       if (newRole === 'nurse') {
         onApproveNurse(applicant.id, applicant);
       } else {
@@ -748,6 +845,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const handleRejectFromModal = (applicant: any, rejectionData?: any) => {
     soundFX.playToggleClick();
     if (rejectionData) {
+      try {
+        const ident = applicant.id || applicant.email;
+        if (ident) {
+          updateApplicantStatusInDb(ident, 'rejected', rejectionData.reason, rejectionData.documents);
+        }
+      } catch (dbRejErr) {
+        console.warn('[AdminPortal] Database rejection update notice:', dbRejErr);
+      }
       setShowInspectModal(false);
       setSelectedApplicant(null);
       fetchPendingNurseProfiles();

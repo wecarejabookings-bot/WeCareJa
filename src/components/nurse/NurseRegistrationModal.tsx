@@ -44,6 +44,7 @@ import {
 import confetti from 'canvas-confetti';
 import { compressImageFile } from '../../utils/imageCompression';
 import { saveNurseProfileToSupabase } from '../../lib/supabase';
+import { uploadDocument, saveApplicantDossier } from '../../utils/dossierStore';
 import { MandatoryBiometricFaceScanner } from '../auth/MandatoryBiometricFaceScanner';
 
 export interface ProviderRoleOption {
@@ -531,155 +532,107 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
   if (!isOpen) return null;
 
   // Handle Photo File Upload with automatic compression (prevents crashing on high-res camera shots)
+  // Handle Photo File Upload with automatic compression (prevents crashing on high-res camera shots)
   const handlePhotoFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setPhotoFileName(file.name);
       try {
         const compressed = await compressImageFile(file, 800, 0.82);
-        setPhotoUrl(compressed);
+        const uploadRes = await uploadDocument(compressed, file.name, 'photo', registeredNurseId);
+        setPhotoUrl(uploadRes.url);
         soundFX.playSuccessPing();
       } catch (err) {
         console.warn('Image compression fallback', err);
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result === 'string') {
-            setPhotoUrl(reader.result);
-          }
-        };
-        reader.readAsDataURL(file);
+        const uploadRes = await uploadDocument(file, file.name, 'photo', registeredNurseId);
+        setPhotoUrl(uploadRes.url);
       }
     }
   };
 
   // Handle License Certificate File Upload
-  const handleLicenseFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLicenseFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setLicenseDocFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setLicenseDocumentUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'ncj_license', registeredNurseId);
+      setLicenseDocumentUrl(res.url);
     }
   };
 
   // Handle Diploma / Degree Certificate File Upload
-  const handleDiplomaFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDiplomaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setDiplomaDocFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setDiplomaDocumentUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'diploma', registeredNurseId);
+      setDiplomaDocumentUrl(res.url);
     }
   };
 
   // Handle Driver's License Front & Back Uploads
-  const handleDlFrontFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDlFrontFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setDriversLicenseFrontFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setDriversLicenseFrontUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'drivers_license_front', registeredNurseId);
+      setDriversLicenseFrontUrl(res.url);
     }
   };
-  const handleDlBackFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDlBackFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setDriversLicenseBackFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setDriversLicenseBackUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'drivers_license_back', registeredNurseId);
+      setDriversLicenseBackUrl(res.url);
     }
   };
-  const handleGovIdBackFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGovIdBackFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setGovIdBackFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setGovIdBackUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'government_id_back', registeredNurseId);
+      setGovIdBackUrl(res.url);
     }
   };
 
   // Handle Government ID File Upload
-  const handleGovIdFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGovIdFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setGovIdFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setGovernmentIdUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'government_id_front', registeredNurseId);
+      setGovernmentIdUrl(res.url);
     }
   };
 
   // Handle Proof of Address File Upload
-  const handlePoaFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePoaFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setPoaFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setProofOfAddressUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'proof_of_address', registeredNurseId);
+      setProofOfAddressUrl(res.url);
     }
   };
 
   // Handle TRN Certificate File Upload
-  const handleTrnFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleTrnFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setTrnFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setTrnCertUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'trn_certificate', registeredNurseId);
+      setTrnCertUrl(res.url);
     }
   };
 
   // Handle Bank Letter File Upload
-  const handleBankLetterFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBankLetterFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setBankLetterFileName(file.name);
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setBankLetterUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      const res = await uploadDocument(file, file.name, 'bank_letter', registeredNurseId);
+      setBankLetterUrl(res.url);
     }
   };
 
@@ -989,6 +942,50 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
     };
 
     saveNurseProfileToSupabase(newNurse).catch(() => {});
+
+    // Save complete applicant dossier and document URLs to central server database
+    saveApplicantDossier({
+      id: newNurseId,
+      userId: newNurseId,
+      email: newNurse.email,
+      fullName: newNurse.name,
+      name: newNurse.name,
+      role: 'nurse_pending',
+      phone: newNurse.phone,
+      address: newNurse.residentialAddress || address,
+      parish: residentialParish || 'St. Andrew',
+      trnNumber: newNurse.trnNumber,
+      driversLicenseNumber: newNurse.driversLicenseNumber,
+      ncjLicense: newNurse.nursingCouncilLicense,
+      institutionAttended: newNurse.institutionAttended,
+      yearsExperience: newNurse.yearsExperience,
+      hourlyRateJMD: newNurse.hourlyRateJMD,
+      specialties: newNurse.specialties,
+      photoUrl: newNurse.photoUrl,
+      profilePhotoUrl: newNurse.photoUrl,
+      driversLicenseFrontUrl: newNurse.driversLicenseFrontUrl,
+      driversLicenseBackUrl: newNurse.driversLicenseBackUrl,
+      trnCertificateUrl: newNurse.trnCertificateUrl,
+      licenseDocumentUrl: newNurse.licenseDocumentUrl,
+      governmentIdUrl: newNurse.governmentIdUrl,
+      bankLetterUrl: newNurse.bankLetterUrl,
+      proofOfAddressUrl: newNurse.proofOfAddressUrl,
+      documents: {
+        profilePhotoUrl: newNurse.photoUrl,
+        driversLicenseFrontUrl: newNurse.driversLicenseFrontUrl,
+        driversLicenseBackUrl: newNurse.driversLicenseBackUrl,
+        trnCertificateUrl: newNurse.trnCertificateUrl,
+        licenseDocumentUrl: newNurse.licenseDocumentUrl,
+        governmentIdUrl: newNurse.governmentIdUrl,
+        bankLetterUrl: newNurse.bankLetterUrl,
+        proofOfAddressUrl: newNurse.proofOfAddressUrl
+      },
+      bankDetails: newNurse.bankDetails,
+      emergencyContact: newNurse.emergencyContact,
+      status: 'pending_approval',
+      submittedAt: new Date().toISOString()
+    }).catch(err => console.warn('[NurseModal] Failed to persist dossier to server:', err));
+
     onRegisterNurse(newNurse);
     setRegisteredNurseId(newNurseId);
     soundFX.playBookingConfirmed();
