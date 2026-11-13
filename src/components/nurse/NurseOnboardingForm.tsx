@@ -133,16 +133,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
   const nurseTakeHomeMonthly = nurseTakeHomeWeekly * 4;
 
   const handleFastFillSample = () => {
-    setEmail('nurse.stacyann@wecare.jm');
-    setPassword('NursePass2026!');
-    setFullName('Nurse Stacy-Ann Campbell, RN');
-    setTrn('109-847-382');
-    setNcjLicense('NCJ-RN-2023-8812');
-    setPhone('+1 (876) 555-0199');
-    setParish('St. Andrew');
-    setServiceType('Elderly & Geriatric Home Care');
-    setExperienceYears(6);
-    setTrnDocUrl('https://yflgdfvjigbcnagcuism.supabase.co/storage/v1/object/public/nurse-documents/sample_trn_license_cert.webp');
+    setErrorToast('Please enter your actual practitioner details and upload your real TRN certificate.');
   };
 
   const handleExit = () => {
@@ -344,13 +335,13 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         trnCertificateUrl: finalDocUrl,
         licenseVerified: false,
         status: 'pending_approval',
-        rating: 5.0,
+        rating: 0,
         reviewCount: 0,
         yearsExperience: experienceYears,
-        specialties: [serviceType],
-        zones: [parish],
+        specialties: serviceType ? [serviceType] : [],
+        zones: parish ? [parish] : [],
         hourlyRateJMD: selectedHourlyRate,
-        bio: `${fullName.trim()} - Practitioner in ${parish}`,
+        bio: `${fullName.trim()}${parish ? ` - Practitioner in ${parish}` : ''}`,
         totalEarningsJMD: 0,
         pendingPayoutJMD: 0,
         completedVisitsCount: 0
@@ -385,24 +376,24 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
     const newNurseProfile: NurseProfile = {
       id: authenticatedUserId,
       name: fullName.trim(),
-      phone: phone.trim() || '(876) 555-0199',
+      phone: phone.trim(),
       email: email.trim(),
-      photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-      nursingCouncilLicense: ncjLicense.trim() || 'NCJ-RN-PENDING',
-      trnNumber: trn.trim() || '',
-      trn: trn.trim() || '',
+      photoUrl: '',
+      nursingCouncilLicense: ncjLicense.trim(),
+      trnNumber: trn.trim(),
+      trn: trn.trim(),
       trnCertificateUrl: trnDocUrl || undefined,
       licenseDocumentUrl: trnDocUrl || undefined,
       governmentIdUrl: trnDocUrl || undefined,
       licenseVerified: false,
       status: 'pending_approval',
-      rating: 5.0,
+      rating: 0,
       reviewCount: 0,
-      yearsExperience: experienceYears || 3,
-      specialties: [serviceType, 'Vitals Monitoring', 'Clinical Nursing Care'],
-      zones: [parish, 'New Kingston & Liguanea', 'Half-Way-Tree'],
+      yearsExperience: experienceYears || 0,
+      specialties: serviceType ? [serviceType] : [],
+      zones: parish ? [parish] : [],
       hourlyRateJMD: selectedHourlyRate,
-      bio: `NCJ Registered Practitioner (${ncjLicense || 'Licensed'}). Specialist in ${serviceType}. Serving ${parish} and surrounding areas. Status: Pending NCJ & Admin Vetting.`,
+      bio: '',
       totalEarningsJMD: 0,
       pendingPayoutJMD: 0,
       completedVisitsCount: 0

@@ -43,98 +43,6 @@ export interface VisualMedicationScheduleProps {
   className?: string;
 }
 
-// Default Jamaican clinical home prescription sample
-const DEFAULT_PRESCRIBED_MEDICATIONS: PatientMedication[] = [
-  {
-    id: 'med-bp-01',
-    name: 'Amlodipine Besylate 5mg',
-    dosage: '1 oral tablet daily',
-    frequency: 'Once daily in the morning',
-    instructions: 'Take with a full glass of water after breakfast. Monitor for ankle swelling.',
-    timesOfDay: ['morning'],
-    scheduledTime: '08:00 AM',
-    purpose: 'Essential Hypertension Control',
-    takenToday: true,
-    takenAt: '08:15 AM',
-    complianceHistory: [
-      {
-        timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-        status: 'taken',
-        loggedBy: 'Patient Self-Reported',
-        notes: 'Taken on schedule with breakfast tea.'
-      }
-    ]
-  },
-  {
-    id: 'med-dm-02',
-    name: 'Metformin Hydrochloride 500mg',
-    dosage: '1 oral tablet twice daily',
-    frequency: 'Twice daily with meals',
-    instructions: 'Take during or immediately after meals to reduce GI irritation.',
-    timesOfDay: ['morning', 'evening'],
-    scheduledTime: '08:00 AM',
-    purpose: 'Type 2 Diabetes Glycemic Management',
-    takenToday: true,
-    takenAt: '08:20 AM',
-    complianceHistory: [
-      {
-        timestamp: new Date(Date.now() - 3600000 * 2).toISOString(),
-        status: 'taken',
-        loggedBy: 'Patient Self-Reported',
-        notes: 'Taken with morning porridge.'
-      }
-    ]
-  },
-  {
-    id: 'med-joint-03',
-    name: 'Glucosamine & Chondroitin Complex 1000mg',
-    dosage: '1 capsule daily with lunch',
-    frequency: 'Once daily at midday',
-    instructions: 'Take with midday lunch and plenty of water.',
-    timesOfDay: ['midday'],
-    scheduledTime: '01:00 PM',
-    purpose: 'Knee Osteoarthritis & Cartilage Support',
-    takenToday: false,
-    complianceHistory: []
-  },
-  {
-    id: 'med-dm-04',
-    name: 'Metformin Hydrochloride 500mg (Evening Dose)',
-    dosage: '1 oral tablet with dinner',
-    frequency: 'Twice daily with meals',
-    instructions: 'Take with evening dinner. Avoid skipping dinner after dose.',
-    timesOfDay: ['evening'],
-    scheduledTime: '06:30 PM',
-    purpose: 'Type 2 Diabetes Glycemic Management',
-    takenToday: false,
-    complianceHistory: []
-  },
-  {
-    id: 'med-cardio-05',
-    name: 'Atorvastatin Calcium 20mg',
-    dosage: '1 tablet at bedtime',
-    frequency: 'Once nightly before bed',
-    instructions: 'Take at 9:00 PM before retiring. Avoid grapefruit or grapefruit juice.',
-    timesOfDay: ['bedtime'],
-    scheduledTime: '09:00 PM',
-    purpose: 'Cardiovascular Risk Reduction & Lipid Control',
-    takenToday: false,
-    complianceHistory: []
-  },
-  {
-    id: 'med-prn-06',
-    name: 'Paracetamol 500mg (Panadol)',
-    dosage: '1-2 tablets as needed for acute pain/fever',
-    frequency: 'Every 6 hours as needed (Max 4g/day)',
-    instructions: 'Take with water. Do not exceed 8 tablets in 24 hours. Do not combine with other acetaminophen medications.',
-    timesOfDay: ['as_needed'],
-    scheduledTime: 'PRN',
-    purpose: 'Post-Activity Knee Soreness / Headache',
-    takenToday: false,
-    complianceHistory: []
-  }
-];
-
 export const VisualMedicationSchedule: React.FC<VisualMedicationScheduleProps> = ({
   currentUser,
   onUpdateUser,
@@ -254,13 +162,14 @@ export const VisualMedicationSchedule: React.FC<VisualMedicationScheduleProps> =
   const [newMedPurpose, setNewMedPurpose] = useState('');
   const [newMedInstructions, setNewMedInstructions] = useState('');
 
-  // Daily streak tracker
+  // Daily streak tracker (per-user, defaults to 0)
+  const streakStorageKey = `wecare_patient_med_streak_${currentUser?.id || 'guest'}`;
   const [adherenceStreak, setAdherenceStreak] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('wecare_patient_med_streak');
-      return saved ? parseInt(saved, 10) : 7;
+      const saved = localStorage.getItem(streakStorageKey);
+      return saved ? parseInt(saved, 10) : 0;
     } catch {
-      return 7;
+      return 0;
     }
   });
 
@@ -358,8 +267,8 @@ export const VisualMedicationSchedule: React.FC<VisualMedicationScheduleProps> =
       const newStreak = adherenceStreak + 1;
       setAdherenceStreak(newStreak);
       try {
-        localStorage.setItem('wecare_patient_med_streak', String(newStreak));
-        localStorage.setItem('wecare_patient_med_last_checkin', new Date().toISOString().split('T')[0]);
+        localStorage.setItem(streakStorageKey, String(newStreak));
+        localStorage.setItem(`${streakStorageKey}_last_checkin`, new Date().toISOString().split('T')[0]);
       } catch {}
     }
   };

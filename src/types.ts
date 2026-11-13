@@ -305,7 +305,7 @@ export interface Booking {
   clientPhone: string;
   clientAddress: string;
   zone: string; // Kingston / St Andrew neighborhood
-  clientEmergencyContact: {
+  clientEmergencyContact?: {
     name: string;
     phone: string;
     relation: string;
@@ -349,6 +349,7 @@ export interface Booking {
   rating?: number;
   reviewComment?: string;
   cancelReason?: string;
+  cancelledBy?: 'client' | 'nurse' | 'admin';
   cancelledAt?: string;
   freeCancelDeadline: string; // ISO string 2 hours before scheduled
   unreadMessagesCount?: number;

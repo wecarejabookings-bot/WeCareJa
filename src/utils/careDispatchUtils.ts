@@ -74,44 +74,7 @@ export interface SavedLocationPreset {
   tag: 'home' | 'family' | 'work';
 }
 
-export const SAVED_LOCATIONS: SavedLocationPreset[] = [
-  {
-    id: 'loc-home',
-    label: 'Home',
-    address: '14 Trafalgar Road, New Kingston, Kingston 5',
-    zone: 'New Kingston',
-    lat: 18.0074,
-    lng: -76.7836,
-    tag: 'home'
-  },
-  {
-    id: 'loc-mom',
-    label: "Mom's Residence",
-    address: '22 Hopefield Avenue, Barbican, Kingston 6',
-    zone: 'Barbican & Cherry Gardens',
-    lat: 18.0261,
-    lng: -76.7681,
-    tag: 'family'
-  },
-  {
-    id: 'loc-office',
-    label: 'Office',
-    address: '8 Knutsford Boulevard, New Kingston, Kingston 5',
-    zone: 'New Kingston',
-    lat: 18.0051,
-    lng: -76.7850,
-    tag: 'work'
-  },
-  {
-    id: 'loc-mona',
-    label: 'Mona Family House',
-    address: '18 Mona Road, Liguanea, Kingston 7',
-    zone: 'Liguanea & Mona',
-    lat: 18.0163,
-    lng: -76.7554,
-    tag: 'family'
-  }
-];
+export const SAVED_LOCATIONS: SavedLocationPreset[] = [];
 
 export function generateSafetyPin(): string {
   const digits = Math.floor(1000 + Math.random() * 9000);

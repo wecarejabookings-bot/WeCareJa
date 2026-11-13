@@ -134,55 +134,28 @@ export function getProcedureVisual(serviceId?: string, serviceName?: string): Pr
  * Fixed: Deterministic lookup. Andrew Carter and 14 Trafalgar Rd Apt 4B (5+ visits) are ALWAYS Regular Clients.
  */
 export function getClientReputation(clientName?: string, clientId?: string, pastVisitsCount?: number): ClientReputationInfo {
-  const name = (clientName || '').toLowerCase();
-  const id = (clientId || '').toLowerCase();
+  const visits = typeof pastVisitsCount === 'number' && pastVisitsCount > 0 ? pastVisitsCount : 0;
 
-  // Known regular patients with 5+ verified visits across Kingston & St. Andrew
-  const isKnownRegular =
-    name.includes('carter') ||
-    name.includes('andrew') ||
-    name.includes('trafalgar') ||
-    name.includes('patricia') ||
-    name.includes('sutherland') ||
-    name.includes('davina') ||
-    name.includes('morrison') ||
-    name.includes('sydney') ||
-    name.includes('marcus') ||
-    id.includes('regular') ||
-    id.includes('cli-1') ||
-    (pastVisitsCount !== undefined && pastVisitsCount >= 2);
-
-  const isExplicitFirstTime = !isKnownRegular && (
-    (pastVisitsCount !== undefined && pastVisitsCount <= 1) ||
-    name.includes('new') ||
-    name.includes('first') ||
-    id.includes('new') ||
-    id.includes('first')
-  );
-
-  if (isExplicitFirstTime) {
+  if (visits <= 1) {
     return {
-      rating: 5.0,
-      reviewCount: 1,
+      rating: 0,
+      reviewCount: visits,
       isFirstTime: true,
-      userTypeLabel: 'First-Time Client',
+      userTypeLabel: visits === 1 ? '1 Prior Visit' : 'New Client Request',
       nurseBadgeColor: 'purple',
-      recentNurseFeedback: 'New patient inquiry • Identity & Jamaican address verified by admin',
-      safetyRating: 'Verified Home (Gate Code & Phone Confirmed)'
+      recentNurseFeedback: 'Client details shown reflect only information entered for this booking.',
+      safetyRating: 'Verified Account'
     };
   }
 
-  // Consistent Regular client profile for Andrew Carter and established Kingston clients
-  const visits = pastVisitsCount && pastVisitsCount >= 5 ? pastVisitsCount : 8;
-
   return {
-    rating: 4.9,
+    rating: 0,
     reviewCount: visits,
     isFirstTime: false,
-    userTypeLabel: `Regular Client (${visits}+ visits)`,
+    userTypeLabel: `Returning Client (${visits} visits)`,
     nurseBadgeColor: 'emerald',
-    recentNurseFeedback: 'Prompt payment, sterile towel prepared, 14 Trafalgar Rd Apt 4B verified safe home',
-    safetyRating: '100% Safe Home History'
+    recentNurseFeedback: `${visits} completed platform bookings on file.`,
+    safetyRating: 'Verified Account'
   };
 }
 

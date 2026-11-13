@@ -29,7 +29,8 @@ import {
   Droplet, 
   Thermometer, 
   Flame,
-  Plus
+  Plus,
+  XCircle
 } from 'lucide-react';
 import { soundFX } from '../../utils/soundEffects';
 import { getArrivalPassCode } from '../../utils/arrivalVerification';
@@ -44,6 +45,7 @@ export interface PatientHealthOverviewViewProps {
   onOpenChat?: (booking: Booking) => void;
   onOpenArrivalQR?: (booking: Booking) => void;
   onViewBookingDetails?: (booking: Booking) => void;
+  onCancelBooking?: (bookingId: string, reason: string) => void;
   onNavigateToHistory?: () => void;
   logoVariation?: LogoVariation;
 }
@@ -58,11 +60,15 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
   onOpenChat,
   onOpenArrivalQR,
   onViewBookingDetails,
+  onCancelBooking,
   onNavigateToHistory,
   logoVariation = 'crest'
 }) => {
   // Sub-view toggle: 'all' | 'medications' | 'timeline' | 'appointments'
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'medications' | 'timeline' | 'appointments'>('overview');
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [cancelReason, setCancelReason] = useState('Schedule change');
+  const [customCancelReason, setCustomCancelReason] = useState('');
 
   // Filter client bookings
   const clientBookings = useMemo(() => {
@@ -77,7 +83,7 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
   // Upcoming appointments
   const upcomingAppointments = useMemo(() => {
     return clientBookings.filter(b => 
-      ['pending', 'accepted', 'en_route', 'arrived', 'in_progress'].includes(b.status)
+      ['requested', 'pending', 'accepted', 'en_route', 'ARRIVED_VERIFIED', 'arrived', 'in_progress'].includes(b.status)
     ).sort((a, b) => new Date(a.scheduledDateTime).getTime() - new Date(b.scheduledDateTime).getTime());
   }, [clientBookings]);
 
@@ -88,16 +94,16 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
     ).sort((a, b) => new Date(b.scheduledDateTime).getTime() - new Date(a.scheduledDateTime).getTime());
   }, [clientBookings]);
 
-  // Patient bio data isolated to currentUser
+  // Patient bio data isolated to currentUser (never inject fabricated defaults)
   const bio = currentUser?.patientBioData || currentUser?.bioData || {
-    age: (currentUser as any)?.age || 65,
-    gender: (currentUser as any)?.gender || 'Unspecified',
-    bloodType: (currentUser as any)?.bloodType || 'A+',
+    age: (currentUser as any)?.age,
+    gender: (currentUser as any)?.gender || '',
+    bloodType: (currentUser as any)?.bloodType || '',
     knownIllnesses: (currentUser as any)?.knownIllnesses || [],
     allergies: (currentUser as any)?.allergies || [],
-    mobilityStatus: (currentUser as any)?.mobilityStatus || 'independent',
-    residentialAddress: currentUser?.address || 'Kingston, Jamaica',
-    zone: currentUser?.zone || 'Kingston'
+    mobilityStatus: (currentUser as any)?.mobilityStatus || '',
+    residentialAddress: currentUser?.address || '',
+    zone: currentUser?.zone || ''
   };
 
   return (
@@ -156,25 +162,25 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Blood Type</span>
             <span className="text-sm font-black text-rose-400 flex items-center gap-1">
-              <Droplet className="w-3.5 h-3.5" /> {bio.bloodType || 'O+'}
+              <Droplet className="w-3.5 h-3.5" /> {bio.bloodType || '—'}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Known Allergies</span>
             <span className="text-xs font-bold text-amber-300 truncate block">
-              {(bio.allergies || ['Penicillin']).join(', ')}
+              {bio.allergies && bio.allergies.length > 0 ? bio.allergies.join(', ') : 'None recorded'}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Active Diagnoses</span>
             <span className="text-xs font-bold text-indigo-300 truncate block">
-              {(bio.knownIllnesses || ['Hypertension']).join(', ')}
+              {bio.knownIllnesses && bio.knownIllnesses.length > 0 ? bio.knownIllnesses.join(', ') : 'None recorded'}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-1">
             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Mobility Status</span>
             <span className="text-xs font-bold text-emerald-300 capitalize truncate block">
-              {bio.mobilityStatus ? bio.mobilityStatus.replace(/_/g, ' ') : 'Independent'}
+              {bio.mobilityStatus ? bio.mobilityStatus.replace(/_/g, ' ') : '—'}
             </span>
           </div>
         </div>
@@ -242,7 +248,7 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
                       </div>
                       <div className="flex items-center gap-2">
                         <MapPin className="w-3.5 h-3.5 text-[#F59E0B]" />
-                        <span>Location: {booking.clientAddress}</span>
+                        <span>Location: {booking.clientAddress || booking.zone || '—'}</span>
                       </div>
                     </div>
 
@@ -250,7 +256,7 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
                     <div className="p-3 rounded-xl bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between">
                       <div>
                         <span className="text-[10px] text-slate-400 block font-semibold">Doorstep PIN Pass</span>
-                        <span className="font-mono text-base font-black text-amber-300 tracking-widest">{passCode}</span>
+                        <span className="font-mono text-base font-black text-amber-300 tracking-widest">{passCode || 'Pending'}</span>
                       </div>
 
                       <div className="flex items-center gap-2">
@@ -270,6 +276,17 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
                             title="Message Caregiver"
                           >
                             <MessageSquare className="w-3.5 h-3.5 text-blue-300" />
+                          </button>
+                        )}
+                        {onCancelBooking && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelTarget(booking)}
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/35 text-rose-300 hover:text-white border border-rose-500/30 transition text-xs font-bold flex items-center gap-1 cursor-pointer"
+                            title="Cancel Booking"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Cancel</span>
                           </button>
                         )}
                       </div>
@@ -387,6 +404,70 @@ export const PatientHealthOverviewView: React.FC<PatientHealthOverviewViewProps>
                 Care timeline entries will automatically populate as your home nurse visits and vitals telemetry checks are concluded.
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Reason Modal */}
+      {cancelTarget && onCancelBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#0F172A]/80 backdrop-blur-xl animate-fadeIn">
+          <div className="bg-[#150722]/95 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-white/15 text-white space-y-4">
+            <div>
+              <h3 className="text-base font-bold text-white">Cancel Booking #{cancelTarget.id}</h3>
+              <p className="text-xs text-slate-300 mt-1">
+                Free cancellation is available before the visit begins. Your escrow payment will be refunded.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-300 block">Reason for Cancellation</label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-white/15 bg-[#1b072c] text-white text-xs"
+              >
+                <option value="Schedule change">Schedule change</option>
+                <option value="Patient condition improved">Patient condition improved</option>
+                <option value="Booked by mistake">Booked by mistake</option>
+                <option value="Need different time slot">Need different time slot</option>
+                <option value="Other">Other</option>
+              </select>
+              {cancelReason === 'Other' && (
+                <textarea
+                  rows={2}
+                  value={customCancelReason}
+                  onChange={(e) => setCustomCancelReason(e.target.value)}
+                  placeholder="Enter reason for cancelling..."
+                  className="w-full p-2.5 rounded-xl border border-white/15 bg-white/5 text-white placeholder-slate-500 text-xs focus:outline-none"
+                />
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCancelTarget(null);
+                  setCustomCancelReason('');
+                }}
+                className="flex-1 py-2.5 rounded-xl border border-white/15 text-slate-300 font-bold text-xs hover:bg-white/10 transition"
+              >
+                Keep Booking
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const finalReason =
+                    cancelReason === 'Other'
+                      ? (customCancelReason.trim() || 'Client requested cancellation')
+                      : cancelReason;
+                  onCancelBooking(cancelTarget.id, finalReason);
+                  setCancelTarget(null);
+                  setCustomCancelReason('');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition"
+              >
+                Confirm Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

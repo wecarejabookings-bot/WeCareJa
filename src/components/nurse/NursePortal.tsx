@@ -81,7 +81,9 @@ import {
   Star,
   LogOut,
   FileBadge,
-  ChevronDown
+  ChevronDown,
+  User,
+  X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { NurseSkillBadgesManager } from './SkillBadgeSystem';
@@ -115,6 +117,7 @@ interface NursePortalProps {
     additionalData?: Partial<Booking>
   ) => void;
   onRerouteBooking?: (bookingId: string, reason?: string, preferredNurseId?: string) => void;
+  onCancelBooking?: (bookingId: string, reason: string) => void;
   onOpenChat: (booking: Booking) => void;
   onOpenPanic: (booking?: Booking) => void;
   onOpenLaunchKit: () => void;
@@ -142,6 +145,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
   onNavigateStore,
   onUpdateBookingStatus,
   onRerouteBooking,
+  onCancelBooking,
   onOpenChat,
   onOpenPanic,
   onOpenLaunchKit,
@@ -152,32 +156,30 @@ export const NursePortal: React.FC<NursePortalProps> = ({
 }) => {
   const fallbackEmptyNurse: NurseProfile = {
     id: 'nurse-pending',
-    name: 'Registered Practitioner (Awaiting Registration)',
-    phone: '+1 (876) 555-0000',
-    email: 'practitioner@wecare.jm',
-    photoUrl: 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=400',
-    institutionAttended: 'School of Nursing',
-    dateOfBirth: '1995-01-01',
-    gender: 'female',
-    residentialAddress: 'Kingston, Jamaica',
+    name: 'Registered Practitioner',
+    phone: '',
+    email: '',
+    photoUrl: '',
+    institutionAttended: '',
+    dateOfBirth: '',
+    gender: '' as any,
+    residentialAddress: '',
     careLevel: 'registered_nurse',
     qualificationTitle: 'Registered General Nurse (NCJ)',
     requiresNcjRegistration: true,
     payTierDescription: 'Clinical Tier • 85% Caregiver Payout',
-    certifications: ['NCJ Active License', 'Basic Life Support (BLS)'],
+    certifications: [],
     scopeOfCare: { canProvide: [], cannotProvide: [] },
-    nursingCouncilLicense: 'NCJ-PENDING',
+    nursingCouncilLicense: '',
     licenseVerified: false,
     status: 'pending_approval',
-    rating: 5.0,
+    rating: 0,
     reviewCount: 0,
     yearsExperience: 0,
-    specialties: ['General Nursing'],
-    zones: ['New Kingston'],
-    hourlyRateJMD: 7500,
-    currentLat: 18.0074,
-    currentLng: -76.7836,
-    bio: 'Licensed healthcare professional registered on WeCare Track Jamaica network.',
+    specialties: [],
+    zones: [],
+    hourlyRateJMD: 0,
+    bio: '',
     totalEarningsJMD: 0,
     pendingPayoutJMD: 0,
     completedVisitsCount: 0
@@ -225,31 +227,31 @@ export const NursePortal: React.FC<NursePortalProps> = ({
       return {
         id: currentUser.nurseProfileId || currentUser.id || currentNurseId || 'nurse-self',
         name: currentUser.full_name || currentUser.name || 'Nurse Practitioner',
-        phone: currentUser.phone || '(876) 555-0199',
+        phone: currentUser.phone || '',
         email: currentUser.email || '',
-        photoUrl: currentUser.avatarUrl || currentUser.avatar || dossier?.photoUrl || dossier?.profilePhotoUrl || 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=400',
-        institutionAttended: dossier?.institutionAttended || 'Accredited Jamaican Nursing Institution',
-        dateOfBirth: currentUser.dateOfBirth || dossier?.dateOfBirth || '1995-01-01',
-        gender: dossier?.gender || 'female',
-        residentialAddress: currentUser.address || dossier?.address || 'Kingston, Jamaica',
+        photoUrl: currentUser.avatarUrl || currentUser.avatar || dossier?.photoUrl || dossier?.profilePhotoUrl || '',
+        institutionAttended: dossier?.institutionAttended || '',
+        dateOfBirth: currentUser.dateOfBirth || dossier?.dateOfBirth || '',
+        gender: dossier?.gender || '' as any,
+        residentialAddress: currentUser.address || dossier?.address || '',
         careLevel: 'registered_nurse',
         qualificationTitle: currentUser.title || 'Registered General Nurse (NCJ)',
         requiresNcjRegistration: true,
         payTierDescription: 'Clinical Tier • 85% Caregiver Payout',
-        certifications: ['NCJ Active License', 'Basic Life Support (BLS)'],
+        certifications: dossier?.certifications || [],
         scopeOfCare: { canProvide: [], cannotProvide: [] },
-        nursingCouncilLicense: currentUser.nursingCouncilLicense || dossier?.ncjLicense || 'NCJ-ACTIVE',
+        nursingCouncilLicense: currentUser.nursingCouncilLicense || dossier?.ncjLicense || '',
         trnNumber: currentUser.trn || dossier?.trnNumber || '',
         trn: currentUser.trn || dossier?.trnNumber || '',
         licenseVerified: currentUser.approvalStatus === 'approved',
         status: currentUser.approvalStatus === 'approved' ? 'approved' : 'pending_approval',
-        rating: 5.0,
+        rating: 0,
         reviewCount: 0,
-        yearsExperience: dossier?.yearsExperience || 4,
-        specialties: ['General Nursing', 'Vitals Surveillance', 'In-Home Care'],
-        zones: [currentUser.zone || 'Kingston & St. Andrew'],
-        hourlyRateJMD: 7500,
-        bio: dossier?.bio || 'Licensed healthcare professional registered on WeCare Track Jamaica network.',
+        yearsExperience: dossier?.yearsExperience || 0,
+        specialties: dossier?.specialties || [],
+        zones: currentUser.zone ? [currentUser.zone] : [],
+        hourlyRateJMD: dossier?.hourlyRateJMD || 0,
+        bio: dossier?.bio || '',
         totalEarningsJMD: 0,
         pendingPayoutJMD: 0,
         completedVisitsCount: 0,
@@ -263,15 +265,11 @@ export const NursePortal: React.FC<NursePortalProps> = ({
         proofOfAddressUrl: dossier?.proofOfAddressUrl,
         bankDetails: dossier?.bankDetails,
         bioData: dossier?.bioData || {
-          dateOfBirth: currentUser.dateOfBirth || '1995-01-01',
-          gender: 'female',
-          residentialAddress: currentUser.address || 'Kingston, Jamaica',
-          residentialParish: currentUser.zone || 'Kingston',
-          emergencyContact: currentUser.emergencyContact || {
-            name: 'Emergency Contact',
-            phone: currentUser.phone || '',
-            relation: 'Next of Kin'
-          },
+          dateOfBirth: currentUser.dateOfBirth || '',
+          gender: dossier?.gender || '' as any,
+          residentialAddress: currentUser.address || '',
+          residentialParish: currentUser.zone || '',
+          emergencyContact: currentUser.emergencyContact,
           nationalIdNumber: currentUser.trn || ''
         }
       };
@@ -315,13 +313,16 @@ export const NursePortal: React.FC<NursePortalProps> = ({
   const [isContractAgreementOpen, setIsContractAgreementOpen] = useState(false);
   const [isPlatformFeeChargeModalOpen, setIsPlatformFeeChargeModalOpen] = useState(false);
   const [selectedBookingForFeeCharge, setSelectedBookingForFeeCharge] = useState<Booking | null>(null);
+  const [bookingToCancelByNurse, setBookingToCancelByNurse] = useState<Booking | null>(null);
+  const [nurseCancelReason, setNurseCancelReason] = useState('Schedule conflict / unavailable');
+  const [customNurseCancelReason, setCustomNurseCancelReason] = useState('');
 
-  // Vitals State
-  const [bp, setBp] = useState('124/80 mmHg');
-  const [pulse, setPulse] = useState('74 bpm');
-  const [glucose, setGlucose] = useState('5.9 mmol/L');
-  const [spo2, setSpo2] = useState('99%');
-  const [temp, setTemp] = useState('36.6 °C');
+  // Vitals State (blank until measured and recorded by nurse)
+  const [bp, setBp] = useState('');
+  const [pulse, setPulse] = useState('');
+  const [glucose, setGlucose] = useState('');
+  const [spo2, setSpo2] = useState('');
+  const [temp, setTemp] = useState('');
   const [medsAdministered, setMedsAdministered] = useState('');
   const [careSummary, setCareSummary] = useState('');
   const [recommendations, setRecommendations] = useState('');
@@ -358,9 +359,9 @@ export const NursePortal: React.FC<NursePortalProps> = ({
   const [onboardingLicense, setOnboardingLicense] = useState(currentNurse.nursingCouncilLicense);
   const [onboardingExp, setOnboardingExp] = useState(currentNurse.yearsExperience);
   const [onboardingBio, setOnboardingBio] = useState(currentNurse.bio);
-  const [onboardingBankName, setOnboardingBankName] = useState(currentNurse.bankDetails?.bankName || 'National Commercial Bank (NCB) Jamaica');
-  const [onboardingAccount, setOnboardingAccount] = useState(currentNurse.bankDetails?.accountNumber || '•••• •••• 4821');
-  const [onboardingLynk, setOnboardingLynk] = useState(currentNurse.bankDetails?.lynkWallet || 'lynk.me/nurse');
+  const [onboardingBankName, setOnboardingBankName] = useState(currentNurse.bankDetails?.bankName || '');
+  const [onboardingAccount, setOnboardingAccount] = useState(currentNurse.bankDetails?.accountNumber || '');
+  const [onboardingLynk, setOnboardingLynk] = useState(currentNurse.bankDetails?.lynkWallet || '');
   const [selectedZones, setSelectedZones] = useState<string[]>(currentNurse.zones);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -453,7 +454,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
 
     const baseMins = selectedBookingForCloseout.baseDurationMinutes || 45;
     const basePrice = selectedBookingForCloseout.basePriceJMD || selectedBookingForCloseout.priceJMD;
-    const hourlyRate = selectedBookingForCloseout.hourlyRateJMD || currentNurse.hourlyRateJMD || 7500;
+    const hourlyRate = selectedBookingForCloseout.hourlyRateJMD || currentNurse.hourlyRateJMD || 0;
     const overtimeRatePerMin = hourlyRate / 60;
     const overtimeMins = Math.max(0, closeoutMinutes - baseMins);
     const overtimeFee = Math.round(overtimeMins * overtimeRatePerMin);
@@ -497,14 +498,14 @@ export const NursePortal: React.FC<NursePortalProps> = ({
     };
 
     const clinicalData: ClinicalNotes = {
-      bloodPressure: bp,
-      pulseRate: pulse,
-      bloodGlucose: glucose,
-      oxygenSaturation: spo2,
-      temperature: temp,
-      medicationsAdministered: medsAdministered || 'None required during visit.',
-      careSummary: careSummary || 'Clinical visit carried out adhering to sterile protocol. Patient stable and comfortable.',
-      nurseRecommendations: recommendations || 'Continue regular medication schedule and monitoring.',
+      bloodPressure: bp.trim(),
+      pulseRate: pulse.trim(),
+      bloodGlucose: glucose.trim(),
+      oxygenSaturation: spo2.trim(),
+      temperature: temp.trim(),
+      medicationsAdministered: medsAdministered.trim(),
+      careSummary: careSummary.trim(),
+      nurseRecommendations: recommendations.trim(),
       completedAt: closeoutEndedAt || new Date().toISOString()
     };
 
@@ -572,11 +573,17 @@ export const NursePortal: React.FC<NursePortalProps> = ({
         
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start sm:items-center gap-4">
-            <img loading="lazy" decoding="async"
-              src={currentNurse.photoUrl}
-              alt={currentNurse.name}
-              className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-500/50 shadow-lg shadow-purple-950/40 shrink-0"
-            />
+            {currentNurse.photoUrl ? (
+              <img loading="lazy" decoding="async"
+                src={currentNurse.photoUrl}
+                alt={currentNurse.name}
+                className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-500/50 shadow-lg shadow-purple-950/40 shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-2xl bg-purple-950/60 border-2 border-purple-500/50 flex items-center justify-center shrink-0">
+                <User className="w-7 h-7 text-purple-300" />
+              </div>
+            )}
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl font-bold text-white">{currentNurse.name}</h1>
@@ -625,11 +632,11 @@ export const NursePortal: React.FC<NursePortalProps> = ({
               </div>
 
               <p className="text-xs text-purple-200/80 mt-1">
-                License: <strong className="text-white font-mono">{currentNurse.nursingCouncilLicense}</strong> • Service Area: Kingston, St. Andrew, Portmore, and Spanish Town
+                License: <strong className="text-white font-mono">{currentNurse.nursingCouncilLicense || 'Not provided'}</strong> • Service Area: {currentNurse.zones.length > 0 ? currentNurse.zones.join(', ') : 'Not specified'}
               </p>
 
               <div className="flex flex-wrap items-center gap-3 mt-3 text-xs text-slate-300">
-                <span>⭐ <strong className="text-white">{currentNurse.rating > 0 ? currentNurse.rating : '5.0'}</strong> Rating ({currentNurse.reviewCount} reviews)</span>
+                <span>⭐ <strong className="text-white">{currentNurse.reviewCount > 0 && currentNurse.rating > 0 ? currentNurse.rating.toFixed(1) : '—'}</strong> Rating ({currentNurse.reviewCount} reviews)</span>
                 <span className="text-slate-600">•</span>
                 <span>🏥 <strong className="text-white">{currentNurse.completedVisitsCount}</strong> Completed Visits</span>
                 <span className="text-slate-600">•</span>
@@ -842,7 +849,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
             <span className="text-slate-400 block text-[10px] uppercase font-bold tracking-wider">Payout Method</span>
             <span className="text-xs font-semibold text-emerald-300 mt-0.5 block truncate flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-              {currentNurse.bankDetails?.bankName.split(' ')[0] || 'NCB'} Direct
+              {currentNurse.bankDetails?.bankName ? `${currentNurse.bankDetails.bankName.split(' ')[0]} Direct` : 'Not configured'}
             </span>
           </div>
         </div>
@@ -915,17 +922,19 @@ export const NursePortal: React.FC<NursePortalProps> = ({
           <div className="pt-2 border-t border-white/10 flex flex-wrap items-center gap-3 text-[11px]">
             <span className="text-slate-400 font-semibold">Submitted Files:</span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">
-              ✓ TRN: {currentNurse.trnNumber || currentNurse.trn || 'Recorded'}
+              TRN: {currentNurse.trnNumber || currentNurse.trn || 'Not provided'}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">
-              ✓ Driver's License: {currentNurse.driversLicenseNumber || 'Front & Back Uploaded'}
+              Driver&apos;s License: {currentNurse.driversLicenseNumber || (currentNurse.driversLicenseFrontUrl ? 'Front Uploaded' : 'Not provided')}
             </span>
             <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">
-              ✓ NCJ License: {currentNurse.nursingCouncilLicense}
+              NCJ License: {currentNurse.nursingCouncilLicense || 'Not provided'}
             </span>
-            <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">
-              ✓ Profile Photo Attached
-            </span>
+            {currentNurse.photoUrl && (
+              <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-medium">
+                ✓ Profile Photo Attached
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -1212,7 +1221,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                         <div className="flex flex-wrap items-center gap-2 mt-1">
                           <p className="text-xs text-slate-300 flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5 text-[#F59E0B] shrink-0" />
-                            <span>{req.zone}, Kingston</span>
+                            <span>{[req.zone, req.clientAddress].filter(Boolean).join(', ') || 'Location not specified'}</span>
                           </p>
                           <NavigateToLocationButton
                             address={req.clientAddress || req.zone}
@@ -1261,11 +1270,17 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                         {/* Client Card with Small Photo & Nurse Rating */}
                         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between gap-3 text-xs">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <img loading="lazy" decoding="async"
-                              src={req.clientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
-                              alt={req.clientName}
-                              className="w-10 h-10 rounded-full object-cover border-2 border-purple-400 shrink-0"
-                            />
+                            {req.clientPhotoUrl ? (
+                              <img loading="lazy" decoding="async"
+                                src={req.clientPhotoUrl}
+                                alt={req.clientName}
+                                className="w-10 h-10 rounded-full object-cover border-2 border-purple-400 shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-purple-950/60 border-2 border-purple-400/50 flex items-center justify-center shrink-0">
+                                <User className="w-5 h-5 text-purple-300" />
+                              </div>
+                            )}
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <span className="font-bold text-white text-xs truncate">{req.clientName}</span>
@@ -1277,18 +1292,24 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                                   {clientRep.userTypeLabel}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-300 truncate mt-0.5">{req.clientAddress || req.zone}</p>
+                              <p className="text-[11px] text-slate-300 truncate mt-0.5">{req.clientAddress || req.zone || 'Address not provided'}</p>
                             </div>
                           </div>
 
                           <div className="text-right shrink-0">
-                            <div className="flex items-center gap-1 justify-end">
-                              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                              <span className="font-black text-white text-xs">{clientRep.rating.toFixed(1)}</span>
-                            </div>
-                            <span className="text-[9px] text-amber-300/80 block font-semibold">
-                              Nurse Rated ({clientRep.reviewCount} revs)
-                            </span>
+                            {clientRep.reviewCount > 0 ? (
+                              <>
+                                <div className="flex items-center gap-1 justify-end">
+                                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                                  <span className="font-black text-white text-xs">{clientRep.rating.toFixed(1)}</span>
+                                </div>
+                                <span className="text-[9px] text-amber-300/80 block font-semibold">
+                                  Nurse Rated ({clientRep.reviewCount} revs)
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-purple-300 font-semibold">New Patient</span>
+                            )}
                           </div>
                         </div>
                       </>
@@ -1300,26 +1321,35 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                     <span className="text-[10px] text-purple-300 font-mono">PIN Check Required</span>
                   </div>
 
-                  <div className="flex gap-2 pt-1">
+                  <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       onClick={() => setSelectedBookingForPrompt(req)}
                       className="flex-1 py-2.5 rounded-xl border border-purple-400/40 bg-purple-600/20 text-purple-200 font-bold text-xs hover:bg-purple-600/30 transition flex items-center justify-center gap-1.5"
                     >
-                      <Eye className="w-3.5 h-3.5" /> Review &amp; Respond
+                      <Eye className="w-3.5 h-3.5" /> Review
                     </button>
                     <button
                       onClick={() => {
                         soundFX.playCancellation();
                         if (onRerouteBooking) {
                           onRerouteBooking(req.id, 'Declined by caregiver in incoming offers tab');
-                        } else {
-                          onUpdateBookingStatus(req.id, 'cancelled');
                         }
                       }}
-                      className="px-4 py-2.5 rounded-xl border border-red-500/30 text-red-300 font-bold text-xs hover:bg-red-500/10 transition cursor-pointer"
+                      className="px-3 py-2.5 rounded-xl border border-amber-500/30 text-amber-300 font-bold text-xs hover:bg-amber-500/10 transition cursor-pointer"
                       title="Decline this request and auto-transfer to the next available practitioner"
                     >
-                      Decline &amp; Reroute
+                      Reroute
+                    </button>
+                    <button
+                      onClick={() => {
+                        setBookingToCancelByNurse(req);
+                        setNurseCancelReason('Schedule conflict / unavailable');
+                        setCustomNurseCancelReason('');
+                      }}
+                      className="px-3 py-2.5 rounded-xl border border-red-500/30 text-red-300 font-bold text-xs hover:bg-red-500/10 transition cursor-pointer flex items-center gap-1"
+                      title="Cancel booking completely"
+                    >
+                      <XCircle className="w-3.5 h-3.5" /> Cancel
                     </button>
                     <button
                       onClick={() => {
@@ -1329,7 +1359,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                       className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white font-bold text-xs transition shadow-lg shadow-emerald-950/50 flex items-center justify-center gap-1.5 cursor-pointer"
                       title="Review required supplies checklist and accept job"
                     >
-                      <CheckCircle2 className="w-4 h-4" /> Accept Job
+                      <CheckCircle2 className="w-4 h-4" /> Accept
                     </button>
                   </div>
                 </div>
@@ -1499,8 +1529,19 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">Emergency Contact</span>
-                      <strong className="text-white">{booking.clientEmergencyContact.name} ({booking.clientEmergencyContact.relation})</strong>
-                      <span className="text-slate-300 block">{booking.clientEmergencyContact.phone}</span>
+                      {booking.clientEmergencyContact?.name ? (
+                        <>
+                          <strong className="text-white">
+                            {booking.clientEmergencyContact.name}
+                            {booking.clientEmergencyContact.relation ? ` (${booking.clientEmergencyContact.relation})` : ''}
+                          </strong>
+                          {booking.clientEmergencyContact.phone && (
+                            <span className="text-slate-300 block">{booking.clientEmergencyContact.phone}</span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-slate-400">Not provided</span>
+                      )}
                     </div>
                   </div>
 
@@ -1671,6 +1712,22 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                           <ShieldAlert className="w-4 h-4 text-red-400" />
                           <span>119</span>
                         </button>
+
+                        {booking.status !== 'completed' && booking.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBookingToCancelByNurse(booking);
+                              setNurseCancelReason('Schedule conflict / unavailable');
+                              setCustomNurseCancelReason('');
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            title="Cancel this booking"
+                          >
+                            <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Cancel Booking</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Right: Operational Status & QR Actions */}
@@ -2056,13 +2113,17 @@ export const NursePortal: React.FC<NursePortalProps> = ({
           {/* Official Verified We Care ID Card Presentation & Print Banner */}
           <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-purple-900/30 to-emerald-950/40 border border-amber-400/40 flex flex-wrap items-center justify-between gap-4 text-xs shadow-lg">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-amber-400/70 shadow-md relative shrink-0 bg-slate-800">
-                <img loading="lazy" decoding="async" 
-                  src={currentNurse.photoUrl} 
-                  alt={currentNurse.name} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-amber-400/70 shadow-md relative shrink-0 bg-slate-800 flex items-center justify-center">
+                {currentNurse.photoUrl ? (
+                  <img loading="lazy" decoding="async" 
+                    src={currentNurse.photoUrl} 
+                    alt={currentNurse.name} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <User className="w-6 h-6 text-slate-400" />
+                )}
                 <div className="absolute bottom-0 inset-x-0 bg-black/75 text-[8px] font-bold text-amber-300 text-center py-0.5 font-mono">
                   ID
                 </div>
@@ -2325,6 +2386,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
                   onChange={(e) => setOnboardingBankName(e.target.value)}
                   className="w-full p-2 rounded-xl border border-white/15 bg-[#1a0b28] text-white text-xs"
                 >
+                  <option value="">Select Bank...</option>
                   <option value="National Commercial Bank (NCB) Jamaica">National Commercial Bank (NCB)</option>
                   <option value="Scotiabank Jamaica">Scotiabank Jamaica</option>
                   <option value="JN Bank Jamaica">JN Bank Jamaica</option>
@@ -2435,7 +2497,7 @@ export const NursePortal: React.FC<NursePortalProps> = ({
       {selectedBookingForCloseout && (() => {
         const baseM = selectedBookingForCloseout.baseDurationMinutes || 45;
         const baseP = selectedBookingForCloseout.basePriceJMD || selectedBookingForCloseout.priceJMD;
-        const hRate = selectedBookingForCloseout.hourlyRateJMD || currentNurse.hourlyRateJMD || 7500;
+        const hRate = selectedBookingForCloseout.hourlyRateJMD || currentNurse.hourlyRateJMD || 0;
         const otMins = Math.max(0, closeoutMinutes - baseM);
         const otFee = Math.round(otMins * (hRate / 60));
         const totCharge = baseP + otFee;
@@ -2735,6 +2797,19 @@ export const NursePortal: React.FC<NursePortalProps> = ({
             setIsPlatformFeeChargeModalOpen(true);
           }}
           onUpdateBookingStatus={onUpdateBookingStatus}
+          onCancelBooking={(bookingId, reason) => {
+            if (onCancelBooking) {
+              onCancelBooking(bookingId, reason);
+            } else {
+              onUpdateBookingStatus(bookingId, 'cancelled', undefined, {
+                cancelledBy: 'nurse',
+                cancelReason: reason,
+                cancelledAt: new Date().toISOString(),
+                paymentStatus: 'refunded'
+              });
+            }
+            setSelectedBookingForDetailModal(null);
+          }}
           onTriggerNotification={onTriggerNotification}
         />
       )}
@@ -2855,6 +2930,20 @@ export const NursePortal: React.FC<NursePortalProps> = ({
             }
             setSelectedBookingForPrompt(null);
           }}
+          onCancelBooking={(bookingId, reason) => {
+            soundFX.playCancellation();
+            if (onCancelBooking) {
+              onCancelBooking(bookingId, reason);
+            } else {
+              onUpdateBookingStatus(bookingId, 'cancelled', undefined, {
+                cancelledBy: 'nurse',
+                cancelReason: reason,
+                cancelledAt: new Date().toISOString(),
+                paymentStatus: 'refunded'
+              });
+            }
+            setSelectedBookingForPrompt(null);
+          }}
           onClose={() => setSelectedBookingForPrompt(null)}
         />
       )}
@@ -2923,6 +3012,92 @@ export const NursePortal: React.FC<NursePortalProps> = ({
             setSelectedBookingForFeeCharge(null);
           }}
         />
+      )}
+
+      {/* NURSE BOOKING CANCELLATION MODAL */}
+      {bookingToCancelByNurse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+          <div className="bg-[#150722] border border-red-500/40 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 text-white">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-red-500/20 text-red-400">
+                  <XCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Cancel Booking</h3>
+                  <p className="text-[11px] text-slate-400">
+                    {bookingToCancelByNurse.serviceName} • {bookingToCancelByNurse.clientName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBookingToCancelByNurse(null)}
+                className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <label className="block font-bold text-slate-300">Reason for Cancellation *</label>
+              <select
+                value={nurseCancelReason}
+                onChange={(e) => setNurseCancelReason(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-[#1a0b28] border border-white/15 text-white text-xs"
+              >
+                <option value="Schedule conflict / unavailable">Schedule conflict / unavailable</option>
+                <option value="Medical or personal emergency">Medical or personal emergency</option>
+                <option value="Patient requested cancellation">Patient requested cancellation</option>
+                <option value="Location / accessibility issue">Location / accessibility issue</option>
+                <option value="Other">Other</option>
+              </select>
+
+              {nurseCancelReason === 'Other' && (
+                <textarea
+                  rows={2}
+                  value={customNurseCancelReason}
+                  onChange={(e) => setCustomNurseCancelReason(e.target.value)}
+                  placeholder="Enter specific reason for cancelling..."
+                  className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-white text-xs"
+                />
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setBookingToCancelByNurse(null)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-bold text-xs transition"
+              >
+                Keep Booking
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const finalReason = nurseCancelReason === 'Other'
+                    ? (customNurseCancelReason.trim() || 'Cancelled by practitioner')
+                    : nurseCancelReason;
+                  soundFX.playCancellation();
+                  if (onCancelBooking) {
+                    onCancelBooking(bookingToCancelByNurse.id, finalReason);
+                  } else {
+                    onUpdateBookingStatus(bookingToCancelByNurse.id, 'cancelled', undefined, {
+                      cancelledBy: 'nurse',
+                      cancelReason: finalReason,
+                      cancelledAt: new Date().toISOString(),
+                      paymentStatus: 'refunded'
+                    });
+                  }
+                  setBookingToCancelByNurse(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition shadow-md"
+              >
+                Confirm Cancellation
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

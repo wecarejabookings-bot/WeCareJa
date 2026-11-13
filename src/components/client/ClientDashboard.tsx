@@ -26,7 +26,8 @@ import {
   Stethoscope,
   Smile,
   BadgeCheck,
-  Users
+  Users,
+  XCircle
 } from 'lucide-react';
 import { 
   Booking, 
@@ -58,6 +59,7 @@ export interface ClientDashboardProps {
   onNavigateToCoverageMap?: () => void;
   onNavigateToMedSchedule?: () => void;
   onUpdateBookingStatus?: (bookingId: string, status: Booking['status'], clinicalNotes?: any, additionalData?: any) => void;
+  onCancelBooking?: (bookingId: string, reason: string) => void;
   onOpenNursingTeamDirectory?: () => void;
   onDispatchLovedOneCheck?: (target: string, recommendedService: string, notes: string) => void;
 }
@@ -78,9 +80,13 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   onNavigateToCoverageMap,
   onNavigateToMedSchedule,
   onUpdateBookingStatus,
+  onCancelBooking,
   onOpenNursingTeamDirectory,
   onDispatchLovedOneCheck
 }) => {
+  const [cancelTarget, setCancelTarget] = useState<Booking | null>(null);
+  const [cancelReason, setCancelReason] = useState('Schedule change');
+  const [customCancelReason, setCustomCancelReason] = useState('');
   const userScope = currentUser?.id || 'guest';
   const milestonesKey = `wecare_patient_milestones_${userScope}`;
   const medStreakKey = `wecare_patient_med_streak_${userScope}`;
@@ -423,10 +429,12 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                 Licensed In-Home Care • Jamaica
               </span>
-              <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1">
-                <MapPin className="w-3 h-3 text-[#F59E0B]" />
-                {currentUser?.zone || 'Kingston & St. Andrew'}
-              </span>
+              {currentUser?.zone && (
+                <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#F59E0B]" />
+                  {currentUser.zone}
+                </span>
+              )}
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -599,13 +607,19 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
                 <div className="flex items-center gap-3.5">
                   <div className="relative shrink-0">
-                    <img loading="lazy" decoding="async"
-                      src={nextVisit.nursePhoto || 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=200'}
-                      alt={nextVisit.nurseName || 'Caregiver'}
-                      className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-400 shadow-md"
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-[#160624]" title="Nursing Council Registered">
+                    {nextVisit.nursePhoto ? (
+                      <img loading="lazy" decoding="async"
+                        src={nextVisit.nursePhoto}
+                        alt={nextVisit.nurseName || 'Caregiver'}
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-400 shadow-md"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-purple-500/20 border-2 border-purple-400/50 flex items-center justify-center text-purple-200 shadow-md">
+                        <User className="w-7 h-7" />
+                      </div>
+                    )}
+                    <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border-2 border-[#160624]" title="Verified Practitioner">
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>
                   </div>
@@ -625,7 +639,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       <span>•</span>
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3 text-emerald-400" />
-                        {nextVisit.zone || 'Kingston'}
+                        {nextVisit.zone || nextVisit.clientAddress || '—'}
                       </span>
                     </div>
                   </div>
@@ -635,7 +649,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                 <div className="sm:text-right shrink-0 p-3 rounded-2xl bg-white/5 border border-white/10">
                   <span className="text-[10px] text-purple-200/70 uppercase font-bold block">Doorstep Passcode</span>
                   <span className="font-mono text-lg font-black text-amber-300 tracking-wider">
-                    {getArrivalPassCode(nextVisit)}
+                    {getArrivalPassCode(nextVisit) || 'Pending'}
                   </span>
                   <span className="text-[9px] text-slate-400 block mt-0.5">Share with nurse upon arrival</span>
                 </div>
@@ -643,7 +657,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
 
               {/* Action buttons on Next Visit */}
               <div className="pt-2 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {onOpenArrivalQR && (
                     <button
                       type="button"
@@ -674,6 +688,17 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       <Phone className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Call</span>
                     </a>
+                  )}
+
+                  {onCancelBooking && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelTarget(nextVisit)}
+                      className="px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <XCircle className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Cancel Booking</span>
+                    </button>
                   )}
                 </div>
 
@@ -706,12 +731,18 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                       className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     >
                       <div className="flex items-center gap-3">
-                        <img loading="lazy" decoding="async"
-                          src={booking.nursePhoto || 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=150'}
-                          alt={booking.nurseName || 'Nurse'}
-                          className="w-10 h-10 rounded-xl object-cover border border-purple-400/40 shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
+                        {booking.nursePhoto ? (
+                          <img loading="lazy" decoding="async"
+                            src={booking.nursePhoto}
+                            alt={booking.nurseName || 'Nurse'}
+                            className="w-10 h-10 rounded-xl object-cover border border-purple-400/40 shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-200 shrink-0">
+                            <User className="w-5 h-5" />
+                          </div>
+                        )}
                         <div>
                           <h4 className="text-sm font-bold text-white">{booking.serviceName}</h4>
                           <p className="text-xs text-slate-300">
@@ -733,6 +764,18 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
                             title="View Doorstep QR"
                           >
                             <QrCode className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {onCancelBooking && (
+                          <button
+                            type="button"
+                            onClick={() => setCancelTarget(booking)}
+                            className="px-2 py-1 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/30 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                            title="Cancel Booking"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Cancel</span>
                           </button>
                         )}
 
@@ -1015,6 +1058,91 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Cancel Booking Reason Modal */}
+      {cancelTarget && onCancelBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+          <div className="bg-[#11041d] rounded-3xl max-w-md w-full p-6 shadow-2xl border border-white/15 space-y-4 text-white">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-red-400" />
+                <span>Cancel Booking</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                className="text-slate-400 hover:text-white text-sm font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-xs space-y-1">
+              <p className="font-bold text-white">{cancelTarget.serviceName}</p>
+              <p className="text-slate-400">
+                {new Date(cancelTarget.scheduledDateTime).toLocaleString()}
+                {cancelTarget.nurseName ? ` • ${cancelTarget.nurseName}` : ''}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                Reason for Cancellation
+              </label>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full p-3 rounded-xl bg-slate-900 border border-white/15 text-xs text-white focus:border-purple-400 outline-none"
+              >
+                <option value="Change of plans / no longer needed">Change of plans / no longer needed</option>
+                <option value="Rescheduling to another date or time">Rescheduling to another date or time</option>
+                <option value="Caregiver delay or unavailability">Caregiver delay or unavailability</option>
+                <option value="Medical situation resolved or admitted">Medical situation resolved or admitted</option>
+                <option value="Other">Other (specify below)</option>
+              </select>
+            </div>
+
+            {cancelReason === 'Other' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Please specify
+                </label>
+                <input
+                  type="text"
+                  value={customCancelReason}
+                  onChange={(e) => setCustomCancelReason(e.target.value)}
+                  placeholder="Enter cancellation reason..."
+                  className="w-full p-3 rounded-xl bg-slate-900 border border-white/15 text-xs text-white focus:border-purple-400 outline-none"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setCancelTarget(null)}
+                className="flex-1 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 font-bold text-xs transition cursor-pointer"
+              >
+                Keep Booking
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const finalReason = cancelReason === 'Other'
+                    ? (customCancelReason.trim() || 'Cancelled by client')
+                    : cancelReason;
+                  onCancelBooking(cancelTarget.id, finalReason);
+                  setCancelTarget(null);
+                  setCustomCancelReason('');
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs transition cursor-pointer shadow-md"
+              >
+                Confirm Cancellation
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

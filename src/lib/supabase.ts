@@ -221,24 +221,21 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
   const resolvedRejectionReason = profile.rejection_reason || localDossier?.rejection_reason || localNurseData?.rejection_reason;
   const resolvedRejectedDocs = profile.rejected_documents || localDossier?.rejected_documents || localNurseData?.rejected_documents;
   const resolvedRejectionDate = profile.rejection_date || localDossier?.rejection_date || localNurseData?.rejection_date;
-  const resolvedAvatar = isMaster
-    ? 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400'
-    : (
-        profile.avatar_url ||
-        localDossier?.biometricVerification?.photoUrl ||
-        localDossier?.photoUrl ||
-        localDossier?.profilePhotoUrl ||
-        localNurseData?.photoUrl ||
-        localUserAccount?.avatarUrl ||
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'
-      );
+  const resolvedAvatar =
+    profile.avatar_url ||
+    localDossier?.biometricVerification?.photoUrl ||
+    localDossier?.photoUrl ||
+    localDossier?.profilePhotoUrl ||
+    localNurseData?.photoUrl ||
+    localUserAccount?.avatarUrl ||
+    '';
 
   return {
     ...(localUserAccount && cleanMail && localUserAccount.email?.toLowerCase() === cleanMail ? localUserAccount : {}),
     id: profile.id,
     username: profile.username || localDossier?.username || localUserAccount?.username || (isMaster ? 'sydney' : (email?.split('@')[0] || 'user')),
-    name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || 'Nurse Practitioner') : 'Registered Client')),
-    full_name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || 'Nurse Practitioner') : 'Registered Client')),
+    name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || '') : '')),
+    full_name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || '') : '')),
     email: cleanMail || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
     phone: profile.phone || localDossier?.phone || localNurseData?.phone || (isMaster ? '(876) 582-7613' : ''),
     role: normalizedRole,
@@ -249,7 +246,7 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
     department: isMaster ? 'Executive Clinical Leadership & Registry Audit' : undefined,
     avatarUrl: resolvedAvatar,
     avatar: resolvedAvatar,
-    zone: profile.zone || localDossier?.parish || (localNurseData?.zones?.[0]) || localUserAccount?.zone || 'St. Catherine & Kingston',
+    zone: profile.zone || localDossier?.parish || (localNurseData?.zones?.[0]) || localUserAccount?.zone || (isMaster ? 'St. Catherine & Kingston' : ''),
     address: profile.address || localDossier?.address || localNurseData?.address || localUserAccount?.address || (isMaster ? '4 Claudete Drive, St. Catherine, Jamaica' : ''),
     medical_info: profile.medical_info || localUserAccount?.medical_info || '',
     is_deleted: Boolean(profile.is_deleted),
@@ -298,10 +295,8 @@ export function buildUserAccountFromSession(user: any, fallbackUsername?: string
     trn: meta.trn || '',
     title: isMaster ? 'Lead Operations Director & Master Administrator' : (role === 'nurse' ? 'Registered Healthcare Practitioner' : 'Verified Family Client'),
     department: isMaster ? 'Executive Clinical Leadership & Registry Audit' : undefined,
-    avatarUrl: isMaster
-      ? 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400'
-      : (meta.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'),
-    zone: meta.zone || 'St. Catherine & Kingston',
+    avatarUrl: meta.avatar_url || '',
+    zone: meta.zone || (isMaster ? 'St. Catherine & Kingston' : ''),
     address: meta.address || (isMaster ? '4 Claudete Drive, St. Catherine, Jamaica' : ''),
     medical_info: meta.medical_info || '',
     is_deleted: false,
@@ -755,7 +750,7 @@ export async function signUpClientUser(data: {
     role: 'client',
     approvalStatus: 'approved',
     title: 'Verified Family Client',
-    zone: data.address || 'Kingston & St. Andrew',
+    zone: data.address || '',
     address: data.address || '',
     medical_info: data.medicalInfo || '',
     createdAt: new Date().toISOString()
@@ -800,9 +795,9 @@ export async function fetchCurrentProfile(userId: string, authUser?: any): Promi
     if (!data && authUser) {
       try {
         const healRole = authUser.user_metadata?.role || 'nurse';
-        const healName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Nurse Practitioner';
+        const healName = authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Practitioner';
         const healPhone = authUser.user_metadata?.phone || '';
-        const healAddress = authUser.user_metadata?.address || 'Kingston, Jamaica';
+        const healAddress = authUser.user_metadata?.address || '';
         const healTrn = authUser.user_metadata?.trn || '';
 
         await supabase.from('profiles').upsert({
@@ -1221,11 +1216,12 @@ export async function updateSupplyOrderInvoiceInSupabase(orderId: string, invoic
   }
 }
 
-// 3. BOOKINGS HELPERS: Save supplies_checklist_ack to bookings
+// 3. BOOKINGS HELPERS: Save supplies_checklist_ack and real fields to bookings
 export async function createBookingInSupabase(booking: Booking): Promise<Booking> {
-  const row = {
+  const row: Record<string, any> = {
     id: booking.id,
     service_id: booking.serviceId,
+    service_name: booking.serviceName,
     client_id: booking.clientId,
     client_name: booking.clientName,
     client_phone: booking.clientPhone,
@@ -1242,6 +1238,11 @@ export async function createBookingInSupabase(booking: Booking): Promise<Booking
     supplies_checklist_ack: Boolean(booking.supplies_checklist_ack),
     created_at: booking.createdAt || new Date().toISOString()
   };
+
+  if (booking.clientEmergencyContact?.name || booking.clientEmergencyContact?.phone) {
+    row.emergency_name = booking.clientEmergencyContact.name || '';
+    row.emergency_phone = booking.clientEmergencyContact.phone || '';
+  }
 
   try {
     const { data, error } = await supabase
@@ -1263,6 +1264,42 @@ export async function createBookingInSupabase(booking: Booking): Promise<Booking
   return booking;
 }
 
+export async function cancelBookingInSupabase(
+  bookingId: string,
+  reason: string,
+  cancelledBy: 'client' | 'nurse' | 'admin' = 'client'
+): Promise<boolean> {
+  const cancelledAt = new Date().toISOString();
+  try {
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        status: 'cancelled',
+        cancel_reason: reason,
+        cancelled_by: cancelledBy,
+        cancelled_at: cancelledAt,
+        payment_status: 'refunded'
+      })
+      .eq('id', bookingId);
+
+    if (!error) return true;
+
+    // Fallback in case extended cancellation columns don't exist in schema
+    const { error: fallbackErr } = await supabase
+      .from('bookings')
+      .update({
+        status: 'cancelled',
+        notes: `[Cancelled by ${cancelledBy} at ${cancelledAt}]: ${reason}`
+      })
+      .eq('id', bookingId);
+
+    return !fallbackErr;
+  } catch (err) {
+    console.warn('Could not cancel booking in Supabase:', err);
+    return false;
+  }
+}
+
 export async function fetchBookingsFromSupabase(): Promise<Booking[]> {
   try {
     const { data, error } = await supabase
@@ -1273,31 +1310,38 @@ export async function fetchBookingsFromSupabase(): Promise<Booking[]> {
     if (!error && Array.isArray(data)) {
       return data.map((b: any) => ({
         id: b.id,
-        serviceId: b.service_id || 'srv-1',
-        serviceName: b.service_name || 'Home Nursing Care',
-        clientId: b.client_id || 'client-anon',
-        clientName: b.client_name || 'Jamaican Client',
-        clientPhone: b.client_phone || '(876) 000-0000',
-        clientAddress: b.client_address || 'Kingston, Jamaica',
-        zone: b.zone || 'Kingston & St. Andrew',
-        clientEmergencyContact: {
-          name: b.emergency_name || 'Next of Kin',
-          phone: b.emergency_phone || '(876) 000-0000',
-          relation: 'Emergency Contact'
-        },
-        nurseId: b.nurse_id,
-        nurseName: b.nurse_name,
+        serviceId: b.service_id || '',
+        serviceName: b.service_name || '',
+        clientId: b.client_id || '',
+        clientName: b.client_name || '',
+        clientPhone: b.client_phone || '',
+        clientAddress: b.client_address || '',
+        zone: b.zone || '',
+        ...(b.emergency_name || b.emergency_phone
+          ? {
+              clientEmergencyContact: {
+                name: b.emergency_name || '',
+                phone: b.emergency_phone || '',
+                relation: b.emergency_relation || ''
+              }
+            }
+          : {}),
+        nurseId: b.nurse_id || undefined,
+        nurseName: b.nurse_name || undefined,
         scheduledDateTime: b.scheduled_datetime || b.created_at,
         createdAt: b.created_at || new Date().toISOString(),
         status: b.status || 'requested',
-        priceJMD: Number(b.price_jmd || 7500),
-        platformFeeJMD: Number(b.platform_fee_jmd || 1125),
-        nurseEarningsJMD: Number(b.nurse_earnings_jmd || 6375),
-        paymentMethod: 'cash_on_delivery',
-        paymentStatus: 'held_in_escrow',
-        freeCancelDeadline: new Date(Date.now() + 86400000).toISOString(),
+        priceJMD: Number(b.price_jmd || 0),
+        platformFeeJMD: Number(b.platform_fee_jmd || 0),
+        nurseEarningsJMD: Number(b.nurse_earnings_jmd || 0),
+        paymentMethod: b.payment_method || 'cash_on_delivery',
+        paymentStatus: b.payment_status || (b.status === 'cancelled' ? 'refunded' : 'held_in_escrow'),
+        cancelReason: b.cancel_reason || undefined,
+        cancelledBy: b.cancelled_by || undefined,
+        cancelledAt: b.cancelled_at || undefined,
+        freeCancelDeadline: b.free_cancel_deadline || new Date(Date.now() + 86400000).toISOString(),
         supplies_checklist_ack: Boolean(b.supplies_checklist_ack),
-        notes: b.notes
+        notes: b.notes || ''
       }));
     }
   } catch (err) {
@@ -1395,7 +1439,7 @@ export async function fetchNursesFromSupabase(): Promise<NurseProfile[]> {
       }
 
       // Parse NCJ license and TRN from remaining header string
-      let ncjLicense = parsedDossier.ncjLicense || 'NCJ-RN-PENDING';
+      let ncjLicense = parsedDossier.ncjLicense || '';
       let trnNum = parsedDossier.trnNumber || '';
       if (!trnNum) {
         if (rawTrn && rawTrn.includes('NCJ')) {
@@ -1404,35 +1448,34 @@ export async function fetchNursesFromSupabase(): Promise<NurseProfile[]> {
           if (parts[1]) trnNum = parts[1].replace('TRN: ', '').trim();
         } else if (rawTrn) {
           trnNum = rawTrn.split(' | ')[0].replace(/^TRN:\s*/i, '').trim();
-          ncjLicense = isApproved ? 'NCJ-RN-ACTIVE' : ncjLicense;
         }
       }
 
       const realPhotoUrl = parsedDossier.photoUrl && !String(parsedDossier.photoUrl).includes('images.unsplash.com')
         ? parsedDossier.photoUrl
-        : undefined;
+        : '';
 
       return {
         id: row.id,
-        name: row.full_name || row.username || 'Licensed Nurse',
-        email: row.email || `${row.id}@wecarejamaica.com`,
-        qualificationTitle: status === 'pending_approval' ? 'Licensed Nurse Applicant (NCJ Vetting Required)' : 'Registered Nurse (RN - NCJ Verified)',
-        parish: parsedDossier.parish || (row.address?.includes(',') ? row.address.split(',').pop()?.trim() || 'Kingston & St. Andrew' : 'Kingston & St. Andrew'),
-        rating: 5.0,
-        reviewCount: isApproved ? 16 : 0,
-        hourlyRateJMD: parsedDossier.hourlyRateJMD || 7500,
+        name: row.full_name || row.username || '',
+        email: row.email || '',
+        qualificationTitle: status === 'pending_approval' ? 'Nurse Applicant (Pending Review)' : 'Registered Nurse',
+        parish: parsedDossier.parish || (row.address?.includes(',') ? row.address.split(',').pop()?.trim() || '' : ''),
+        rating: 0,
+        reviewCount: 0,
+        hourlyRateJMD: parsedDossier.hourlyRateJMD || 0,
         totalEarningsJMD: 0,
         pendingPayoutJMD: 0,
         completedVisitsCount: 0,
         licenseVerified: isApproved,
         status: status,
-        photoUrl: realPhotoUrl || (isApproved ? 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400' : ''),
-        specialties: ['Elderly Care & Vitals', 'Wound Care', 'Post-Op Monitoring'],
-        zones: ['Kingston', 'St. Andrew', 'Portmore'],
-        yearsExperience: parsedDossier.yearsExperience || 4,
-        phone: row.phone || '(876) 555-0199',
-        phoneNumber: row.phone || '(876) 555-0199',
-        address: row.address || 'Kingston, Jamaica',
+        photoUrl: realPhotoUrl,
+        specialties: Array.isArray(parsedDossier.specialties) ? parsedDossier.specialties : [],
+        zones: Array.isArray(parsedDossier.zones) ? parsedDossier.zones : (parsedDossier.parish ? [parsedDossier.parish] : []),
+        yearsExperience: parsedDossier.yearsExperience || 0,
+        phone: row.phone || '',
+        phoneNumber: row.phone || '',
+        address: row.address || '',
         nursingCouncilLicense: ncjLicense,
         trnNumber: trnNum,
         trn: row.trn || trnNum,

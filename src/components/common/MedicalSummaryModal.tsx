@@ -96,17 +96,17 @@ Address/Parish: ${booking.clientAddress} (${booking.zone})
 Attending Nurse: ${booking.nurseName || 'Registered General Nurse'}
 
 VITAL SIGNS & BIOMETRIC TELEMETRY:
-- Blood Pressure: ${booking.clinicalNotes?.bloodPressure || '120/80 mmHg'}
-- Pulse Rate: ${booking.clinicalNotes?.pulseRate || '72 bpm'}
-- Blood Glucose: ${booking.clinicalNotes?.bloodGlucose || '5.6 mmol/L'}
-- Oxygen Saturation (SpO2): ${booking.clinicalNotes?.oxygenSaturation || '98%'}
-- Temperature: ${booking.clinicalNotes?.temperature || '36.7 °C'}
+- Blood Pressure: ${booking.clinicalNotes?.bloodPressure || '—'}
+- Pulse Rate: ${booking.clinicalNotes?.pulseRate || '—'}
+- Blood Glucose: ${booking.clinicalNotes?.bloodGlucose || '—'}
+- Oxygen Saturation (SpO2): ${booking.clinicalNotes?.oxygenSaturation || '—'}
+- Temperature: ${booking.clinicalNotes?.temperature || '—'}
 ${booking.biometricScan ? `- Biometric Optical rPPG: HRV ${booking.biometricScan.heartRateVariabilityMs}ms, Perfusion Index ${booking.biometricScan.perfusionIndex}%, Stress Index: ${booking.biometricScan.stressLevel.toUpperCase()}` : ''}
 
 CLINICAL NOTES & ASSESSMENT:
-- Care Summary: ${booking.clinicalNotes?.careSummary || 'Patient evaluated. Routine in-home nursing care completed.'}
+- Care Summary: ${booking.clinicalNotes?.careSummary || 'Not recorded.'}
 - Medications Administered: ${booking.clinicalNotes?.medicationsAdministered || 'None logged.'}
-- Nurse Recommendations: ${booking.clinicalNotes?.nurseRecommendations || 'Continue standard hydration and prescribed care plan.'}
+- Nurse Recommendations: ${booking.clinicalNotes?.nurseRecommendations || 'Not recorded.'}
 
 FINANCIAL TRANSPARENCY & ACCOUNTABILITY:
 - Total Care Charge: ${formatJMD(booking.priceJMD)}
@@ -341,49 +341,43 @@ Verified under Nursing Council of Jamaica (NCJ) Regulatory Framework.
               <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase">Blood Pressure</span>
                 <strong className="text-white font-mono text-sm block mt-0.5">
-                  {booking.clinicalNotes?.bloodPressure || '120/80 mmHg'}
+                  {booking.clinicalNotes?.bloodPressure || '—'}
                 </strong>
-                <span className="text-[9px] text-emerald-400 font-bold block mt-0.5">Optimal</span>
               </div>
 
               <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase">Pulse Rate</span>
                 <strong className="text-white font-mono text-sm block mt-0.5">
-                  {booking.clinicalNotes?.pulseRate || '72 bpm'}
+                  {booking.clinicalNotes?.pulseRate || '—'}
                 </strong>
-                <span className="text-[9px] text-emerald-400 font-bold block mt-0.5">Regular Rhythm</span>
               </div>
 
               <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase">SpO2 Oxygen</span>
                 <strong className="text-white font-mono text-sm block mt-0.5">
-                  {booking.clinicalNotes?.oxygenSaturation || '98%'}
+                  {booking.clinicalNotes?.oxygenSaturation || '—'}
                 </strong>
-                <span className="text-[9px] text-blue-400 font-bold block mt-0.5">Ambient Air</span>
               </div>
 
               <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase">Blood Glucose</span>
                 <strong className="text-white font-mono text-sm block mt-0.5">
-                  {booking.clinicalNotes?.bloodGlucose || '5.6 mmol/L'}
+                  {booking.clinicalNotes?.bloodGlucose || '—'}
                 </strong>
-                <span className="text-[9px] text-emerald-400 font-bold block mt-0.5">Normoglycemic</span>
               </div>
 
               <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase">Temperature</span>
                 <strong className="text-white font-mono text-sm block mt-0.5">
-                  {booking.clinicalNotes?.temperature || '36.7 °C'}
+                  {booking.clinicalNotes?.temperature || '—'}
                 </strong>
-                <span className="text-[9px] text-emerald-400 font-bold block mt-0.5">Afebrile</span>
               </div>
 
               <div className="p-3 rounded-xl bg-black/50 border border-white/10 text-center">
                 <span className="text-[10px] text-slate-400 block uppercase">Respiration</span>
                 <strong className="text-white font-mono text-sm block mt-0.5">
-                  {booking.biometricScan?.respiratoryRate ? `${booking.biometricScan.respiratoryRate} br/min` : '16 br/min'}
+                  {booking.biometricScan?.respiratoryRate ? `${booking.biometricScan.respiratoryRate} br/min` : '—'}
                 </strong>
-                <span className="text-[9px] text-emerald-400 font-bold block mt-0.5">Eupneic</span>
               </div>
             </div>
 
@@ -421,7 +415,7 @@ Verified under Nursing Council of Jamaica (NCJ) Regulatory Framework.
                   On-Site Nursing Care Summary
                 </span>
                 <p className="text-slate-200 leading-relaxed">
-                  {booking.clinicalNotes?.careSummary || 'Comprehensive in-home nursing visit completed. Patient evaluated in comfortable home environment with zero acute distress observed. Vital signs assessed within acceptable limits.'}
+                  {booking.clinicalNotes?.careSummary || 'Not recorded.'}
                 </p>
               </div>
 
@@ -430,7 +424,7 @@ Verified under Nursing Council of Jamaica (NCJ) Regulatory Framework.
                   Medications &amp; Treatments Administered
                 </span>
                 <p className="text-slate-200 leading-relaxed">
-                  {booking.clinicalNotes?.medicationsAdministered || 'Scheduled morning doses cross-checked with physician prescription. Hydration encouraged. Skin inspection and sterile barrier technique applied where appropriate.'}
+                  {booking.clinicalNotes?.medicationsAdministered || 'None logged.'}
                 </p>
               </div>
 
@@ -439,7 +433,7 @@ Verified under Nursing Council of Jamaica (NCJ) Regulatory Framework.
                   Registered Nurse Recommendations &amp; Next Steps
                 </span>
                 <p className="text-slate-200 leading-relaxed">
-                  {booking.clinicalNotes?.nurseRecommendations || 'Continue daily blood pressure logbook. Maintain consistent fluid intake throughout afternoon. In case of sudden chest pain, shortness of breath, or dizziness, notify We Care emergency line or dial 119 immediately.'}
+                  {booking.clinicalNotes?.nurseRecommendations || 'Not recorded.'}
                 </p>
               </div>
             </div>
@@ -575,13 +569,13 @@ Verified under Nursing Council of Jamaica (NCJ) Regulatory Framework.
             <div className="space-y-3">
               <div className="h-12 border-b border-white/30 flex items-end pb-1">
                 <span className="font-serif italic text-emerald-300 text-sm">
-                  Nurse Patricia Stewart, RN, MSN
+                  We Care Medical Directorate
                 </span>
               </div>
               <div>
-                <strong className="text-white block">Clinical Director &amp; Quality Auditor</strong>
+                <strong className="text-white block">Clinical Quality Audit Record</strong>
                 <span className="text-[11px] text-slate-400 block">
-                  We Care Healthcare Jamaica Ltd. Medical Directorate • Kingston, Jamaica
+                  We Care Healthcare Jamaica Ltd.
                 </span>
               </div>
             </div>

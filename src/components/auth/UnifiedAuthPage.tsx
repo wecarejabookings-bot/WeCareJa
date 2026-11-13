@@ -73,28 +73,28 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
   const [showLogin, setShowLogin] = useState(false);
   const [showLoginInfo, setShowLoginInfo] = useState(true);
   const [phone, setPhone] = useState('');
-  const [parish, setParish] = useState('Kingston');
+  const [parish, setParish] = useState('');
   const [address, setAddress] = useState('');
   
   // Nurse 5-step registration package & credential uploads
   const [nurseStep, setNurseStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [institutionAttended, setInstitutionAttended] = useState('The UWI School of Nursing Mona (UWISON)');
-  const [dateOfBirth, setDateOfBirth] = useState('1994-04-18');
-  const [gender, setGender] = useState('female');
-  const [yearsExperience, setYearsExperience] = useState<number>(5);
+  const [institutionAttended, setInstitutionAttended] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [gender, setGender] = useState('');
+  const [yearsExperience, setYearsExperience] = useState<number>(0);
   const [emergencyContactName, setEmergencyContactName] = useState('');
   const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
-  const [emergencyContactRelation, setEmergencyContactRelation] = useState('Next of Kin / Relative');
+  const [emergencyContactRelation, setEmergencyContactRelation] = useState('');
   
   // Credentials & Document uploads
   const [trn, setTrn] = useState('');
   const [ncjLicense, setNcjLicense] = useState('');
-  const [specialty, setSpecialty] = useState('Elderly & Geriatric Home Care');
-  const [hourlyRate, setHourlyRate] = useState<number>(7500);
+  const [specialty, setSpecialty] = useState('');
+  const [hourlyRate, setHourlyRate] = useState<number>(0);
   const [bio, setBio] = useState('');
   
   // Uploaded Files State (Base64 data URLs)
-  const [photoUrl, setPhotoUrl] = useState<string>('https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400');
+  const [photoUrl, setPhotoUrl] = useState<string>('');
   const [photoFileName, setPhotoFileName] = useState<string>('');
   const [govIdFrontUrl, setGovIdFrontUrl] = useState<string>('');
   const [govIdFrontFileName, setGovIdFrontFileName] = useState<string>('');
@@ -111,10 +111,10 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
   const [licenseDocFileName, setLicenseDocFileName] = useState<string>('');
   
   // Banking / Lynk for Payouts
-  const [bankName, setBankName] = useState('National Commercial Bank (NCB) Jamaica');
+  const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [lynkWallet, setLynkWallet] = useState('');
-  const [signedTerms, setSignedTerms] = useState(true);
+  const [signedTerms, setSignedTerms] = useState(false);
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -151,7 +151,7 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
     const cleanPassword = password.trim();
     const cleanFullName = fullName.trim();
     const cleanPhone = phone.trim();
-    const cleanAddress = address.trim() ? `${address.trim()}, ${parish}` : parish;
+    const cleanAddress = [address.trim(), parish.trim()].filter(Boolean).join(', ');
     const cleanUsername = cleanEmail.split('@')[0] || `user_${Date.now()}`;
 
     if (mode === 'signup' && typeof window !== 'undefined') {
@@ -285,25 +285,25 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
         const newNurseProfile: NurseProfile = {
           id: userId,
           name: cleanFullName,
-          phone: cleanPhone || '(876) 555-0199',
+          phone: cleanPhone,
           email: cleanEmail,
-          parish: parish,
+          parish: parish.trim(),
           address: cleanAddress,
-          photoUrl: photoUrl || 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-          institutionAttended: institutionAttended,
-          nursingCouncilLicense: ncjLicense.trim() || 'NCJ-RN-PENDING',
-          trnNumber: trn.trim() || '',
-          trn: trn.trim() || '',
+          photoUrl: photoUrl || '',
+          institutionAttended: institutionAttended.trim(),
+          nursingCouncilLicense: ncjLicense.trim(),
+          trnNumber: trn.trim(),
+          trn: trn.trim(),
           licenseVerified: false,
           status: 'pending_approval',
-          rating: 5.0,
+          rating: 0,
           reviewCount: 0,
-          yearsExperience: Number(yearsExperience) || 4,
-          specialties: [specialty.trim() || 'Elderly & Geriatric Home Care', 'Vitals Monitoring'],
-          zones: [parish, 'New Kingston', 'St. Andrew', 'Portmore'],
-          hourlyRateJMD: Number(hourlyRate) || 7500,
-          bio: bio.trim() || `Licensed Healthcare Practitioner serving ${parish} and surrounding areas.`,
-          governmentIdType: "Driver's License & National ID",
+          yearsExperience: Number(yearsExperience) || 0,
+          specialties: specialty.trim() ? [specialty.trim()] : [],
+          zones: parish.trim() ? [parish.trim()] : [],
+          hourlyRateJMD: Number(hourlyRate) || 0,
+          bio: bio.trim(),
+          governmentIdType: govIdFrontUrl || dlFrontUrl ? "Driver's License & National ID" : undefined,
           governmentIdUrl: govIdFrontUrl || undefined,
           governmentIdBackUrl: govIdBackUrl || undefined,
           driversLicenseNumber: driversLicenseNumber.trim() || undefined,
@@ -311,22 +311,30 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
           driversLicenseBackUrl: dlBackUrl || govIdBackUrl || undefined,
           trnCertificateUrl: trnCertUrl || undefined,
           licenseDocumentUrl: licenseDocUrl || undefined,
-          bankDetails: {
-            bankName: bankName,
-            accountNumber: accountNumber || '•••• •••• PENDING',
-            accountType: 'Savings',
-            lynkWallet: lynkWallet || undefined
-          },
+          ...(bankName.trim() || accountNumber.trim() || lynkWallet.trim()
+            ? {
+                bankDetails: {
+                  bankName: bankName.trim(),
+                  accountNumber: accountNumber.trim(),
+                  accountType: 'Savings',
+                  lynkWallet: lynkWallet.trim() || undefined
+                }
+              }
+            : {}),
           bioData: {
             dateOfBirth: dateOfBirth,
-            gender: gender as any,
+            gender: (gender || undefined) as any,
             residentialAddress: cleanAddress,
-            residentialParish: parish,
-            emergencyContact: {
-              name: emergencyContactName || 'Family Contact',
-              phone: emergencyContactPhone || cleanPhone,
-              relation: emergencyContactRelation || 'Next of Kin'
-            },
+            residentialParish: parish.trim(),
+            ...(emergencyContactName.trim() || emergencyContactPhone.trim()
+              ? {
+                  emergencyContact: {
+                    name: emergencyContactName.trim(),
+                    phone: emergencyContactPhone.trim(),
+                    relation: emergencyContactRelation.trim()
+                  }
+                }
+              : {}),
             nationalIdNumber: trn.trim()
           },
           submittedForReviewAt: new Date().toISOString(),

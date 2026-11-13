@@ -21,7 +21,9 @@ import {
   Timer,
   Info,
   Lock,
-  Star
+  Star,
+  User,
+  XCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -47,6 +49,9 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
   const [isExpanded, setIsExpanded] = useState<boolean>(true);
   const [showSafetyModal, setShowSafetyModal] = useState<boolean>(false);
   const [shareCopied, setShareCopied] = useState<boolean>(false);
+  const [showCancelPrompt, setShowCancelPrompt] = useState<boolean>(false);
+  const [cancelReason, setCancelReason] = useState<string>('Schedule change');
+  const [customCancelReason, setCustomCancelReason] = useState<string>('');
   
   // Simulated transit movement and live ETA
   const [etaMinutes, setEtaMinutes] = useState<number>(booking.liveEtaMinutes || 6);
@@ -54,7 +59,7 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
   const [carProgress, setCarProgress] = useState<number>(0.3); // 0 to 1 along path
 
   // Doorstep 4-digit PIN
-  const safetyPin = booking.safetyPin || booking.arrivalPassCode || '7392';
+  const safetyPin = booking.safetyPin || booking.arrivalPassCode || '';
 
   // Countdown timer for en_route
   useEffect(() => {
@@ -197,14 +202,14 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
             {/* Live Traffic Badge Overlay */}
             <div className="absolute top-3 left-3 px-3 py-1 rounded-xl bg-black/70 backdrop-blur-md border border-white/15 text-[11px] font-bold text-white flex items-center gap-1.5 shadow-lg">
               <Navigation className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Hope Rd / Trafalgar corridor • Normal Transit</span>
+              <span>{booking.zone || booking.clientAddress || 'Active Transit'} • Live Route</span>
             </div>
 
             {/* Distance & ETA Overlay */}
             <div className="absolute bottom-3 right-3 px-3.5 py-1.5 rounded-xl bg-black/80 backdrop-blur-md border border-emerald-500/30 text-right shadow-lg">
-              <span className="text-[10px] text-emerald-300 block font-bold uppercase">Transit Distance</span>
+              <span className="text-[10px] text-emerald-300 block font-bold uppercase">Transit Status</span>
               <span className="text-xs font-black text-white font-mono">
-                {((1 - carProgress) * (booking.distanceKm || 2.4)).toFixed(1)} km remaining
+                {booking.distanceKm ? `${((1 - carProgress) * booking.distanceKm).toFixed(1)} km remaining` : 'En Route'}
               </span>
             </div>
           </div>
@@ -242,16 +247,20 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center justify-center gap-3 my-2">
-              {safetyPin.split('').map((digit, idx) => (
-                <div
-                  key={idx}
-                  className="w-11 h-12 rounded-2xl bg-black/60 border border-purple-400/50 flex items-center justify-center text-xl sm:text-2xl font-black text-white font-mono shadow-inner"
-                >
-                  {digit}
-                </div>
-              ))}
-            </div>
+            {safetyPin ? (
+              <div className="flex items-center justify-center gap-3 my-2">
+                {safetyPin.split('').map((digit, idx) => (
+                  <div
+                    key={idx}
+                    className="w-11 h-12 rounded-2xl bg-black/60 border border-purple-400/50 flex items-center justify-center text-xl sm:text-2xl font-black text-white font-mono shadow-inner"
+                  >
+                    {digit}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="py-2 text-xs text-slate-400 font-semibold">PIN pending assignment</div>
+            )}
 
             <p className="text-[11px] text-purple-200 max-w-md mx-auto">
               Provide this 4-digit PIN to your attending nurse upon arrival at your doorstep. They will enter it into their WeCare app to verify identity and unlock the care session.
@@ -262,27 +271,35 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
           <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             {/* Nurse Info */}
             <div className="flex items-center gap-3">
-              <img loading="lazy" decoding="async"
-                src={booking.nursePhoto || 'https://images.unsplash.com/photo-1594824813587-0b1689363590?auto=format&fit=crop&q=80&w=400'}
-                alt={booking.nurseName}
-                className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-400 shadow-md shrink-0"
-              />
+              {booking.nursePhoto ? (
+                <img loading="lazy" decoding="async"
+                  src={booking.nursePhoto}
+                  alt={booking.nurseName}
+                  className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-400 shadow-md shrink-0"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/20 border-2 border-purple-400/50 flex items-center justify-center text-purple-200 shrink-0">
+                  <User className="w-7 h-7" />
+                </div>
+              )}
               <div>
                 <div className="flex items-center gap-2">
                   <h4 className="font-black text-white text-base">{booking.nurseName || 'Assigned Nurse'}</h4>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold border border-emerald-500/30">
                     <ShieldCheck className="w-3 h-3" />
-                    <span>NCJ Verified</span>
+                    <span>Verified</span>
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-1">
-                  <span className="flex items-center gap-1 text-amber-300 font-bold">
-                    <Star className="w-3 h-3 fill-amber-300" />
-                    <span>4.95 (380+ visits)</span>
-                  </span>
-                  <span>•</span>
-                  <span>Sterile clinical kit on board</span>
+                  {(nurse?.rating || 0) > 0 ? (
+                    <span className="flex items-center gap-1 text-amber-300 font-bold">
+                      <Star className="w-3 h-3 fill-amber-300" />
+                      <span>{nurse?.rating.toFixed(1)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-300 font-medium">Verified Practitioner</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -291,30 +308,32 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
             <div className="text-right sm:border-l sm:border-white/10 sm:pl-4">
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Visit Total</span>
               <span className="text-lg font-black text-emerald-400">
-                JMD ${(booking.priceJMD || 7500).toLocaleString()}
+                {booking.priceJMD ? `JMD $${booking.priceJMD.toLocaleString()}` : '—'}
               </span>
               <span className="text-[10px] text-purple-300 block capitalize">
-                Paid via {booking.paymentMethod?.replace('_', ' ') || 'NCB Quik'}
+                {booking.paymentMethod ? `Method: ${booking.paymentMethod.replace(/_/g, ' ')}` : '—'}
               </span>
             </div>
           </div>
 
-          {/* ACTION BUTTONS (CALL, CHAT, SAFETY SHIELD, SHARE) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
+          {/* ACTION BUTTONS (CALL, CHAT, SAFETY SHIELD, SHARE, CANCEL) */}
+          <div className="flex flex-wrap gap-2.5 pt-2">
             {/* Call Nurse */}
-            <a
-              href={`tel:${booking.nursePhone || '+1 (876) 555-0100'}`}
-              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition flex items-center justify-center gap-2 group"
-            >
-              <Phone className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition" />
-              <span>Call Nurse</span>
-            </a>
+            {(booking.nursePhone || nurse?.phone) && (
+              <a
+                href={`tel:${booking.nursePhone || nurse?.phone}`}
+                className="flex-1 min-w-[120px] p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition flex items-center justify-center gap-2 group"
+              >
+                <Phone className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition" />
+                <span>Call Nurse</span>
+              </a>
+            )}
 
             {/* Chat Nurse */}
             <button
               type="button"
               onClick={() => onOpenChat(booking)}
-              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition flex items-center justify-center gap-2 group"
+              className="flex-1 min-w-[120px] p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition flex items-center justify-center gap-2 group"
             >
               <MessageSquare className="w-4 h-4 text-purple-400 group-hover:scale-110 transition" />
               <span>In-App Chat</span>
@@ -324,7 +343,7 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
             <button
               type="button"
               onClick={handleShareTrip}
-              className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition flex items-center justify-center gap-2 group"
+              className="flex-1 min-w-[120px] p-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-xs font-bold transition flex items-center justify-center gap-2 group"
             >
               <Share2 className="w-4 h-4 text-blue-400 group-hover:scale-110 transition" />
               <span>{shareCopied ? 'Link Copied!' : 'Share Trip'}</span>
@@ -334,12 +353,83 @@ export const LiveCareTransitSheet: React.FC<LiveCareTransitSheetProps> = ({
             <button
               type="button"
               onClick={() => setShowSafetyModal(true)}
-              className="p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 text-xs font-bold transition flex items-center justify-center gap-2 group"
+              className="flex-1 min-w-[120px] p-3 rounded-2xl bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300 text-xs font-bold transition flex items-center justify-center gap-2 group"
             >
               <ShieldAlert className="w-4 h-4 text-red-400 group-hover:scale-110 transition" />
               <span>Safety Toolkit</span>
             </button>
+
+            {/* Cancel Visit */}
+            {onCancelBooking && ['requested', 'accepted', 'en_route', 'in_progress'].includes(booking.status) && (
+              <button
+                type="button"
+                onClick={() => setShowCancelPrompt(prev => !prev)}
+                className="flex-1 min-w-[120px] p-3 rounded-2xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-200 hover:text-white text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <XCircle className="w-4 h-4 text-rose-400" />
+                <span>Cancel Visit</span>
+              </button>
+            )}
           </div>
+
+          {/* Inline Cancel Booking Confirmation */}
+          {showCancelPrompt && onCancelBooking && (
+            <div className="p-4 rounded-2xl bg-rose-950/50 border border-rose-500/40 space-y-3 text-xs animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-rose-200">Confirm Booking Cancellation</span>
+                <button
+                  type="button"
+                  onClick={() => setShowCancelPrompt(false)}
+                  className="text-slate-400 hover:text-white text-xs font-bold"
+                >
+                  Dismiss
+                </button>
+              </div>
+              <select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                className="w-full p-2.5 rounded-xl bg-[#160424] border border-white/15 text-white text-xs"
+              >
+                <option value="Schedule change">Schedule change</option>
+                <option value="No longer needed">No longer needed</option>
+                <option value="Nurse taking too long">Nurse taking too long</option>
+                <option value="Other">Other</option>
+              </select>
+              {cancelReason === 'Other' && (
+                <input
+                  type="text"
+                  value={customCancelReason}
+                  onChange={(e) => setCustomCancelReason(e.target.value)}
+                  placeholder="Enter reason for cancelling..."
+                  className="w-full p-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs"
+                />
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCancelPrompt(false)}
+                  className="flex-1 py-2 rounded-xl border border-white/15 text-slate-300 font-bold hover:bg-white/10"
+                >
+                  Keep Visit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const finalReason =
+                      cancelReason === 'Other'
+                        ? (customCancelReason.trim() || 'Client requested cancellation')
+                        : cancelReason;
+                    onCancelBooking(booking.id, finalReason);
+                    setShowCancelPrompt(false);
+                    setCustomCancelReason('');
+                  }}
+                  className="flex-1 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold"
+                >
+                  Confirm Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

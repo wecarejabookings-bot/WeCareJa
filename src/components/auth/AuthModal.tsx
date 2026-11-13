@@ -150,17 +150,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [editEmail, setEditEmail] = useState(currentUser?.email || '');
   const [editPhone, setEditPhone] = useState(currentUser?.phone || '');
   const [editUsername, setEditUsername] = useState(currentUser?.username || '');
-  const [editPassword, setEditPassword] = useState(currentUser?.password || 'password123');
-  const [editZone, setEditZone] = useState(currentUser?.zone || 'New Kingston');
+  const [editPassword, setEditPassword] = useState(currentUser?.password || '');
+  const [editZone, setEditZone] = useState(currentUser?.zone || '');
   const [editAddress, setEditAddress] = useState(currentUser?.address || '');
   const [editMedicalInfo, setEditMedicalInfo] = useState(currentUser?.medical_info || '');
-  const [editAvatarUrl, setEditAvatarUrl] = useState(currentUser?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400');
+  const [editAvatarUrl, setEditAvatarUrl] = useState(currentUser?.avatarUrl || '');
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [editEmergencyName, setEditEmergencyName] = useState(currentUser?.emergencyContact?.name || '');
   const [editEmergencyPhone, setEditEmergencyPhone] = useState(currentUser?.emergencyContact?.phone || '');
   const [editEmergencyRelation, setEditEmergencyRelation] = useState(currentUser?.emergencyContact?.relation || '');
   const [profileSuccessMsg, setProfileSuccessMsg] = useState(false);
+  const [profileErrorMsg, setProfileErrorMsg] = useState<string | null>(null);
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
@@ -173,7 +174,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setEditPhone(currentUser.phone || '');
       setEditUsername(currentUser.username || '');
       setEditPassword(currentUser.password || '');
-      setEditZone(currentUser.zone || 'New Kingston');
+      setEditZone(currentUser.zone || '');
       setEditAddress(currentUser.address || '');
       setEditMedicalInfo(currentUser.medical_info || '');
       setEditAvatarUrl(currentUser.avatarUrl || '');
@@ -186,7 +187,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setEditPhone('');
       setEditUsername('');
       setEditPassword('');
-      setEditZone('New Kingston');
+      setEditZone('');
       setEditAddress('');
       setEditMedicalInfo('');
       setEditAvatarUrl('');
@@ -300,13 +301,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [regEmail, setRegEmail] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regParish, setRegParish] = useState('Kingston');
+  const [regParish, setRegParish] = useState('');
   const [regAddress, setRegAddress] = useState('');
-  const [regZone, setRegZone] = useState('New Kingston');
+  const [regZone, setRegZone] = useState('');
   const [regTrn, setRegTrn] = useState('');
   const [regNcjLicense, setRegNcjLicense] = useState('');
-  const [regSpecialty, setRegSpecialty] = useState('Elderly & Geriatric Home Care');
-  const [regHourlyRate, setRegHourlyRate] = useState<number>(7500);
+  const [regSpecialty, setRegSpecialty] = useState('');
+  const [regHourlyRate, setRegHourlyRate] = useState<number>(0);
   const [regBio, setRegBio] = useState('');
   const [regError, setRegError] = useState('');
   const [pendingNoticeAccount, setPendingNoticeAccount] = useState<UserAccount | null>(null);
@@ -544,13 +545,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const handleDeleteAccount = async () => {
     if (!currentUser) return;
     setIsDeletingAccount(true);
+    setProfileErrorMsg(null);
     try {
       await softDeleteAccount(currentUser.id);
       soundFX.playCancellation();
       onSignOut?.();
       onClose();
     } catch (err: any) {
-      alert('Failed to deactivate account: ' + err?.message);
+      setProfileErrorMsg('Failed to deactivate account: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsDeletingAccount(false);
       setIsConfirmingDelete(false);
@@ -570,7 +572,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const cleanUsername = (regUsername.trim() || cleanEmail.split('@')[0] || `user_${Date.now()}`).toLowerCase();
     const cleanPhone = regPhone.trim();
     const cleanFullName = regName.trim();
-    const fullAddress = regAddress.trim() ? `${regAddress.trim()}, ${regParish}` : (regZone.trim() || regParish);
+    const fullAddress = [regAddress.trim(), regZone.trim(), regParish.trim()].filter(Boolean).join(', ');
 
     setIsSubmittingAuth(true);
     if (typeof window !== 'undefined') {
@@ -661,21 +663,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         const newNurseProfile: NurseProfile = {
           id: userId,
           name: cleanFullName,
-          phone: cleanPhone || '(876) 555-0199',
+          phone: cleanPhone,
           email: cleanEmail,
-          photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-          nursingCouncilLicense: regNcjLicense.trim() || 'NCJ-RN-PENDING',
-          trnNumber: regTrn.trim() || '',
-          trn: regTrn.trim() || '',
+          photoUrl: '',
+          nursingCouncilLicense: regNcjLicense.trim(),
+          trnNumber: regTrn.trim(),
+          trn: regTrn.trim(),
           licenseVerified: false,
           status: 'pending_approval',
-          rating: 5.0,
+          rating: 0,
           reviewCount: 0,
-          yearsExperience: 4,
-          specialties: [regSpecialty.trim() || 'Elderly & Geriatric Home Care', 'Vitals Monitoring'],
-          zones: [regParish, 'New Kingston', 'St. Andrew'],
-          hourlyRateJMD: Number(regHourlyRate) || 7500,
-          bio: regBio.trim() || `Licensed Healthcare Practitioner serving ${regParish} and surrounding areas. Status: Pending NCJ & Admin Vetting.`,
+          yearsExperience: 0,
+          specialties: regSpecialty.trim() ? [regSpecialty.trim()] : [],
+          zones: [regParish.trim(), regZone.trim()].filter(Boolean),
+          hourlyRateJMD: Number(regHourlyRate) || 0,
+          bio: regBio.trim(),
           totalEarningsJMD: 0,
           pendingPayoutJMD: 0,
           completedVisitsCount: 0
@@ -936,11 +938,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5">
                   <div className="relative group shrink-0">
-                    <img loading="lazy" decoding="async"
-                      src={editAvatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'}
-                      alt={currentUser.name}
-                      className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-400 shadow-md group-hover:opacity-80 transition"
-                    />
+                    {editAvatarUrl ? (
+                      <img loading="lazy" decoding="async"
+                        src={editAvatarUrl}
+                        alt={currentUser.name}
+                        className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-400 shadow-md group-hover:opacity-80 transition"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-2xl bg-purple-900/50 border-2 border-purple-400/50 flex items-center justify-center shadow-md group-hover:opacity-80 transition">
+                        <User className="w-8 h-8 text-purple-300" />
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => setIsCameraOpen(true)}
@@ -1019,6 +1027,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2">
                   <Check className="w-4 h-4" />
                   <span>Profile and password updated successfully!</span>
+                </div>
+              )}
+              {profileErrorMsg && (
+                <div className="p-3 rounded-xl bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{profileErrorMsg}</span>
                 </div>
               )}
 
@@ -1267,7 +1281,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               {/* WhatsApp Remote Care & Live Updates Notification Card */}
               <WhatsAppSettingsCard
-                currentPhone={currentUser.whatsAppPhoneNumber || currentUser.phone || '+1 (876) 942-3311'}
+                currentPhone={currentUser.whatsAppPhoneNumber || currentUser.phone || ''}
                 isOptedIn={currentUser.whatsAppUpdatesOptIn !== false}
                 onToggleOptIn={(optIn) => {
                   const updated: UserAccount = {

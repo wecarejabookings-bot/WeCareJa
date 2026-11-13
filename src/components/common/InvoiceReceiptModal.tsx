@@ -292,23 +292,23 @@ Status: Settled in Full`;
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px] font-medium bg-black/30 p-3 rounded-xl border border-white/5 font-mono">
                 <div>
                   <span className="text-slate-400 block text-[10px] font-sans">BP</span>
-                  <strong className="text-white">{booking.clinicalNotes.bloodPressure || '120/80 mmHg'}</strong>
+                  <strong className="text-white">{booking.clinicalNotes.bloodPressure || '—'}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] font-sans">Pulse</span>
-                  <strong className="text-white">{booking.clinicalNotes.pulseRate || '72 bpm'}</strong>
+                  <strong className="text-white">{booking.clinicalNotes.pulseRate || '—'}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] font-sans">Glucose</span>
-                  <strong className="text-white">{booking.clinicalNotes.bloodGlucose || '5.6 mmol/L'}</strong>
+                  <strong className="text-white">{booking.clinicalNotes.bloodGlucose || '—'}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] font-sans">SpO2</span>
-                  <strong className="text-white">{booking.clinicalNotes.oxygenSaturation || '98%'}</strong>
+                  <strong className="text-white">{booking.clinicalNotes.oxygenSaturation || '—'}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px] font-sans">Temp</span>
-                  <strong className="text-white">{booking.clinicalNotes.temperature || '36.7 °C'}</strong>
+                  <strong className="text-white">{booking.clinicalNotes.temperature || '—'}</strong>
                 </div>
               </div>
 

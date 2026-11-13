@@ -285,29 +285,29 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
   nursingSchools = INITIAL_NURSING_SCHOOLS,
   onAddNewSchoolPendingApproval
 }) => {
-  // Wizard steps (1 to 5)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [isSuccess, setIsSuccess] = useState(false);
   const [registeredNurseId, setRegisteredNurseId] = useState<string>('');
+  const [stepValidationError, setStepValidationError] = useState<string | null>(null);
 
   // Active Approved Schools from Learning Database
   const approvedSchools = nursingSchools.filter(s => s.status === 'approved');
 
   // Form Fields - Step 1: Personal, Photo & Confidential Bio Data (DOB, Emergency Contact, etc.)
   const [name, setName] = useState('');
-  const [institutionAttended, setInstitutionAttended] = useState(() => approvedSchools[0]?.name || 'The UWI School of Nursing Mona (UWISON)');
+  const [institutionAttended, setInstitutionAttended] = useState('');
   const [isCustomSchool, setIsCustomSchool] = useState(false);
   const [customSchoolName, setCustomSchoolName] = useState('');
-  const [customSchoolParish, setCustomSchoolParish] = useState('St. Andrew');
+  const [customSchoolParish, setCustomSchoolParish] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
-  const [gender, setGender] = useState<'female' | 'male' | 'other' | 'prefer_not_to_say'>('female');
-  const [nationality, setNationality] = useState('Jamaican');
+  const [gender, setGender] = useState<'female' | 'male' | 'other' | 'prefer_not_to_say' | ''>('');
+  const [nationality, setNationality] = useState('');
   const [placeOfBirth, setPlaceOfBirth] = useState('');
   const [address, setAddress] = useState('');
-  const [residentialParish, setResidentialParish] = useState('Kingston');
-  const [phone, setPhone] = useState('+1 (876) ');
+  const [residentialParish, setResidentialParish] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [yearsExperience, setYearsExperience] = useState<number>(1);
+  const [yearsExperience, setYearsExperience] = useState<number>(0);
   const [bio, setBio] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string>('');
   const [photoFileName, setPhotoFileName] = useState<string>('');
@@ -350,14 +350,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
 
   // Form Fields - Provider Role Selection & Scope of Practice (Nurses, Practitioners & Caregivers)
   const [providerRole, setProviderRole] = useState<NurseCareLevel>('registered_nurse');
-  const [selectedCompetencies, setSelectedCompetencies] = useState<string[]>([
-    'Sterile Surgical Dressing',
-    'IV Cannula & Infusions',
-    'Foley Catheter Placement',
-    'IM/SubQ Injections',
-    'Post-Op Drain Care',
-    'Vital Signs Trend Analysis'
-  ]);
+  const [selectedCompetencies, setSelectedCompetencies] = useState<string[]>([]);
 
   const currentRoleConfig = PROVIDER_ROLE_OPTIONS.find(r => r.id === providerRole) || PROVIDER_ROLE_OPTIONS[1];
 
@@ -366,8 +359,6 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
     const cfg = PROVIDER_ROLE_OPTIONS.find(r => r.id === newRole);
     if (cfg) {
       setHourlyRateJMD(cfg.defaultHourlyRateJMD);
-      setSelectedCompetencies(cfg.coreCompetencies);
-      setSelectedSpecialties(prev => Array.from(new Set([...prev, ...cfg.recommendedSpecialties])));
       soundFX.playFilterSelect();
     }
   };
@@ -379,9 +370,9 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
   };
 
   // Form Fields - Step 4: Jamaican Banking / Lynk Payouts
-  const [bankName, setBankName] = useState('National Commercial Bank (NCB) Jamaica');
+  const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
-  const [accountType, setAccountType] = useState('Savings');
+  const [accountType, setAccountType] = useState('');
   const [lynkWallet, setLynkWallet] = useState('');
 
   // Form Fields - Step 5: Independent Contractor Agreement (Review & e-Sign)
@@ -765,10 +756,11 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
     );
     if (!hasValidScan) {
       soundFX.playWarningSound();
-      alert('Live biometric face scan is strictly required for healthcare practitioner registration. Please return to Step 1 and scan your face.');
+      setStepValidationError('Live biometric face scan is strictly required for healthcare practitioner registration. Please complete your face scan in Step 1.');
       setCurrentStep(1);
       return;
     }
+    setStepValidationError(null);
 
     const newNurseId = `nurse-${Date.now()}`;
     let persistedPhotoUrl = photoUrl;
@@ -808,9 +800,9 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       companySignature: 'Authorized Director (Operations Director)',
       companySignedAt: new Date().toISOString(),
       nurseLegalName: name,
-      nurseAddress: address || 'Kingston & St Andrew, Jamaica',
+      nurseAddress: address || '',
       nursingCouncilLicense,
-      trnNumber: trnNumber || '184-902-311',
+      trnNumber: trnNumber || '',
       bankName,
       bankAccountNumber: accountNumber,
       bankAccountType: accountType,
@@ -880,14 +872,14 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
 
     const resolvedInstitution = isCustomSchool && customSchoolName.trim()
       ? customSchoolName.trim()
-      : (institutionAttended || 'Northern Caribbean University (NCU)');
+      : (institutionAttended || '');
 
     if (isCustomSchool && customSchoolName.trim() && onAddNewSchoolPendingApproval) {
       onAddNewSchoolPendingApproval({
         id: `sch-${Date.now()}`,
         name: customSchoolName.trim(),
         category: 'college',
-        parish: customSchoolParish || 'St. Andrew',
+        parish: customSchoolParish || '',
         status: 'pending_approval',
         submittedByNurseName: name.trim(),
         submittedAt: new Date().toISOString(),
@@ -898,8 +890,8 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
     const newNurse: NurseProfile = {
       id: newNurseId,
       name,
-      phone: phone || '+1 (876) 555-0100',
-      email: email || `${String(name || 'nurse').toLowerCase().replace(/[^a-z]/g, '')}@wecare.jm`,
+      phone: phone || '',
+      email: email || '',
       photoUrl: persistedPhotoUrl,
       institutionAttended: resolvedInstitution,
       diplomaDocumentUrl,
@@ -921,7 +913,7 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       signedContract: signedContractRecord, // Securely attached under nurse profile for Admin eyes only
       // Confidential Bio Data - Private to Owner and Admins
       dateOfBirth,
-      gender,
+      gender: gender || undefined,
       residentialAddress: address,
       emergencyContact: {
         name: emergencyContactName,
@@ -930,11 +922,11 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       },
       bioData: {
         dateOfBirth,
-        gender,
+        gender: gender || undefined,
         nationality,
         placeOfBirth,
         residentialAddress: address,
-        residentialParish: residentialParish || 'St. Andrew',
+        residentialParish: residentialParish || '',
         institutionAttended: resolvedInstitution,
         emergencyContact: {
           name: emergencyContactName,
@@ -953,15 +945,13 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
         cannotProvide: currentRoleConfig.cannotProvide
       },
       certifications: selectedCompetencies,
-      rating: 5.0,
+      rating: 0,
       reviewCount: 0,
       yearsExperience,
-      specialties: selectedSpecialties.length > 0 ? selectedSpecialties : ['General Clinical Care', 'Vitals'],
-      zones: selectedZones.length > 0 ? selectedZones : ['New Kingston', 'Portmore - Greater Portmore'],
+      specialties: selectedSpecialties,
+      zones: selectedZones,
       hourlyRateJMD,
-      currentLat: 18.0179,
-      currentLng: -76.7845,
-      bio: bio || 'Licensed Registered Nurse serving patients across Kingston, St. Andrew, Portmore, and Spanish Town.',
+      bio: bio || '',
       bankDetails: {
         bankName,
         accountNumber,
@@ -1619,6 +1609,13 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                     />
                   </div>
 
+                  {stepValidationError && (
+                    <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-200 text-xs font-medium flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>{stepValidationError}</span>
+                    </div>
+                  )}
+
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3">
                     {!photoUrl && (
                       <span className="text-[11px] text-amber-300 font-medium flex items-center gap-1.5">
@@ -1631,9 +1628,10 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                       onClick={() => {
                         if (!photoUrl) {
                           soundFX.playWarningSound();
-                          alert('Live biometric face scan is mandatory for all healthcare practitioners. Please complete your face scan above to proceed.');
+                          setStepValidationError('Live biometric face scan is mandatory for all healthcare practitioners. Please complete your face scan above to proceed.');
                           return;
                         }
+                        setStepValidationError(null);
                         setCurrentStep(2);
                       }}
                       disabled={!name || !photoUrl}

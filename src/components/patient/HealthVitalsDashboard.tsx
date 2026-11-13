@@ -32,11 +32,8 @@ export const HealthVitalsDashboard: React.FC<HealthVitalsDashboardProps> = ({
   onRequestVitalsVisit
 }) => {
   // Medication Adherence checklist state
-  const [checkedMeds, setCheckedMeds] = useState<Record<string, boolean>>({
-    'med-1': true,
-    'med-2': false,
-    'med-3': true
-  });
+  const [checkedMeds, setCheckedMeds] = useState<Record<string, boolean>>({});
+  const userMedications = currentUser?.patientBioData?.medications || currentUser?.bioData?.medications || [];
 
   const toggleMed = (id: string) => {
     soundFX.playClick();
@@ -48,16 +45,16 @@ export const HealthVitalsDashboard: React.FC<HealthVitalsDashboardProps> = ({
   const latestNotes = latestCompletedBooking?.clinicalNotes;
 
   const vitals = {
-    bp: latestNotes?.bloodPressure || '124/80',
-    bpStatus: 'Optimal • Within Target Range',
-    glucose: latestNotes?.bloodGlucose || '5.9 mmol/L',
-    glucoseStatus: 'Normal Fasting',
-    pulse: latestNotes?.pulseRate || '74',
-    pulseStatus: 'Resting Normal (74 bpm)',
-    spo2: latestNotes?.oxygenSaturation || '99%',
-    spo2Status: 'Room Air Normal',
-    temp: String(latestNotes?.temperature || '36.6').replace(/°C/gi, '').trim(),
-    tempStatus: 'Normal Afebrile'
+    bp: latestNotes?.bloodPressure || '—',
+    bpStatus: latestNotes?.bloodPressure ? 'Recorded by Nurse' : 'No reading recorded',
+    glucose: latestNotes?.bloodGlucose || '—',
+    glucoseStatus: latestNotes?.bloodGlucose ? 'Recorded by Nurse' : 'No reading recorded',
+    pulse: latestNotes?.pulseRate || '—',
+    pulseStatus: latestNotes?.pulseRate ? `Recorded (${latestNotes.pulseRate})` : 'No reading recorded',
+    spo2: latestNotes?.oxygenSaturation || '—',
+    spo2Status: latestNotes?.oxygenSaturation ? 'Recorded by Nurse' : 'No reading recorded',
+    temp: latestNotes?.temperature ? String(latestNotes.temperature).replace(/°C/gi, '').trim() : '—',
+    tempStatus: latestNotes?.temperature ? 'Recorded by Nurse' : 'No reading recorded'
   };
 
   return (
@@ -156,7 +153,9 @@ export const HealthVitalsDashboard: React.FC<HealthVitalsDashboardProps> = ({
             </div>
           </div>
           <div>
-            <span className="text-xl sm:text-2xl font-black text-white font-mono">{vitals.spo2}%</span>
+            <span className="text-xl sm:text-2xl font-black text-white font-mono">
+              {vitals.spo2 !== '—' && !String(vitals.spo2).includes('%') ? `${vitals.spo2}%` : vitals.spo2}
+            </span>
             <span className="text-[10px] text-slate-400 block">Room Air</span>
           </div>
           <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
@@ -173,7 +172,9 @@ export const HealthVitalsDashboard: React.FC<HealthVitalsDashboardProps> = ({
             </div>
           </div>
           <div>
-            <span className="text-xl sm:text-2xl font-black text-white font-mono">{vitals.temp} °C</span>
+            <span className="text-xl sm:text-2xl font-black text-white font-mono">
+              {vitals.temp !== '—' ? `${vitals.temp} °C` : '—'}
+            </span>
             <span className="text-[10px] text-slate-400 block">Oral Axillary</span>
           </div>
           <span className="inline-block px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
@@ -201,44 +202,48 @@ export const HealthVitalsDashboard: React.FC<HealthVitalsDashboardProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {[
-              { id: 'med-1', name: 'Amlodipine Besylate', dose: '5 mg • Daily morning', purpose: 'Blood Pressure Control', time: '8:00 AM' },
-              { id: 'med-2', name: 'Metformin HCl', dose: '500 mg • With meals', purpose: 'Blood Glucose Management', time: '1:00 PM' },
-              { id: 'med-3', name: 'Atorvastatin Calcium', dose: '20 mg • Nightly bedtime', purpose: 'Cardiovascular Support', time: '9:00 PM' }
-            ].map((med) => {
-              const isChecked = checkedMeds[med.id];
-              return (
-                <div
-                  key={med.id}
-                  onClick={() => toggleMed(med.id)}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-center justify-between gap-3 ${
-                    isChecked
-                      ? 'bg-emerald-950/30 border-emerald-500/30 text-white'
-                      : 'bg-black/30 border-white/10 text-slate-300 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition ${
+            {userMedications.length === 0 ? (
+              <div className="p-4 rounded-2xl bg-black/30 border border-white/10 text-xs text-slate-400 text-center">
+                No daily medications recorded on your profile.
+              </div>
+            ) : (
+              userMedications.map((med) => {
+                const isChecked = Boolean(checkedMeds[med.id] || med.takenToday);
+                return (
+                  <div
+                    key={med.id}
+                    onClick={() => toggleMed(med.id)}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition flex items-center justify-between gap-3 ${
                       isChecked
-                        ? 'bg-emerald-500 border-emerald-400 text-white'
-                        : 'border-white/20 bg-black/40'
-                    }`}>
-                      {isChecked && <CheckCircle2 className="w-4 h-4" />}
+                        ? 'bg-emerald-950/30 border-emerald-500/30 text-white'
+                        : 'bg-black/30 border-white/10 text-slate-300 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition ${
+                        isChecked
+                          ? 'bg-emerald-500 border-emerald-400 text-white'
+                          : 'border-white/20 bg-black/40'
+                      }`}>
+                        {isChecked && <CheckCircle2 className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <h4 className={`font-bold text-xs ${isChecked ? 'line-through text-slate-400' : 'text-white'}`}>
+                          {med.name}{med.dosage ? ` (${med.dosage})` : ''}
+                        </h4>
+                        {med.purpose && <span className="text-[10px] text-purple-300 block">{med.purpose}</span>}
+                      </div>
                     </div>
-                    <div>
-                      <h4 className={`font-bold text-xs ${isChecked ? 'line-through text-slate-400' : 'text-white'}`}>
-                        {med.name} ({med.dose})
-                      </h4>
-                      <span className="text-[10px] text-purple-300 block">{med.purpose}</span>
-                    </div>
-                  </div>
 
-                  <span className="text-[11px] font-mono font-bold text-slate-400 shrink-0">
-                    {med.time}
-                  </span>
-                </div>
-              );
-            })}
+                    {med.scheduledTime && (
+                      <span className="text-[11px] font-mono font-bold text-slate-400 shrink-0">
+                        {med.scheduledTime}
+                      </span>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -262,17 +267,17 @@ export const HealthVitalsDashboard: React.FC<HealthVitalsDashboardProps> = ({
 
           <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2 text-xs">
             <div className="flex items-center justify-between text-slate-400 text-[11px]">
-              <span>Attending Nurse: <strong className="text-white">{latestCompletedBooking?.nurseName || 'Assigned Registered Nurse'}</strong></span>
-              <span>{latestNotes?.completedAt ? new Date(latestNotes.completedAt).toLocaleDateString() : 'Recent Visit'}</span>
+              <span>Attending Nurse: <strong className="text-white">{latestCompletedBooking?.nurseName || '—'}</strong></span>
+              <span>{latestNotes?.completedAt ? new Date(latestNotes.completedAt).toLocaleDateString() : '—'}</span>
             </div>
 
             <p className="text-slate-300 text-xs italic bg-white/5 p-3 rounded-xl border border-white/5">
-              "{latestNotes?.careSummary || 'Vitals checked and confirmed in healthy baseline. Patient is compliant with prescription regimen and hydrated. No acute distress observed.'}"
+              {latestNotes?.careSummary ? `"${latestNotes.careSummary}"` : 'No completed clinical visit summary recorded yet.'}
             </p>
 
             <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px]">
               <span className="text-slate-400">Clinical Recommendation:</span>
-              <span className="text-emerald-400 font-bold">Continue routine daily walks &amp; low-sodium diet</span>
+              <span className="text-emerald-400 font-bold">{latestNotes?.nurseRecommendations || '—'}</span>
             </div>
           </div>
         </div>

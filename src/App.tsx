@@ -81,6 +81,7 @@ const EasyQRCheckInGuideModal = lazy(() => import('./components/common/EasyQRChe
 import { 
   fetchBookingsFromSupabase, 
   createBookingInSupabase, 
+  cancelBookingInSupabase,
   fetchCurrentProfile, 
   applyRlsPoliciesInSupabase,
   buildUserAccountFromSession,
@@ -843,7 +844,7 @@ export default function App() {
               arrivalVerified: true,
               pinVerified: true,
               arrivalVerifiedAt: payload.verifiedAt || new Date().toISOString(),
-              arrivalGpsLocation: payload.gpsLocation || '14 Trafalgar Road, Kingston 10, Jamaica',
+              arrivalGpsLocation: payload.gpsLocation || b.clientAddress || '',
               checkinData: payload
             };
           }
@@ -950,27 +951,27 @@ export default function App() {
 
     try {
       const safeId = newNurse.id || `nurse-${Date.now()}`;
-      const safeName = newNurse.name || 'Registered Practitioner';
+      const safeName = newNurse.name || '';
       const safeEmail = newNurse.email || '';
-      const safePhone = newNurse.phone || '(876) 555-0199';
+      const safePhone = newNurse.phone || '';
 
       const completeNurseProfile: NurseProfile = {
         id: safeId,
         name: safeName,
         phone: safePhone,
         email: safeEmail,
-        photoUrl: newNurse.photoUrl || 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
-        nursingCouncilLicense: newNurse.nursingCouncilLicense || 'NCJ-RN-ACTIVE',
+        photoUrl: newNurse.photoUrl || '',
+        nursingCouncilLicense: newNurse.nursingCouncilLicense || '',
         trnNumber: newNurse.trnNumber || '',
         licenseVerified: true,
         status: 'approved',
-        rating: 5.0,
-        reviewCount: 1,
-        yearsExperience: newNurse.yearsExperience || 3,
-        specialties: newNurse.specialties && newNurse.specialties.length > 0 ? newNurse.specialties : ['Elderly & Geriatric Home Care', 'Vitals Monitoring'],
-        zones: newNurse.zones && newNurse.zones.length > 0 ? newNurse.zones : ['Kingston', 'St. Andrew'],
-        hourlyRateJMD: newNurse.hourlyRateJMD || 7500,
-        bio: newNurse.bio || `Licensed Healthcare Practitioner serving Kingston and surrounding parishes.`,
+        rating: newNurse.rating || 0,
+        reviewCount: newNurse.reviewCount || 0,
+        yearsExperience: newNurse.yearsExperience || 0,
+        specialties: newNurse.specialties && newNurse.specialties.length > 0 ? newNurse.specialties : [],
+        zones: newNurse.zones && newNurse.zones.length > 0 ? newNurse.zones : [],
+        hourlyRateJMD: newNurse.hourlyRateJMD || 0,
+        bio: newNurse.bio || '',
         totalEarningsJMD: 0,
         pendingPayoutJMD: 0,
         completedVisitsCount: 0
@@ -998,8 +999,8 @@ export default function App() {
         nurseProfileId: safeId,
         title: 'Registered Healthcare Practitioner',
         avatarUrl: completeNurseProfile.photoUrl,
-        zone: completeNurseProfile.zones?.[0] || 'Kingston & St. Andrew',
-        address: completeNurseProfile.zones?.[0] || 'Kingston, Jamaica',
+        zone: completeNurseProfile.zones?.[0] || '',
+        address: newNurse.address || completeNurseProfile.zones?.[0] || '',
         createdAt: new Date().toISOString()
       };
 
@@ -1027,7 +1028,7 @@ export default function App() {
           full_name: safeName,
           role: 'nurse',
           phone: safePhone,
-          address: completeNurseProfile.zones?.[0] || 'Kingston, Jamaica',
+          address: nurseAccount.address,
           trn: completeNurseProfile.trnNumber || ''
         }, { onConflict: 'id' }).then(() => {}, () => {});
       } catch {}
@@ -1173,19 +1174,43 @@ export default function App() {
     );
   };
 
-  const handleCancelBooking = (bookingId: string, reason: string) => {
+  const handleCancelBooking = (
+    bookingId: string,
+    reason: string,
+    cancelledBy: 'client' | 'nurse' | 'admin' = 'client'
+  ) => {
+    const cancelledAt = new Date().toISOString();
+    const targetBooking = bookings.find(b => b.id === bookingId);
+
     setBookings(prev => prev.map(b => {
       if (b.id === bookingId) {
         return {
           ...b,
           status: 'cancelled' as const,
           cancelReason: reason,
-          cancelledAt: new Date().toISOString(),
+          cancelledBy,
+          cancelledAt,
           paymentStatus: 'refunded' as const
         };
       }
       return b;
     }));
+
+    cancelBookingInSupabase(bookingId, reason, cancelledBy).catch(() => {});
+    soundFX.playCancellation();
+
+    const actorLabel = cancelledBy === 'nurse'
+      ? `Nurse ${targetBooking?.nurseName || ''}`.trim()
+      : cancelledBy === 'admin'
+      ? 'Administrator'
+      : `Client ${targetBooking?.clientName || ''}`.trim();
+
+    handleTriggerNotification(
+      'cancellation',
+      `Booking Cancelled by ${cancelledBy === 'nurse' ? 'Nurse' : cancelledBy === 'admin' ? 'Admin' : 'Client'}`,
+      `${actorLabel} cancelled ${targetBooking?.serviceName || 'booking'} (#${bookingId}). Reason: ${reason || 'Not specified'}`,
+      bookingId
+    );
   };
 
   const handleUpdateBookingStatus = (
@@ -1218,8 +1243,8 @@ export default function App() {
           if (!updated.arrivalVerifiedAt) {
             updated.arrivalVerifiedAt = new Date().toISOString();
           }
-          if (!updated.arrivalGpsLocation) {
-            updated.arrivalGpsLocation = '14 Trafalgar Road, Kingston 10, Jamaica';
+          if (!updated.arrivalGpsLocation && updated.clientAddress) {
+            updated.arrivalGpsLocation = updated.clientAddress;
           }
         }
 
@@ -1753,34 +1778,30 @@ export default function App() {
       } else {
         const newNurse: NurseProfile = {
           id: nurseId || applicantData?.id || `nurse-${Date.now()}`,
-          name: applicantData?.full_name || applicantData?.name || 'Licensed Care Practitioner',
+          name: applicantData?.full_name || applicantData?.name || '',
           email: applicantData?.email || '',
-          phone: applicantData?.phone || '(876) 555-0199',
+          phone: applicantData?.phone || '',
           status: 'approved',
           licenseVerified: true,
-          qualification: applicantData?.qualification || applicantData?.licenseType || 'Registered General Nurse (RN)',
-          nursingCouncilLicense: applicantData?.licenseNumber || applicantData?.nursingCouncilLicense || applicantData?.ncjLicense || `NCJ-${Date.now().toString().slice(-5)}`,
-          institutionAttended: approvedNurseSchool || 'University of the West Indies (Mona) School of Nursing',
-          yearsExperience: Number(applicantData?.yearsExperience || applicantData?.experienceYears || 3),
-          rating: 5.0,
-          reviewCount: 1,
-          hourlyRateJMD: Number(applicantData?.hourlyRateJMD || 4500),
-          specialties: Array.isArray(applicantData?.specialties) && applicantData.specialties.length > 0
-            ? applicantData.specialties
-            : ['General Nursing', 'Post-Op Care', 'Vital Signs Monitoring'],
-          zones: Array.isArray(applicantData?.zones) && applicantData.zones.length > 0
-            ? applicantData.zones
-            : ['Kingston 6 (Liguanea)', 'Kingston 8', 'Spanish Town', 'Portmore'],
-          parish: applicantData?.parish || applicantData?.address || 'Kingston & St. Andrew',
-          address: applicantData?.address || 'Kingston, Jamaica',
+          qualification: applicantData?.qualification || applicantData?.licenseType || '',
+          nursingCouncilLicense: applicantData?.licenseNumber || applicantData?.nursingCouncilLicense || applicantData?.ncjLicense || '',
+          institutionAttended: approvedNurseSchool || applicantData?.institutionAttended || '',
+          yearsExperience: Number(applicantData?.yearsExperience || applicantData?.experienceYears || 0),
+          rating: Number(applicantData?.rating || 0),
+          reviewCount: Number(applicantData?.reviewCount || 0),
+          hourlyRateJMD: Number(applicantData?.hourlyRateJMD || 0),
+          specialties: Array.isArray(applicantData?.specialties) ? applicantData.specialties : [],
+          zones: Array.isArray(applicantData?.zones) ? applicantData.zones : [],
+          parish: applicantData?.parish || '',
+          address: applicantData?.address || '',
           trnNumber: applicantData?.trnNumber || applicantData?.trn || '',
           trn: applicantData?.trnNumber || applicantData?.trn || '',
-          photoUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400',
+          photoUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || '',
           driversLicenseFrontUrl: applicantData?.driversLicenseFrontUrl,
           driversLicenseBackUrl: applicantData?.driversLicenseBackUrl,
           trnCertificateUrl: applicantData?.trnCertificateUrl,
           licenseDocumentUrl: applicantData?.licenseDocumentUrl,
-          bio: applicantData?.bio || 'Compassionate licensed nursing professional registered with the Nursing Council of Jamaica (NCJ).',
+          bio: applicantData?.bio || '',
           availabilityStatus: 'on_call',
           reviewedByAdminAt: new Date().toISOString(),
           submittedForReviewAt: applicantData?.created_at || new Date().toISOString(),
@@ -1820,22 +1841,22 @@ export default function App() {
       } else {
         const newAccount: UserAccount = {
           id: nurseId || `usr-nurse-${Date.now()}`,
-          name: applicantData?.full_name || applicantData?.name || 'Licensed Care Practitioner',
-          full_name: applicantData?.full_name || applicantData?.name || 'Licensed Care Practitioner',
+          name: applicantData?.full_name || applicantData?.name || '',
+          full_name: applicantData?.full_name || applicantData?.name || '',
           username: applicantData?.username || (nurseEmail ? nurseEmail.split('@')[0] : `nurse_${Date.now()}`),
           email: applicantData?.email || '',
-          phone: applicantData?.phone || '(876) 555-0199',
+          phone: applicantData?.phone || '',
           role: 'nurse',
           approvalStatus: 'approved' as const,
           status: 'active' as any,
           nurseProfileId: nurseId,
-          zone: applicantData?.zone || applicantData?.parish || 'Kingston & St. Andrew',
-          address: applicantData?.address || 'Kingston, Jamaica',
+          zone: applicantData?.zone || applicantData?.parish || '',
+          address: applicantData?.address || '',
           trn: applicantData?.trnNumber || applicantData?.trn || '',
           nursingCouncilLicense: applicantData?.licenseNumber || applicantData?.nursingCouncilLicense || applicantData?.ncjLicense,
           createdAt: applicantData?.created_at || new Date().toISOString(),
-          avatarUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400',
-          title: applicantData?.qualification || 'Licensed Nurse Practitioner'
+          avatarUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || '',
+          title: applicantData?.qualification || ''
         };
         updatedList = [newAccount, ...prev];
       }
@@ -1943,21 +1964,21 @@ export default function App() {
       } else {
         const newAccount: UserAccount = {
           id: adminId || `usr-admin-${Date.now()}`,
-          name: applicantData?.full_name || applicantData?.name || 'Operations Administrator',
-          full_name: applicantData?.full_name || applicantData?.name || 'Operations Administrator',
+          name: applicantData?.full_name || applicantData?.name || '',
+          full_name: applicantData?.full_name || applicantData?.name || '',
           username: applicantData?.username || (adminEmail ? adminEmail.split('@')[0] : `admin_${Date.now()}`),
           email: applicantData?.email || '',
-          phone: applicantData?.phone || '(876) 582-7613',
+          phone: applicantData?.phone || '',
           role: 'admin',
           approvalStatus: 'approved' as const,
           status: 'active' as any,
-          department: applicantData?.department || 'Operations Management',
-          zone: applicantData?.zone || applicantData?.parish || 'Kingston & St. Andrew',
-          address: applicantData?.address || 'Kingston, Jamaica',
+          department: applicantData?.department || '',
+          zone: applicantData?.zone || applicantData?.parish || '',
+          address: applicantData?.address || '',
           trn: applicantData?.trnNumber || applicantData?.trn || '',
           createdAt: applicantData?.created_at || new Date().toISOString(),
-          avatarUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
-          title: applicantData?.title || 'System Administrator'
+          avatarUrl: applicantData?.photoUrl || applicantData?.profilePhotoUrl || '',
+          title: applicantData?.title || 'Administrator'
         };
         updatedList = [newAccount, ...prev];
       }
@@ -2722,6 +2743,7 @@ export default function App() {
                 onOpenNurseSignUp={() => handleOpenUnifiedSignUp('nurse')}
                 onNavigateStore={() => handleNavigateView('store')}
                 onUpdateBookingStatus={handleUpdateBookingStatus}
+                onCancelBooking={(bookingId, reason) => handleCancelBooking(bookingId, reason, 'nurse')}
                 onRerouteBooking={handleRerouteBooking}
                 onOpenChat={(b) => setActiveChatBooking(b)}
                 onOpenPanic={handleOpenPanic}

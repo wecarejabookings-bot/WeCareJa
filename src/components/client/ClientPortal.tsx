@@ -231,6 +231,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   >('dashboard');
   const [showCancelModal, setShowCancelModal] = useState<Booking | null>(null);
   const [cancelReason, setCancelReason] = useState('Schedule change');
+  const [customCancelReason, setCustomCancelReason] = useState('');
   const [selectedBookingForInvoiceModal, setSelectedBookingForInvoiceModal] = useState<Booking | null>(null);
   const [selectedBookingForMedicalSummary, setSelectedBookingForMedicalSummary] = useState<Booking | null>(null);
   const [selectedBookingForBiometricScan, setSelectedBookingForBiometricScan] = useState<Booking | null>(null);
@@ -507,13 +508,12 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
           });
           setSelectedZone(nearest.zone.name);
         } else {
-          // Fallback simulation for out-of-region testers
           const nearest = findNearestZone(latitude, longitude);
           setGpsNearestZone({
             name: nearest.zone.name,
             distanceKm: nearest.distanceKm
           });
-          setSelectedZone('New Kingston');
+          setSelectedZone(nearest.zone.name);
         }
       },
       (error) => {
@@ -606,7 +606,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             count: 1,
             baseDurationMinutes: b.baseDurationMinutes || 60,
             priceJMD: b.priceJMD,
-            zone: b.zone || selectedZone || 'New Kingston',
+            zone: b.zone || selectedZone || '',
             notes: b.notes
           });
         }
@@ -666,7 +666,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   };
 
   // Cross-Booking Validation on Selected Nurse
-  const nurseToConfirm = selectedNurse || availableNurses[0];
+  const nurseToConfirm = selectedNurse;
   const activeConflictCheck = nurseToConfirm
     ? checkNurseBookingConflict(
         nurseToConfirm.id,
@@ -698,9 +698,9 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const handleConfirmBooking = () => {
     if (!selectedService) return;
 
-    const assignedNurse = selectedNurse || availableNurses[0];
+    const assignedNurse = selectedNurse;
     if (!assignedNurse) {
-      setBookingConflictError('Please select an available nurse or caregiver.');
+      setBookingConflictError('Please select a nurse or caregiver.');
       return;
     }
 
@@ -779,11 +779,15 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       clientPhone,
       clientAddress,
       zone: selectedZone,
-      clientEmergencyContact: {
-        name: emergencyName,
-        phone: emergencyPhone,
-        relation: emergencyRelation
-      },
+      ...(emergencyName.trim() || emergencyPhone.trim()
+        ? {
+            clientEmergencyContact: {
+              name: emergencyName.trim(),
+              phone: emergencyPhone.trim(),
+              relation: emergencyRelation.trim()
+            }
+          }
+        : {}),
       nurseId: assignedNurse.id,
       nurseName: assignedNurse.name,
       nursePhoto: assignedNurse.photoUrl,
@@ -891,25 +895,31 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
   const handleConfirmInstantDispatch = (bookingData: Partial<Booking>) => {
     const pin = bookingData.safetyPin || generateSafetyPin();
-    const assignedNurse = nurses.find(n => n.id === bookingData.nurseId) || availableNurses[0] || nurses[0];
-    const finalPrice = bookingData.priceJMD || 7500;
-    const platformFee = bookingData.platformFeeJMD || Math.round(finalPrice * 0.15);
-    const nurseEarnings = bookingData.nurseEarningsJMD || (finalPrice - platformFee);
+    const assignedNurse = nurses.find(n => n.id === bookingData.nurseId);
+    if (!assignedNurse) return;
+    const finalPrice = bookingData.priceJMD || 0;
+    const platformFee = bookingData.platformFeeJMD ?? Math.round(finalPrice * 0.15);
+    const nurseEarnings = bookingData.nurseEarningsJMD ?? (finalPrice - platformFee);
+    const hasEmergencyContact = Boolean(emergencyName.trim() || emergencyPhone.trim());
 
     const newBooking: Booking = {
       id: `BK-DISPATCH-${Date.now()}`,
-      clientId: currentUser?.id || 'client-demo-1',
+      clientId: currentUser?.id || '',
       serviceId: bookingData.serviceId || 'srv-1',
       serviceName: bookingData.serviceName || 'On-Demand Clinical Care',
       clientName,
       clientPhone,
-      clientAddress: bookingData.clientAddress || clientAddress,
-      clientEmergencyContact: {
-        name: emergencyName,
-        phone: emergencyPhone,
-        relation: emergencyRelation
-      },
-      zone: bookingData.zone || selectedZone,
+      clientAddress: bookingData.clientAddress ?? clientAddress,
+      ...(hasEmergencyContact
+        ? {
+            clientEmergencyContact: {
+              name: emergencyName.trim(),
+              phone: emergencyPhone.trim(),
+              relation: emergencyRelation.trim()
+            }
+          }
+        : {}),
+      zone: bookingData.zone ?? selectedZone,
       scheduledDateTime: new Date().toISOString(),
       createdAt: new Date().toISOString(),
       baseDurationMinutes: 60,
@@ -926,7 +936,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       previousNurseIds: [assignedNurse.id],
       paymentStatus: 'held_in_escrow',
       freeCancelDeadline: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-      notes: bookingData.notes || 'Instant clinical care dispatch',
+      notes: bookingData.notes ?? '',
       nurseId: assignedNurse.id,
       nurseName: assignedNurse.name,
       nursePhoto: assignedNurse.photoUrl,
@@ -936,15 +946,19 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
       dispatchTier: bookingData.dispatchTier || 'comfort',
       safetyPin: pin,
       arrivalPassCode: pin,
-      liveEtaMinutes: bookingData.liveEtaMinutes || 7,
-      distanceKm: bookingData.distanceKm || 2.1,
-      trustedFamilyMember: {
-        name: emergencyName,
-        phone: emergencyPhone,
-        relation: emergencyRelation,
-        photoUrl: '',
-        canManageCare: true
-      }
+      liveEtaMinutes: bookingData.liveEtaMinutes,
+      distanceKm: bookingData.distanceKm,
+      ...(hasEmergencyContact
+        ? {
+            trustedFamilyMember: {
+              name: emergencyName.trim(),
+              phone: emergencyPhone.trim(),
+              relation: emergencyRelation.trim(),
+              photoUrl: '',
+              canManageCare: true
+            }
+          }
+        : {})
     };
 
     // Prompt Supplies Checklist Modal before saving (Requirement 5)
@@ -954,7 +968,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
 
   const handleCancelSubmit = () => {
     if (showCancelModal) {
-      onCancelBooking(showCancelModal.id, cancelReason);
+      const resolvedReason =
+        cancelReason === 'Other'
+          ? (customCancelReason.trim() || 'Client requested cancellation')
+          : cancelReason;
+      onCancelBooking(showCancelModal.id, resolvedReason);
       soundFX.triggerNotification(
         'Booking Cancelled',
         `Visit with ${showCancelModal.nurseName} has been cancelled.`,
@@ -964,10 +982,11 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         onTriggerNotification(
           'cancellation',
           'Booking Cancelled',
-          `Visit #${(showCancelModal?.id || '').slice(0, 8)} was cancelled (${cancelReason}).`
+          `Visit #${(showCancelModal?.id || '').slice(0, 8)} was cancelled (${resolvedReason}).`
         );
       }
       setShowCancelModal(null);
+      setCustomCancelReason('');
     }
   };
 
@@ -1883,10 +1902,9 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                     type="button"
                     onClick={() => {
                       setSelectedZone('New Kingston');
-                      setClientAddress('14 Trafalgar Road, Kingston 5');
                     }}
                     className={`p-2.5 rounded-xl border text-left transition ${
-                      !selectedZone.startsWith('Portmore') && !selectedZone.startsWith('Spanish Town')
+                      selectedZone && !selectedZone.startsWith('Portmore') && !selectedZone.startsWith('Spanish Town')
                         ? 'border-purple-400 bg-purple-500/20 text-white'
                         : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
                     }`}
@@ -1898,7 +1916,6 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                     type="button"
                     onClick={() => {
                       setSelectedZone('Portmore - Portmore Pines & Caribbean Estate');
-                      setClientAddress('Portmore Pines Plaza, St Catherine');
                     }}
                     className={`p-2.5 rounded-xl border text-left transition ${
                       selectedZone.startsWith('Portmore')
@@ -1913,7 +1930,6 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                     type="button"
                     onClick={() => {
                       setSelectedZone('Spanish Town - Town Centre & Cathedral');
-                      setClientAddress('Burke Road, Spanish Town, St Catherine');
                     }}
                     className={`p-2.5 rounded-xl border text-left transition ${
                       selectedZone.startsWith('Spanish Town')
@@ -1966,6 +1982,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                     onChange={(e) => setSelectedZone(e.target.value)}
                     className="w-full p-3 rounded-xl border border-white/15 bg-[#170826] text-white text-xs font-semibold focus:ring-2 focus:ring-[#1E1B4B]/50 focus:bg-[#200a35] focus:outline-none backdrop-blur-md"
                   >
+                    <option value="">Select neighborhood zone...</option>
                     <optgroup label="📍 Kingston & St Andrew">
                       {KINGSTON_ZONES.map(z => (
                         <option key={z} value={z}>{z}</option>
@@ -2093,7 +2110,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               <div className="p-4 rounded-2xl bg-red-950/30 border border-red-500/30 backdrop-blur-md">
                 <div className="flex items-center gap-2 mb-2">
                   <ShieldAlert className="w-4 h-4 text-[#F59E0B]" />
-                  <h4 className="text-xs font-bold text-red-200">Safety &amp; Emergency Contact (Mandatory)</h4>
+                  <h4 className="text-xs font-bold text-red-200">Safety &amp; Emergency Contact (Optional)</h4>
                 </div>
                 <p className="text-[11px] text-slate-300 mb-3">
                   In case of clinical escalation or panic button trigger, this person will receive automatic SMS updates and 119 emergency dispatch.
@@ -2489,15 +2506,20 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               </div>
 
               <button
-                disabled={!activeConflictCheck.isAvailable}
+                disabled={!nurseToConfirm || !activeConflictCheck.isAvailable}
                 onClick={handleConfirmBooking}
                 className={`w-full py-3.5 rounded-xl font-bold text-sm transition shadow-lg flex items-center justify-center gap-2 ${
-                  !activeConflictCheck.isAvailable
+                  !nurseToConfirm || !activeConflictCheck.isAvailable
                     ? 'bg-slate-700 text-slate-400 cursor-not-allowed border border-slate-600'
                     : 'bg-gradient-to-r from-[#1E1B4B] to-[#F59E0B] hover:opacity-95 text-white shadow-purple-900/50'
                 }`}
               >
-                {!activeConflictCheck.isAvailable ? (
+                {!nurseToConfirm ? (
+                  <>
+                    <Ban className="w-4 h-4 text-red-400" />
+                    <span>Please Select a Practitioner First</span>
+                  </>
+                ) : !activeConflictCheck.isAvailable ? (
                   <>
                     <Ban className="w-4 h-4 text-red-400" />
                     <span>Practitioner Booked (Select Alternative Time)</span>
@@ -2592,6 +2614,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             setCurrentStep('browse');
           }}
           onUpdateBookingStatus={onUpdateBookingStatus}
+          onCancelBooking={onCancelBooking}
           onOpenNursingTeamDirectory={() => {
             soundFX.playTabSwitch();
             setIsNursingTeamModalOpen(true);
@@ -2947,11 +2970,17 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                         title="Click to view full verified profile"
                       >
                         <div className="relative shrink-0">
-                          <img loading="lazy" decoding="async"
-                            src={booking.nursePhoto || 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=400'}
-                            alt={booking.nurseName}
-                            className="w-11 h-11 rounded-full object-cover border-2 border-[#1E1B4B] group-hover:scale-105 transition"
-                          />
+                          {booking.nursePhoto ? (
+                            <img loading="lazy" decoding="async"
+                              src={booking.nursePhoto}
+                              alt={booking.nurseName}
+                              className="w-11 h-11 rounded-full object-cover border-2 border-[#1E1B4B] group-hover:scale-105 transition"
+                            />
+                          ) : (
+                            <div className="w-11 h-11 rounded-full bg-purple-500/20 border-2 border-purple-400/40 flex items-center justify-center text-purple-200">
+                              <User className="w-5 h-5" />
+                            </div>
+                          )}
                           <span className="absolute -bottom-1 -right-1 p-0.5 rounded-full bg-emerald-500 text-white shadow-xs">
                             <ShieldCheck className="w-2.5 h-2.5" />
                           </span>
@@ -3004,11 +3033,13 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                               DOORSTEP ARRIVAL VERIFIED ✓
                             </span>
                             <h4 className="text-sm font-black text-white truncate">
-                              Nurse Arrived - PIN Verified at {booking.arrivalVerifiedAt ? new Date(booking.arrivalVerifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '9:32 AM'}
+                              {booking.arrivalVerifiedAt
+                                ? `Nurse Arrived - PIN Verified at ${new Date(booking.arrivalVerifiedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                                : 'Nurse Arrived - PIN Verified'}
                             </h4>
                             <p className="text-[11px] text-emerald-100 flex items-center gap-1">
                               <MapPin className="w-3 h-3 text-emerald-400 shrink-0" />
-                              <span className="truncate">{booking.arrivalGpsLocation || '14 Trafalgar Road, Kingston 10, Jamaica'}</span>
+                              <span className="truncate">{booking.arrivalGpsLocation || booking.clientAddress || 'GPS verified'}</span>
                             </p>
                           </div>
                         </div>
@@ -3237,6 +3268,19 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
                           <ShieldAlert className="w-4 h-4 text-red-400" />
                           <span>119</span>
                         </button>
+
+                        {/* Direct Visible Cancel Booking Button */}
+                        {booking.status !== 'completed' && booking.status !== 'cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowCancelModal(booking)}
+                            className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-white border border-rose-500/30 font-bold text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            title="Cancel this booking"
+                          >
+                            <X className="w-3.5 h-3.5 text-rose-400" />
+                            <span>Cancel Booking</span>
+                          </button>
+                        )}
                       </div>
 
                       {/* Right: Status Badge / QR Shortcut */}
@@ -3497,6 +3541,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
             onOpenChat={(b) => onOpenChat(b)}
             onOpenArrivalQR={(b) => setSelectedBookingForArrivalQR(b)}
             onViewBookingDetails={(b) => setSelectedBookingForMedicalSummary(b)}
+            onCancelBooking={onCancelBooking}
             onNavigateToHistory={() => {
               setActiveTab('history');
               setCurrentStep('browse');
@@ -3529,30 +3574,50 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
               Free cancellation is enabled up to 2 hours before the visit time. Full escrow refund will be processed immediately.
             </p>
 
-            <div className="mt-4">
-              <label className="text-xs font-bold text-slate-300 block mb-1">Reason for Cancellation</label>
-              <select
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-white/15 bg-white/5 text-white text-xs backdrop-blur-md"
-              >
-                <option value="Schedule change">Schedule change</option>
-                <option value="Patient condition improved">Patient condition improved</option>
-                <option value="Booked by mistake">Booked by mistake</option>
-                <option value="Need different time slot">Need different time slot</option>
-              </select>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-slate-300 block mb-1">Reason for Cancellation</label>
+                <select
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-white/15 bg-[#1b072c] text-white text-xs backdrop-blur-md"
+                >
+                  <option value="Schedule change">Schedule change</option>
+                  <option value="Patient condition improved">Patient condition improved</option>
+                  <option value="Booked by mistake">Booked by mistake</option>
+                  <option value="Need different time slot">Need different time slot</option>
+                  <option value="Caregiver delay or unavailability">Caregiver delay or unavailability</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {cancelReason === 'Other' && (
+                <div>
+                  <label className="text-xs font-bold text-slate-300 block mb-1">Specify Reason</label>
+                  <textarea
+                    rows={2}
+                    value={customCancelReason}
+                    onChange={(e) => setCustomCancelReason(e.target.value)}
+                    placeholder="Enter reason for cancelling..."
+                    className="w-full p-2.5 rounded-xl border border-white/15 bg-white/5 text-white placeholder-slate-500 text-xs focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2 mt-5">
               <button
-                onClick={() => setShowCancelModal(null)}
+                onClick={() => {
+                  setShowCancelModal(null);
+                  setCustomCancelReason('');
+                }}
                 className="flex-1 py-2.5 rounded-xl border border-white/15 text-slate-300 font-bold text-xs hover:bg-white/10 transition"
               >
                 Keep Booking
               </button>
               <button
                 onClick={handleCancelSubmit}
-                className="flex-1 py-2.5 rounded-xl bg-[#F59E0B] text-white font-bold text-xs hover:bg-red-600 shadow-md shadow-red-900/40 transition"
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold text-xs hover:bg-rose-500 shadow-md shadow-red-900/40 transition"
               >
                 Confirm Cancel
               </button>

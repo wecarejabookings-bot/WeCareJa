@@ -15,6 +15,7 @@ import {
   Phone, 
   Calendar, 
   AlertCircle, 
+  XCircle,
   Pill, 
   User, 
   DollarSign, 
@@ -72,6 +73,7 @@ interface BookingDetailModalProps {
     clinicalNotes?: any,
     additionalData?: Partial<Booking>
   ) => void;
+  onCancelBooking?: (bookingId: string, reason: string) => void;
   onTriggerNotification?: (type: ActivityNotificationType, title: string, description: string, bookingId?: string) => void;
 }
 
@@ -89,34 +91,28 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   onDownloadMedicalSummary,
   onOpenPlatformFeeCharge,
   onUpdateBookingStatus,
+  onCancelBooking,
   onTriggerNotification
 }) => {
   if (!isOpen || !booking) return null;
 
   const [activeTab, setActiveTab] = useState<'clinical_notes' | 'patient_info' | 'billing'>('clinical_notes');
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [nurseCancelReason, setNurseCancelReason] = useState('Schedule conflict / unavailable');
 
   // Clinical Vitals & Notes state
-  const [bp, setBp] = useState(booking.clinicalNotes?.bloodPressure || '120/80 mmHg');
-  const [pulse, setPulse] = useState(booking.clinicalNotes?.pulseRate || '72 bpm');
-  const [glucose, setGlucose] = useState(booking.clinicalNotes?.bloodGlucose || '5.6 mmol/L');
-  const [spo2, setSpo2] = useState(booking.clinicalNotes?.oxygenSaturation || '98%');
-  const [temp, setTemp] = useState(booking.clinicalNotes?.temperature || '36.7 °C');
+  const [bp, setBp] = useState(booking.clinicalNotes?.bloodPressure || '');
+  const [pulse, setPulse] = useState(booking.clinicalNotes?.pulseRate || '');
+  const [glucose, setGlucose] = useState(booking.clinicalNotes?.bloodGlucose || '');
+  const [spo2, setSpo2] = useState(booking.clinicalNotes?.oxygenSaturation || '');
+  const [temp, setTemp] = useState(booking.clinicalNotes?.temperature || '');
   const [medsAdministered, setMedsAdministered] = useState(booking.clinicalNotes?.medicationsAdministered || '');
   const [careSummary, setCareSummary] = useState(booking.clinicalNotes?.careSummary || '');
   const [recommendations, setRecommendations] = useState(booking.clinicalNotes?.nurseRecommendations || '');
 
   // Visit updates state (timeline logs)
   const [visitUpdates, setVisitUpdates] = useState<VisitUpdateLog[]>(
-    booking.visitUpdates || booking.clinicalNotes?.visitUpdates || [
-      {
-        id: 'upd-init-1',
-        timestamp: booking.visitStartedAt || booking.scheduledDateTime,
-        nurseName: currentNurseName,
-        text: `Arrived on-site in ${booking.zone}. Initial patient evaluation initiated.`,
-        category: 'general',
-        recordedViaVoice: false
-      }
-    ]
+    booking.visitUpdates || booking.clinicalNotes?.visitUpdates || []
   );
 
   const [newUpdateText, setNewUpdateText] = useState('');
@@ -128,45 +124,44 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
   // Sync state if booking changes or draft is restored
   useEffect(() => {
     if (booking) {
+      setShowCancelConfirm(false);
       // Check for saved local draft first
       const draft = getDraftClinicalNotes(booking.id);
       if (draft && draft.notes) {
-        setBp(draft.notes.bloodPressure || booking.clinicalNotes?.bloodPressure || booking.biometricScan?.estimatedBloodPressure || '120/80 mmHg');
-        setPulse(draft.notes.pulseRate || booking.clinicalNotes?.pulseRate || '72 bpm');
-        setGlucose(draft.notes.bloodGlucose || booking.clinicalNotes?.bloodGlucose || '5.6 mmol/L');
-        setSpo2(draft.notes.oxygenSaturation || booking.clinicalNotes?.oxygenSaturation || '98%');
-        setTemp(draft.notes.temperature || booking.clinicalNotes?.temperature || '36.7 °C');
+        setBp(draft.notes.bloodPressure || booking.clinicalNotes?.bloodPressure || booking.biometricScan?.estimatedBloodPressure || '');
+        setPulse(draft.notes.pulseRate || booking.clinicalNotes?.pulseRate || '');
+        setGlucose(draft.notes.bloodGlucose || booking.clinicalNotes?.bloodGlucose || '');
+        setSpo2(draft.notes.oxygenSaturation || booking.clinicalNotes?.oxygenSaturation || '');
+        setTemp(draft.notes.temperature || booking.clinicalNotes?.temperature || '');
         setMedsAdministered(draft.notes.medicationsAdministered || booking.clinicalNotes?.medicationsAdministered || '');
         setCareSummary(draft.notes.careSummary || booking.clinicalNotes?.careSummary || '');
         setRecommendations(draft.notes.nurseRecommendations || booking.clinicalNotes?.nurseRecommendations || '');
         setDraftLoadedNotice(true);
       } else {
-        setBp(booking.clinicalNotes?.bloodPressure || booking.biometricScan?.estimatedBloodPressure || booking.biometricScan?.bloodPressureEstimated || '120/80 mmHg');
-        setPulse(booking.clinicalNotes?.pulseRate || (booking.biometricScan ? `${booking.biometricScan.heartRateBpm} bpm` : '72 bpm'));
-        setGlucose(booking.clinicalNotes?.bloodGlucose || '5.6 mmol/L');
-        setSpo2(booking.clinicalNotes?.oxygenSaturation || (booking.biometricScan ? `${booking.biometricScan.bloodOxygenSpO2 || booking.biometricScan.bloodOxygenPercent}%` : '98%'));
-        setTemp(booking.clinicalNotes?.temperature || '36.7 °C');
+        setBp(booking.clinicalNotes?.bloodPressure || booking.biometricScan?.estimatedBloodPressure || booking.biometricScan?.bloodPressureEstimated || '');
+        setPulse(booking.clinicalNotes?.pulseRate || (booking.biometricScan?.heartRateBpm ? `${booking.biometricScan.heartRateBpm} bpm` : ''));
+        setGlucose(booking.clinicalNotes?.bloodGlucose || '');
+        setSpo2(booking.clinicalNotes?.oxygenSaturation || (booking.biometricScan && (booking.biometricScan.bloodOxygenSpO2 || booking.biometricScan.bloodOxygenPercent) ? `${booking.biometricScan.bloodOxygenSpO2 || booking.biometricScan.bloodOxygenPercent}%` : ''));
+        setTemp(booking.clinicalNotes?.temperature || '');
         setMedsAdministered(booking.clinicalNotes?.medicationsAdministered || '');
         setCareSummary(booking.clinicalNotes?.careSummary || '');
         setRecommendations(booking.clinicalNotes?.nurseRecommendations || '');
       }
 
-      if ((booking?.visitUpdates?.length || 0) > 0) {
-        setVisitUpdates(booking?.visitUpdates || []);
-      }
+      setVisitUpdates(booking?.visitUpdates || booking?.clinicalNotes?.visitUpdates || []);
     }
   }, [booking]);
 
   const handleSaveNotes = () => {
     const updatedNotes: ClinicalNotes = {
-      bloodPressure: bp,
-      pulseRate: pulse,
-      bloodGlucose: glucose,
-      oxygenSaturation: spo2,
-      temperature: temp,
-      medicationsAdministered: medsAdministered || 'None recorded',
-      careSummary: careSummary || 'Visit conducted according to protocol.',
-      nurseRecommendations: recommendations || 'Routine follow-up advised.',
+      bloodPressure: bp.trim(),
+      pulseRate: pulse.trim(),
+      bloodGlucose: glucose.trim(),
+      oxygenSaturation: spo2.trim(),
+      temperature: temp.trim(),
+      medicationsAdministered: medsAdministered.trim(),
+      careSummary: careSummary.trim(),
+      nurseRecommendations: recommendations.trim(),
       completedAt: new Date().toISOString(),
       visitUpdates: visitUpdates
     };
@@ -282,7 +277,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                 <span className="font-bold text-white">{booking.clientName}</span>
                 <span className="text-slate-500">•</span>
                 <MapPin className="w-3.5 h-3.5 text-red-400" />
-                <span>{booking.clientAddress} ({booking.zone})</span>
+                <span>{booking.clientAddress ? `${booking.clientAddress}${booking.zone ? ` (${booking.zone})` : ''}` : (booking.zone || 'Address not provided')}</span>
               </p>
             </div>
           </div>
@@ -690,9 +685,9 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                     Emergency Contact
                   </h4>
                   <div className="space-y-1 text-slate-300">
-                    <p><strong className="text-white">Name:</strong> {booking.clientEmergencyContact.name}</p>
-                    <p><strong className="text-white">Relationship:</strong> {booking.clientEmergencyContact.relation}</p>
-                    <p><strong className="text-white">Emergency Phone:</strong> {booking.clientEmergencyContact.phone}</p>
+                    <p><strong className="text-white">Name:</strong> {booking.clientEmergencyContact?.name || 'Not provided'}</p>
+                    <p><strong className="text-white">Relationship:</strong> {booking.clientEmergencyContact?.relation || '—'}</p>
+                    <p><strong className="text-white">Emergency Phone:</strong> {booking.clientEmergencyContact?.phone || 'Not provided'}</p>
                   </div>
                 </div>
               </div>
@@ -715,7 +710,7 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                         ))}
                       </div>
                     ) : (
-                      <span className="text-slate-300">No known drug allergies reported</span>
+                      <span className="text-slate-300">None reported</span>
                     )}
                   </div>
 
@@ -730,14 +725,14 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
                         ))}
                       </div>
                     ) : (
-                      <span className="text-slate-300">Hypertension / Post-Op</span>
+                      <span className="text-slate-300">None reported</span>
                     )}
                   </div>
 
                   <div>
                     <span className="text-slate-400 block text-[10px]">Mobility Status</span>
                     <span className="text-slate-300 mt-1 block">
-                      {booking.patientBioData?.mobilityStatus || 'Assisted walking with cane / bed rest'}
+                      {booking.patientBioData?.mobilityStatus || 'Not specified'}
                     </span>
                   </div>
                 </div>
@@ -975,7 +970,61 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {booking.status !== 'completed' && booking.status !== 'cancelled' && (onCancelBooking || onUpdateBookingStatus) && (
+              showCancelConfirm ? (
+                <div className="flex flex-wrap items-center gap-1.5 bg-red-950/60 border border-red-500/40 px-2.5 py-1.5 rounded-xl">
+                  <select
+                    value={nurseCancelReason}
+                    onChange={(e) => setNurseCancelReason(e.target.value)}
+                    className="bg-black/60 border border-red-500/30 text-white text-[11px] rounded-lg px-2 py-1 focus:outline-none"
+                  >
+                    <option value="Schedule conflict / unavailable">Schedule conflict / unavailable</option>
+                    <option value="Patient requested cancellation">Patient requested cancellation</option>
+                    <option value="Safety or location issue">Safety or location issue</option>
+                    <option value="Clinical emergency / re-assigned">Clinical emergency / re-assigned</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      soundFX.playCancellation();
+                      if (onCancelBooking) {
+                        onCancelBooking(booking.id, nurseCancelReason);
+                      } else if (onUpdateBookingStatus) {
+                        onUpdateBookingStatus(booking.id, 'cancelled', undefined, {
+                          cancelledBy: 'nurse',
+                          cancelReason: nurseCancelReason,
+                          cancelledAt: new Date().toISOString(),
+                          paymentStatus: 'refunded'
+                        });
+                      }
+                      setShowCancelConfirm(false);
+                      onClose();
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] cursor-pointer"
+                  >
+                    Confirm Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowCancelConfirm(false)}
+                    className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 text-[11px] cursor-pointer"
+                  >
+                    Back
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowCancelConfirm(true)}
+                  className="px-3 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>Cancel Booking</span>
+                </button>
+              )
+            )}
+
             {onOpenCloseoutModal && booking.status === 'in_progress' && (
               <button
                 type="button"

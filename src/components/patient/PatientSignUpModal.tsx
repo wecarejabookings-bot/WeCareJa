@@ -104,31 +104,21 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
 
   // Step 2: Patient Bio Data & Health History
   const [dob, setDob] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | 'other'>('female');
-  const [bloodType, setBloodType] = useState('O+');
-  const [zone, setZone] = useState('Kingston 6');
+  const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
+  const [bloodType, setBloodType] = useState('');
+  const [zone, setZone] = useState('');
   const [address, setAddress] = useState('');
   const [selectedIllnesses, setSelectedIllnesses] = useState<string[]>([]);
   const [customIllness, setCustomIllness] = useState('');
-  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(['No Known Drug Allergies (NKDA)']);
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const [customAllergy, setCustomAllergy] = useState('');
-  const [mobilityStatus, setMobilityStatus] = useState<'independent' | 'needs_cane_walker' | 'wheelchair_bound' | 'bedbound'>('needs_cane_walker');
+  const [mobilityStatus, setMobilityStatus] = useState<'independent' | 'needs_cane_walker' | 'wheelchair_bound' | 'bedbound' | ''>('');
   const [dietaryRestrictions, setDietaryRestrictions] = useState('');
   const [specialCareInstructions, setSpecialCareInstructions] = useState('');
   const [consentDataProtection, setConsentDataProtection] = useState<boolean>(false);
 
   // Step 3: Scheduled Medications & Timings
-  const [medications, setMedications] = useState<PatientMedication[]>([
-    {
-      id: 'med-init-1',
-      name: 'Amlodipine 5mg',
-      dosage: '1 tablet daily',
-      instructions: 'Take in morning with water',
-      timesOfDay: ['morning'],
-      scheduledTime: '08:00 AM',
-      purpose: 'Blood pressure control'
-    }
-  ]);
+  const [medications, setMedications] = useState<PatientMedication[]>([]);
   const [newMedName, setNewMedName] = useState('');
   const [newMedDosage, setNewMedDosage] = useState('');
   const [newMedInstructions, setNewMedInstructions] = useState('');
@@ -138,14 +128,14 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
 
   // Step 4: Trusted Family Member / Guardian Bio & Photo
   const [familyMemberName, setFamilyMemberName] = useState('');
-  const [familyRelation, setFamilyRelation] = useState('Son');
+  const [familyRelation, setFamilyRelation] = useState('');
   const [familyPhone, setFamilyPhone] = useState('');
   const [familyEmail, setFamilyEmail] = useState('');
   const [familyPhotoUrl, setFamilyPhotoUrl] = useState('');
-  const [familyNotes, setFamilyNotes] = useState('Authorized to view patient chart, manage appointments, and receive nurse vital updates.');
-  const [allowProfileSharing, setAllowProfileSharing] = useState(true);
-  const [clientWhatsAppOptIn, setClientWhatsAppOptIn] = useState(true);
-  const [familyWhatsAppOptIn, setFamilyWhatsAppOptIn] = useState(true);
+  const [familyNotes, setFamilyNotes] = useState('');
+  const [allowProfileSharing, setAllowProfileSharing] = useState(false);
+  const [clientWhatsAppOptIn, setClientWhatsAppOptIn] = useState(false);
+  const [familyWhatsAppOptIn, setFamilyWhatsAppOptIn] = useState(false);
 
   if (!isOpen) return null;
 
@@ -206,13 +196,14 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
 
   const toggleAllergy = (item: string) => {
     if (item === 'No Known Drug Allergies (NKDA)') {
-      setSelectedAllergies(['No Known Drug Allergies (NKDA)']);
+      setSelectedAllergies(prev =>
+        prev.includes('No Known Drug Allergies (NKDA)') ? [] : ['No Known Drug Allergies (NKDA)']
+      );
       return;
     }
     const filtered = selectedAllergies.filter(a => a !== 'No Known Drug Allergies (NKDA)');
     if (filtered.includes(item)) {
-      const next = filtered.filter(a => a !== item);
-      setSelectedAllergies(next.length === 0 ? ['No Known Drug Allergies (NKDA)'] : next);
+      setSelectedAllergies(filtered.filter(a => a !== item));
     } else {
       setSelectedAllergies([...filtered, item]);
     }
@@ -289,6 +280,10 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       setStep(2);
       soundFX.playSuccessPing();
     } else if (step === 2) {
+      if (!zone.trim()) {
+        setError('Please select a Parish / Zone.');
+        return;
+      }
       if (!address.trim()) {
         setError('Please enter the home street address for nurse visits.');
         return;
@@ -338,7 +333,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       const cleanEmail = email.trim().toLowerCase();
       const cleanUsername = username.trim().toLowerCase();
       const cleanFullName = name.trim();
-      const cleanPhone = phone.trim() || '+1 (876) 555-0100';
+      const cleanPhone = phone.trim();
 
       let userId = `user-client-${Date.now()}`;
       try {
@@ -360,49 +355,51 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
         }
       } catch {}
 
-      // Calculate approximate age if DOB provided
-      let calculatedAge = 45;
+      // Calculate approximate age ONLY if DOB provided
+      let calculatedAge: number | undefined = undefined;
       if (dob) {
         const birthYear = new Date(dob).getFullYear();
-        calculatedAge = Math.max(1, new Date().getFullYear() - birthYear);
+        if (!isNaN(birthYear)) {
+          calculatedAge = Math.max(1, new Date().getFullYear() - birthYear);
+        }
       }
 
-      let defaultPatientPhoto = patientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400';
+      let defaultPatientPhoto = patientPhotoUrl || '';
       if (patientPhotoUrl && patientPhotoUrl.startsWith('data:image/')) {
         try {
           const uploaded = await uploadDocument(patientPhotoUrl, 'patient-photo.jpg', 'profile_photo', userId);
           if (uploaded?.url) defaultPatientPhoto = uploaded.url;
         } catch {}
       }
-      const defaultFamilyPhoto = familyPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400';
+      const defaultFamilyPhoto = familyPhotoUrl || '';
 
       const trustedFamily: TrustedFamilyMember = {
-        name: familyMemberName,
-        relation: familyRelation,
-        phone: familyPhone || cleanPhone,
-        email: familyEmail || cleanEmail,
+        name: familyMemberName.trim(),
+        relation: familyRelation.trim(),
+        phone: familyPhone.trim(),
+        email: familyEmail.trim(),
         photoUrl: defaultFamilyPhoto,
         canManageCare: true,
-        notes: familyNotes,
+        notes: familyNotes.trim(),
         whatsAppUpdatesOptIn: familyWhatsAppOptIn,
-        whatsAppPhone: familyPhone || cleanPhone
+        whatsAppPhone: familyPhone.trim()
       };
 
       const patientBio: ClientPatientBioData = {
         dateOfBirth: dob,
         age: calculatedAge,
-        gender,
-        bloodType,
-        residentialAddress: address,
-        zone,
-        knownIllnesses: selectedIllnesses.length > 0 ? selectedIllnesses : ['None Reported / General Wellness'],
+        gender: (gender || undefined) as any,
+        bloodType: bloodType || undefined,
+        residentialAddress: address.trim(),
+        zone: zone.trim(),
+        knownIllnesses: selectedIllnesses,
         allergies: selectedAllergies,
-        mobilityStatus,
-        dietaryRestrictions,
-        specialCareInstructions,
+        mobilityStatus: (mobilityStatus || undefined) as any,
+        dietaryRestrictions: dietaryRestrictions.trim(),
+        specialCareInstructions: specialCareInstructions.trim(),
         medications,
         trustedFamilyMember: trustedFamily,
-        profileSharedWith: allowProfileSharing ? [familyEmail, cleanEmail].filter(Boolean) : []
+        profileSharedWith: allowProfileSharing ? [familyEmail.trim(), cleanEmail].filter(Boolean) : []
       };
 
       const newAccount: UserAccount = {
@@ -415,17 +412,19 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
         full_name: cleanFullName,
         email: cleanEmail,
         phone: cleanPhone,
-        avatarUrl: defaultPatientPhoto,
-        zone,
-        address,
-        emergencyContact: {
-          name: `${familyMemberName} (${familyRelation})`,
-          phone: familyPhone || cleanPhone,
-          relation: familyRelation
-        },
+        avatarUrl: defaultPatientPhoto || undefined,
+        zone: zone.trim(),
+        address: address.trim(),
+        emergencyContact: familyMemberName.trim() || familyPhone.trim()
+          ? {
+              name: familyRelation.trim() ? `${familyMemberName.trim()} (${familyRelation.trim()})` : familyMemberName.trim(),
+              phone: familyPhone.trim(),
+              relation: familyRelation.trim()
+            }
+          : undefined,
         patientBioData: patientBio,
         whatsAppUpdatesOptIn: clientWhatsAppOptIn,
-        whatsAppPhone: cleanPhone,
+        whatsAppPhone: cleanPhone || undefined,
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString()
       };
@@ -756,6 +755,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                     onChange={(e) => setGender(e.target.value as any)}
                     className="w-full p-2.5 rounded-xl bg-[#1c062c] border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
                   >
+                    <option value="">Select gender...</option>
                     <option value="female">Female</option>
                     <option value="male">Male</option>
                     <option value="other">Other / Prefer not to say</option>
@@ -769,6 +769,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                     onChange={(e) => setBloodType(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-[#1c062c] border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
                   >
+                    <option value="">Select blood type...</option>
                     <option value="O+">O+ (Positive)</option>
                     <option value="O-">O- (Negative)</option>
                     <option value="A+">A+ (Positive)</option>
@@ -790,6 +791,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                     onChange={(e) => setZone(e.target.value)}
                     className="w-full p-2.5 rounded-xl bg-[#1c062c] border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none font-semibold text-xs"
                   >
+                    <option value="">Select parish / zone...</option>
                     {CORPORATE_AREA_LAUNCH_ZONES.map(z => (
                       <option key={z} value={z}>{z}</option>
                     ))}
@@ -1183,6 +1185,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                     onChange={(e) => setFamilyRelation(e.target.value)}
                     className="w-full p-3 rounded-xl bg-[#1c062c] border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
                   >
+                    <option value="">Select relationship...</option>
                     <option value="Son">Son</option>
                     <option value="Daughter">Daughter</option>
                     <option value="Spouse">Spouse / Partner</option>
@@ -1296,17 +1299,23 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
               {/* Patient Card Preview */}
               <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
                 <div className="flex items-center gap-3.5 pb-3 border-b border-white/10">
-                  <img loading="lazy" decoding="async"
-                    src={patientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'}
-                    alt={name}
-                    className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-400 shadow-md"
-                  />
+                  {patientPhotoUrl ? (
+                    <img loading="lazy" decoding="async"
+                      src={patientPhotoUrl}
+                      alt={name}
+                      className="w-14 h-14 rounded-2xl object-cover border-2 border-purple-400 shadow-md"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-2xl bg-purple-900/50 border-2 border-purple-400/50 flex items-center justify-center shrink-0">
+                      <User className="w-7 h-7 text-purple-300" />
+                    </div>
+                  )}
                   <div>
                     <span className="text-[10px] uppercase font-bold text-purple-300">Patient Account</span>
                     <h3 className="text-base font-black text-white">{name}</h3>
                     <p className="text-xs text-slate-300 flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-[#F59E0B]" />
-                      <span>{address}, {zone}</span>
+                      <span>{[address, zone].filter(Boolean).join(', ') || 'Not specified'}</span>
                     </p>
                   </div>
                 </div>
@@ -1318,15 +1327,15 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                   </div>
                   <div className="p-2 rounded-xl bg-black/30">
                     <span className="text-slate-400 block text-[10px]">Blood Type</span>
-                    <span className="font-bold text-red-400">{bloodType}</span>
+                    <span className="font-bold text-red-400">{bloodType || 'Not specified'}</span>
                   </div>
                   <div className="p-2 rounded-xl bg-black/30">
                     <span className="text-slate-400 block text-[10px]">Mobility</span>
-                    <span className="font-bold text-white capitalize">{String(mobilityStatus || 'independent').replace(/_/g, ' ')}</span>
+                    <span className="font-bold text-white capitalize">{mobilityStatus ? String(mobilityStatus).replace(/_/g, ' ') : 'Not specified'}</span>
                   </div>
                   <div className="p-2 rounded-xl bg-black/30">
                     <span className="text-slate-400 block text-[10px]">Phone</span>
-                    <span className="font-bold text-white">{phone || 'Primary'}</span>
+                    <span className="font-bold text-white">{phone || 'Not provided'}</span>
                   </div>
                 </div>
 
@@ -1341,13 +1350,13 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                   <div>
                     <strong className="text-slate-300">Allergies: </strong>
                     <span className="text-red-300 font-bold">
-                      {selectedAllergies.join(', ')}
+                      {selectedAllergies.length > 0 ? selectedAllergies.join(', ') : 'None Reported'}
                     </span>
                   </div>
                   <div>
                     <strong className="text-slate-300">Scheduled Meds ({medications.length}): </strong>
                     <span className="text-emerald-300">
-                      {medications.map(m => `${m.name} (${m.scheduledTime})`).join(' • ')}
+                      {medications.length > 0 ? medications.map(m => `${m.name} (${m.scheduledTime})`).join(' • ') : 'None added'}
                     </span>
                   </div>
                 </div>
@@ -1359,15 +1368,21 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                   Verified Trusted Family Member &amp; Guardian
                 </span>
                 <div className="flex items-center gap-3">
-                  <img loading="lazy" decoding="async"
-                    src={familyPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'}
-                    alt={familyMemberName}
-                    className="w-12 h-12 rounded-xl object-cover border border-emerald-400"
-                  />
+                  {familyPhotoUrl ? (
+                    <img loading="lazy" decoding="async"
+                      src={familyPhotoUrl}
+                      alt={familyMemberName}
+                      className="w-12 h-12 rounded-xl object-cover border border-emerald-400"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-emerald-950/60 border border-emerald-400/50 flex items-center justify-center shrink-0">
+                      <Users className="w-6 h-6 text-emerald-300" />
+                    </div>
+                  )}
                   <div>
                     <h4 className="text-sm font-bold text-white">{familyMemberName}</h4>
                     <p className="text-xs text-purple-200">
-                      {familyRelation} • {familyPhone} {familyEmail ? `• ${familyEmail}` : ''}
+                      {[familyRelation, familyPhone, familyEmail].filter(Boolean).join(' • ')}
                     </p>
                   </div>
                 </div>

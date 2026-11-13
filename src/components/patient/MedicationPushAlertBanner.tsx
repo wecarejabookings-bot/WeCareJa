@@ -23,16 +23,10 @@ export const MedicationPushAlertBanner: React.FC<MedicationPushAlertBannerProps>
 
   const medications = user?.bioData?.medications || user?.patientBioData?.medications || [];
 
-  // Function to trigger push alert simulation
+  // Function to trigger push alert simulation (only when an actual user medication exists)
   const triggerPushSimulation = (targetMed?: PatientMedication) => {
-    const med: PatientMedication = targetMed || medications[0] || {
-      id: 'demo-med',
-      name: 'Amlodipine Besylate',
-      dosage: '5mg oral tablet',
-      scheduledTime: '08:00 AM',
-      timesOfDay: ['morning'],
-      instructions: 'Take 1 tablet with full glass of water before breakfast.'
-    };
+    const med = targetMed || medications[0];
+    if (!med) return;
 
     soundFX.playMedicationPushAlert();
 

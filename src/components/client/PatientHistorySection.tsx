@@ -130,7 +130,7 @@ export const PatientHistorySection: React.FC<PatientHistorySectionProps> = ({
   const ratedCount = completedBookings.filter(b => b.rating).length;
   const avgRating = ratedCount > 0 
     ? (completedBookings.reduce((acc, curr) => acc + (curr.rating || 0), 0) / ratedCount).toFixed(1)
-    : '5.0';
+    : '—';
 
   // Latest Vital Sign Record
   const latestVitalsBooking = completedBookings.find(b => b.clinicalNotes);
@@ -265,9 +265,11 @@ ${booking.clinicalNotes.nurseRecommendations}
                 <Activity className="w-3.5 h-3.5 text-emerald-400" /> Latest Blood Pressure
               </span>
               <strong className="text-xl md:text-2xl font-black text-emerald-300 font-mono mt-1 block">
-                {latestVitals?.bloodPressure || '122/78'}
+                {latestVitals?.bloodPressure || '—'}
               </strong>
-              <span className="text-[10px] text-slate-400">Target Range Controlled</span>
+              <span className="text-[10px] text-slate-400">
+                {latestVitals?.bloodPressure ? 'Recorded on latest visit' : 'No reading recorded'}
+              </span>
             </div>
           </div>
 
@@ -290,23 +292,23 @@ ${booking.clinicalNotes.nurseRecommendations}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
                 <div className="p-2 rounded-xl bg-black/40 border border-white/10">
                   <span className="text-[10px] text-slate-400 block">Blood Pressure</span>
-                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.bloodPressure || '120/80 mmHg'}</strong>
+                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.bloodPressure || '—'}</strong>
                 </div>
                 <div className="p-2 rounded-xl bg-black/40 border border-white/10">
                   <span className="text-[10px] text-slate-400 block">Pulse Rate</span>
-                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.pulseRate || '72 bpm'}</strong>
+                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.pulseRate || '—'}</strong>
                 </div>
                 <div className="p-2 rounded-xl bg-black/40 border border-white/10">
                   <span className="text-[10px] text-slate-400 block">Blood Glucose</span>
-                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.bloodGlucose || '5.6 mmol/L'}</strong>
+                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.bloodGlucose || '—'}</strong>
                 </div>
                 <div className="p-2 rounded-xl bg-black/40 border border-white/10">
                   <span className="text-[10px] text-slate-400 block">SpO2 Oxygen</span>
-                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.oxygenSaturation || '99%'}</strong>
+                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.oxygenSaturation || '—'}</strong>
                 </div>
                 <div className="p-2 rounded-xl bg-black/40 border border-white/10 col-span-2 sm:col-span-1">
                   <span className="text-[10px] text-slate-400 block">Temperature</span>
-                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.temperature || '36.6 °C'}</strong>
+                  <strong className="text-sm font-bold text-white font-mono">{latestVitals.temperature || '—'}</strong>
                 </div>
               </div>
             </div>
@@ -530,11 +532,17 @@ ${booking.clinicalNotes.nurseRecommendations}
                   {/* Nurse Summary & Rating Block */}
                   <div className="p-4 rounded-2xl bg-black/30 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3.5">
-                      <img loading="lazy" decoding="async"
-                        src={booking.nursePhoto || 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=400'}
-                        alt={booking.nurseName}
-                        className="w-13 h-13 rounded-2xl object-cover border-2 border-purple-400/80 shadow-md shrink-0"
-                      />
+                      {booking.nursePhoto ? (
+                        <img loading="lazy" decoding="async"
+                          src={booking.nursePhoto}
+                          alt={booking.nurseName}
+                          className="w-13 h-13 rounded-2xl object-cover border-2 border-purple-400/80 shadow-md shrink-0"
+                        />
+                      ) : (
+                        <div className="w-13 h-13 rounded-2xl bg-purple-900/60 border-2 border-purple-400/50 flex items-center justify-center text-purple-200 shadow-md shrink-0">
+                          <User className="w-6 h-6" />
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-2">
                           <strong className="text-white text-sm block">{booking.nurseName || 'Assigned Nurse'}</strong>
@@ -614,9 +622,8 @@ ${booking.clinicalNotes.nurseRecommendations}
                             <Activity className="w-3 h-3 text-red-400" /> Blood Pressure
                           </span>
                           <strong className="text-sm font-bold text-white font-mono block">
-                            {notes.bloodPressure || '120/80 mmHg'}
+                            {notes.bloodPressure || '—'}
                           </strong>
-                          <span className="text-[9px] text-emerald-400 font-semibold block">Target Range</span>
                         </div>
 
                         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
@@ -624,9 +631,8 @@ ${booking.clinicalNotes.nurseRecommendations}
                             <Heart className="w-3 h-3 text-pink-400" /> Pulse / Heart Rate
                           </span>
                           <strong className="text-sm font-bold text-white font-mono block">
-                            {notes.pulseRate || '72 bpm'}
+                            {notes.pulseRate || '—'}
                           </strong>
-                          <span className="text-[9px] text-slate-400 block">Regular Rhythm</span>
                         </div>
 
                         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
@@ -634,9 +640,8 @@ ${booking.clinicalNotes.nurseRecommendations}
                             <Droplet className="w-3 h-3 text-blue-400" /> Blood Glucose
                           </span>
                           <strong className="text-sm font-bold text-white font-mono block">
-                            {notes.bloodGlucose || '5.8 mmol/L'}
+                            {notes.bloodGlucose || '—'}
                           </strong>
-                          <span className="text-[9px] text-emerald-400 font-semibold block">Regulated</span>
                         </div>
 
                         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1">
@@ -644,9 +649,8 @@ ${booking.clinicalNotes.nurseRecommendations}
                             <Activity className="w-3 h-3 text-teal-400" /> Oxygen (SpO2)
                           </span>
                           <strong className="text-sm font-bold text-white font-mono block">
-                            {notes.oxygenSaturation || '99%'}
+                            {notes.oxygenSaturation || '—'}
                           </strong>
-                          <span className="text-[9px] text-slate-400 block">Ambient Air</span>
                         </div>
 
                         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 space-y-1 col-span-2 sm:col-span-1">
@@ -654,9 +658,8 @@ ${booking.clinicalNotes.nurseRecommendations}
                             <Thermometer className="w-3 h-3 text-amber-400" /> Temperature
                           </span>
                           <strong className="text-sm font-bold text-white font-mono block">
-                            {notes.temperature || '36.7 °C'}
+                            {notes.temperature || '—'}
                           </strong>
-                          <span className="text-[9px] text-emerald-400 font-semibold block">Afebrile</span>
                         </div>
                       </div>
                     </div>

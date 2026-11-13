@@ -49,7 +49,7 @@ export const CallContactModal: React.FC<CallContactModalProps> = ({
   const clientContact = {
     name: booking.clientName || 'Client',
     role: 'Primary Client (Account Holder)',
-    phone: booking.clientPhone || '+1 (876) 555-0199',
+    phone: booking.clientPhone || '',
     isPatient: false
   };
 
@@ -61,7 +61,7 @@ export const CallContactModal: React.FC<CallContactModalProps> = ({
   const patientContact = {
     name: emergencyContact?.name || `${booking.clientName} (Patient)`,
     role: emergencyContact ? `Patient / Next of Kin (${emergencyContact.relation})` : 'Patient on Record',
-    phone: emergencyContact?.phone || booking.clientPhone || '+1 (876) 555-0199',
+    phone: emergencyContact?.phone || booking.clientPhone || '',
     isPatient: true
   };
 
@@ -69,7 +69,7 @@ export const CallContactModal: React.FC<CallContactModalProps> = ({
   const caregiverContact = {
     name: booking.nurseName || 'Assigned Caregiver',
     role: 'Assigned Registered Caregiver',
-    phone: booking.nursePhone || '+1 (876) 555-3829',
+    phone: booking.nursePhone || '',
     isPatient: false
   };
 

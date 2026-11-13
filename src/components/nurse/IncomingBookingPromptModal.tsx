@@ -36,6 +36,7 @@ interface IncomingBookingPromptModalProps {
   onAccept: (bookingId: string) => void;
   onDecline: (bookingId: string, reason?: string) => void;
   onRerouteBooking?: (bookingId: string, reason?: string) => void;
+  onCancelBooking?: (bookingId: string, reason: string) => void;
 }
 
 export const IncomingBookingPromptModal: React.FC<IncomingBookingPromptModalProps> = ({
@@ -46,7 +47,8 @@ export const IncomingBookingPromptModal: React.FC<IncomingBookingPromptModalProp
   onClose,
   onAccept,
   onDecline,
-  onRerouteBooking
+  onRerouteBooking,
+  onCancelBooking
 }) => {
   const [showDeclineReason, setShowDeclineReason] = useState(false);
   const [declineReason, setDeclineReason] = useState('Schedule overlap with hospital shift');
@@ -233,13 +235,13 @@ export const IncomingBookingPromptModal: React.FC<IncomingBookingPromptModalProp
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-black uppercase tracking-wider">
                 <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                <span>2-Minute Dispatch Window &bull; Kingston &amp; St. Andrew</span>
+                <span>Dispatch Offer{booking.zone ? ` • ${booking.zone}` : ''}</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-black text-white leading-tight">
                 New Home Care Visit Request
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-                Patient <strong>{booking.clientName}</strong> in <strong>{booking.zone}</strong> has requested you. Review procedure details below and confirm acceptance.
+                Patient <strong>{booking.clientName}</strong>{booking.zone ? <> in <strong>{booking.zone}</strong></> : ''} has requested you. Review procedure details below and confirm acceptance.
               </p>
             </div>
 
@@ -334,11 +336,17 @@ export const IncomingBookingPromptModal: React.FC<IncomingBookingPromptModalProp
                 <div className="flex items-center gap-3">
                   {/* Small Display Picture of the Client */}
                   <div className="relative shrink-0">
-                    <img loading="lazy" decoding="async"
-                      src={booking.clientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=200'}
-                      alt={booking.clientName}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-[#7209B7] shadow-md ring-2 ring-purple-400/40"
-                    />
+                    {booking.clientPhotoUrl ? (
+                      <img loading="lazy" decoding="async"
+                        src={booking.clientPhotoUrl}
+                        alt={booking.clientName}
+                        className="w-12 h-12 rounded-full object-cover border-2 border-[#7209B7] shadow-md ring-2 ring-purple-400/40"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-purple-950/80 border-2 border-[#7209B7] flex items-center justify-center text-purple-200 shadow-md">
+                        <User className="w-6 h-6" />
+                      </div>
+                    )}
                     <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-950" title="Verified active patient" />
                   </div>
 
@@ -355,34 +363,46 @@ export const IncomingBookingPromptModal: React.FC<IncomingBookingPromptModalProp
                       </span>
                     </div>
 
-                    <p className="text-xs text-slate-300 flex items-center gap-1.5 truncate mt-0.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#E63946] shrink-0" />
-                      <span>{booking.clientAddress || booking.zone}</span>
-                    </p>
+                    {(booking.clientAddress || booking.zone) && (
+                      <p className="text-xs text-slate-300 flex items-center gap-1.5 truncate mt-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-[#E63946] shrink-0" />
+                        <span>{booking.clientAddress || booking.zone}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                {/* Stars rating by nurses */}
-                <div className="text-right shrink-0">
-                  <div className="flex items-center gap-1 justify-end">
-                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                    <span className="font-black text-white text-sm">{clientReputation.rating.toFixed(1)}</span>
+                {/* Stars rating by nurses (only when real reviews exist) */}
+                {clientReputation.reviewCount > 0 ? (
+                  <div className="text-right shrink-0">
+                    <div className="flex items-center gap-1 justify-end">
+                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                      <span className="font-black text-white text-sm">{clientReputation.rating.toFixed(1)}</span>
+                    </div>
+                    <span className="text-[10px] text-amber-300/80 block font-semibold">
+                      Rated by Nurses ({clientReputation.reviewCount} {clientReputation.reviewCount === 1 ? 'review' : 'reviews'})
+                    </span>
                   </div>
-                  <span className="text-[10px] text-amber-300/80 block font-semibold">
-                    Rated by Nurses ({clientReputation.reviewCount} reviews)
+                ) : (
+                  <span className="text-[10px] text-purple-300/80 font-semibold shrink-0">
+                    New Patient • First Visit
                   </span>
-                </div>
+                )}
               </div>
 
-              {/* Nurse Feedback Quote & Safety Badge */}
-              <div className="p-2.5 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between gap-2 text-[11px]">
-                <p className="text-slate-300 truncate">
-                  <strong className="text-white font-semibold">Nurse Review:</strong> "{clientReputation.recentNurseFeedback}"
-                </p>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold shrink-0">
-                  {clientReputation.safetyRating}
-                </span>
-              </div>
+              {/* Nurse Feedback Quote & Safety Badge (only when reviews exist) */}
+              {clientReputation.reviewCount > 0 && clientReputation.recentNurseFeedback && (
+                <div className="p-2.5 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between gap-2 text-[11px]">
+                  <p className="text-slate-300 truncate">
+                    <strong className="text-white font-semibold">Nurse Review:</strong> "{clientReputation.recentNurseFeedback}"
+                  </p>
+                  {clientReputation.safetyRating && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold shrink-0">
+                      {clientReputation.safetyRating}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Patient Notes */}
               {booking.notes && (
@@ -570,6 +590,22 @@ export const IncomingBookingPromptModal: React.FC<IncomingBookingPromptModalProp
                   <XCircle className="w-4 h-4 text-rose-400" />
                   <span>Decline Offer &bull; Cascade to Peer Nurse</span>
                 </button>
+
+                {onCancelBooking && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasExpired(true);
+                      soundFX.playCancellation();
+                      onCancelBooking(booking.id, 'Cancelled by assigned practitioner prior to acceptance');
+                      onClose();
+                    }}
+                    className="w-full py-2.5 px-4 rounded-2xl bg-red-600/15 hover:bg-red-600/25 border border-red-500/30 text-red-300 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <XCircle className="w-4 h-4 text-red-400" />
+                    <span>Cancel Booking Entirely</span>
+                  </button>
+                )}
               </div>
             )}
 

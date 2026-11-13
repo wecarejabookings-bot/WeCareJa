@@ -10,7 +10,8 @@ import {
   ShieldCheck, 
   Info,
   Calendar,
-  Activity
+  Activity,
+  User
 } from 'lucide-react';
 import { Booking, PatientMedication, TrustedFamilyMember, ClientPatientBioData } from '../../types';
 import { soundFX } from '../../utils/soundEffects';
@@ -27,37 +28,14 @@ export const PatientMedicationReminderCard: React.FC<PatientMedicationReminderCa
   patientBio,
   onLogMedicationAdministered
 }) => {
-  // Use either booking-attached patient data or mock fallback
-  const bio = booking.patientBioData || patientBio || {
-    age: 79,
-    gender: 'female',
-    bloodType: 'O+',
-    knownIllnesses: ['Hypertension', 'Type 2 Diabetes', 'Limited Mobility'],
-    allergies: ['Penicillin', 'Latex Gloves'],
-    mobilityStatus: 'needs_cane_walker',
-    medications: [
-      {
-        id: 'm1',
-        name: 'Amlodipine 5mg',
-        dosage: '1 tablet daily',
-        instructions: 'Take in morning with full glass of water',
-        timesOfDay: ['morning'],
-        scheduledTime: '08:00 AM',
-        purpose: 'Blood pressure control'
-      },
-      {
-        id: 'm2',
-        name: 'Metformin 500mg',
-        dosage: '1 tablet twice daily',
-        instructions: 'Take with midday and evening meals',
-        timesOfDay: ['midday', 'evening'],
-        scheduledTime: '01:00 PM',
-        purpose: 'Blood glucose regulation'
-      }
-    ],
+  // Use only explicitly recorded booking/patient bio data (no invented illnesses, allergies, or medications)
+  const bio: Partial<ClientPatientBioData> = booking.patientBioData || patientBio || {
+    knownIllnesses: booking.knownIllnesses || [],
+    allergies: booking.allergies || [],
+    medications: booking.patientMedications || [],
     trustedFamilyMember: booking.clientEmergencyContact?.name ? {
       name: booking.clientEmergencyContact.name,
-      relation: booking.clientEmergencyContact.relation || 'Emergency Contact',
+      relation: booking.clientEmergencyContact.relation || '',
       phone: booking.clientEmergencyContact.phone || '',
       photoUrl: '',
       canManageCare: true
@@ -80,20 +58,28 @@ export const PatientMedicationReminderCard: React.FC<PatientMedicationReminderCa
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <img loading="lazy" decoding="async"
-            src={booking.clientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'}
-            alt={booking.clientName}
-            className="w-12 h-12 rounded-2xl object-cover border-2 border-purple-400 shadow-md"
-          />
+          {booking.clientPhotoUrl ? (
+            <img loading="lazy" decoding="async"
+              src={booking.clientPhotoUrl}
+              alt={booking.clientName}
+              className="w-12 h-12 rounded-2xl object-cover border-2 border-purple-400 shadow-md"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-2xl bg-purple-900/60 border-2 border-purple-400/50 flex items-center justify-center text-purple-200 shadow-md">
+              <User className="w-6 h-6" />
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h4 className="font-black text-white text-base">{booking.clientName}</h4>
-              <span className="text-[10px] bg-purple-500/20 text-purple-200 font-bold px-2 py-0.5 rounded-full">
-                {bio.age || 79} yrs • {bio.bloodType || 'O+'}
-              </span>
+              {(bio.age || bio.bloodType) && (
+                <span className="text-[10px] bg-purple-500/20 text-purple-200 font-bold px-2 py-0.5 rounded-full">
+                  {[bio.age ? `${bio.age} yrs` : null, bio.bloodType || null].filter(Boolean).join(' • ')}
+                </span>
+              )}
             </div>
             <p className="text-xs text-purple-200 flex items-center gap-1">
-              <span>{booking.zone}</span> • <span className="text-emerald-400 font-semibold">{booking.serviceName}</span>
+              {booking.zone && <><span>{booking.zone}</span> • </>}<span className="text-emerald-400 font-semibold">{booking.serviceName}</span>
             </p>
           </div>
         </div>
@@ -211,26 +197,36 @@ export const PatientMedicationReminderCard: React.FC<PatientMedicationReminderCa
       {bio.trustedFamilyMember && (
         <div className="p-3 rounded-2xl bg-purple-950/30 border border-purple-500/20 flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5">
-            <img loading="lazy" decoding="async"
-              src={bio.trustedFamilyMember.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'}
-              alt={bio.trustedFamilyMember.name}
-              className="w-8 h-8 rounded-lg object-cover border border-emerald-400 shrink-0"
-            />
+            {bio.trustedFamilyMember.photoUrl ? (
+              <img loading="lazy" decoding="async"
+                src={bio.trustedFamilyMember.photoUrl}
+                alt={bio.trustedFamilyMember.name}
+                className="w-8 h-8 rounded-lg object-cover border border-emerald-400 shrink-0"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                <Users className="w-4 h-4" />
+              </div>
+            )}
             <div>
               <span className="font-bold text-white block leading-none">{bio.trustedFamilyMember.name}</span>
-              <span className="text-[10px] text-purple-300 font-semibold">
-                Trusted Guardian ({bio.trustedFamilyMember.relation})
-              </span>
+              {bio.trustedFamilyMember.relation && (
+                <span className="text-[10px] text-purple-300 font-semibold">
+                  Trusted Guardian ({bio.trustedFamilyMember.relation})
+                </span>
+              )}
             </div>
           </div>
 
-          <a
-            href={`tel:${bio.trustedFamilyMember.phone}`}
-            className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs transition flex items-center gap-1.5"
-          >
-            <Phone className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Call Guardian</span>
-          </a>
+          {bio.trustedFamilyMember.phone && (
+            <a
+              href={`tel:${bio.trustedFamilyMember.phone}`}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold text-xs transition flex items-center gap-1.5"
+            >
+              <Phone className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Call Guardian</span>
+            </a>
+          )}
         </div>
       )}
     </div>

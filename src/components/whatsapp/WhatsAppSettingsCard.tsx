@@ -11,7 +11,7 @@ interface WhatsAppSettingsCardProps {
 }
 
 export const WhatsAppSettingsCard: React.FC<WhatsAppSettingsCardProps> = ({
-  currentPhone = '+1 (876) 942-3311',
+  currentPhone = '',
   isOptedIn = true,
   onToggleOptIn,
   onUpdatePhone,

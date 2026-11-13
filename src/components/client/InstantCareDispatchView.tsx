@@ -43,7 +43,8 @@ import {
   TrendingUp,
   Activity,
   LocateFixed,
-  Send
+  Send,
+  User
 } from 'lucide-react';
 
 interface InstantCareDispatchViewProps {
@@ -86,9 +87,10 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
   const [selectedTier, setSelectedTier] = useState<DispatchTierOption>(DISPATCH_TIERS[1]); // Comfort RN default
   
   // Location and Address
-  const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.address || '14 Trafalgar Road, New Kingston');
-  const [selectedZone, setSelectedZone] = useState<string>(currentUser?.zone || 'New Kingston');
+  const [selectedLocation, setSelectedLocation] = useState<string>(currentUser?.address || currentUser?.patientBioData?.residentialAddress || '');
+  const [selectedZone, setSelectedZone] = useState<string>(currentUser?.zone || '');
   const [patientNotes, setPatientNotes] = useState<string>('');
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
 
   // Service selection
   const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id || 'srv-1');
@@ -137,10 +139,15 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
 
   // Custom Offer: Broadcast Fare Proposal to Nearby Nurses
   const handleStartBidding = () => {
-    if (offeredFare < 2500) {
-      alert('Minimum acceptable fare for licensed home healthcare is JMD $2,500');
+    if (!selectedLocation.trim()) {
+      setDispatchError('Please enter your street address or use Current GPS before dispatching.');
       return;
     }
+    if (offeredFare < 2500) {
+      setDispatchError('Minimum acceptable fare for licensed home healthcare is JMD $2,500.');
+      return;
+    }
+    setDispatchError(null);
     setIsBiddingActive(true);
     setIncomingBids([]);
     setBiddingCountdown(20);
@@ -162,7 +169,7 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
             etaMinutes: 5,
             distanceKm: 1.4,
             status: 'accepted_offer',
-            message: 'Accepts your offer • On duty in New Kingston'
+            message: 'Accepts your offer • Ready for dispatch'
           }
         ]);
         soundFX.playNotificationChime();
@@ -261,19 +268,29 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
       liveEtaMinutes: bid.etaMinutes,
       distanceKm: bid.distanceKm,
       paymentMethod,
-      notes: patientNotes || `Agreed fare matched: JMD $${finalPrice.toLocaleString()}`
+      notes: patientNotes.trim()
     });
   };
 
   // Express Instant Dispatch
   const handleExpressInstantDispatch = () => {
+    if (!selectedLocation.trim()) {
+      setDispatchError('Please enter your street address or tap Use Current GPS before confirming.');
+      return;
+    }
+    // Pick top available nurse matching tier
+    const eligibleNurses = nurses.filter(n => n.availabilityStatus !== 'offline');
+    const assignedNurse = eligibleNurses[0] || nurses[0];
+    if (!assignedNurse) {
+      setDispatchError('No verified practitioners are currently available for instant dispatch.');
+      return;
+    }
+    setDispatchError(null);
+
     soundFX.playGentleDing();
     soundFX.playBookingConfirmed();
     confetti({ particleCount: 90, spread: 80, origin: { y: 0.6 } });
 
-    // Pick top available nurse matching tier
-    const eligibleNurses = nurses.filter(n => n.availabilityStatus !== 'offline');
-    const assignedNurse = eligibleNurses[0] || nurses[0];
     const pin = generateSafetyPin();
     const finalPrice = selectedTier.basePriceJMD;
     const platformFee = Math.round(finalPrice * 0.15);
@@ -299,9 +316,8 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
       safetyPin: pin,
       arrivalPassCode: pin,
       liveEtaMinutes: selectedTier.etaMinutes,
-      distanceKm: 2.1,
       paymentMethod,
-      notes: patientNotes || `${selectedTier.name} instant dispatch`
+      notes: patientNotes.trim()
     });
   };
 
@@ -406,29 +422,57 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
               />
             </div>
 
-            {/* Saved Location Quick Chips */}
-            <div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-                Saved Care Destinations:
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {SAVED_LOCATIONS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => handleSelectPreset(preset)}
-                    className={`p-2.5 rounded-2xl border text-left transition flex flex-col justify-between ${
-                      selectedLocation.includes(preset.zone) || selectedLocation === preset.address
-                        ? 'bg-purple-500/20 border-purple-500/40 text-white shadow-md'
-                        : 'bg-black/20 border-white/5 text-slate-300 hover:bg-white/5'
-                    }`}
-                  >
-                    <span className="font-bold text-xs truncate">{preset.label}</span>
-                    <span className="text-[10px] text-slate-400 truncate mt-0.5">{preset.zone}</span>
-                  </button>
-                ))}
+            {/* Profile Address Shortcut / Saved Locations */}
+            {(currentUser?.address || SAVED_LOCATIONS.length > 0) && (
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                  Saved Care Destinations:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {currentUser?.address && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedLocation(currentUser.address || '');
+                        if (currentUser.zone) setSelectedZone(currentUser.zone);
+                        setDispatchError(null);
+                        soundFX.playClick();
+                      }}
+                      className={`p-2.5 rounded-2xl border text-left transition flex flex-col justify-between ${
+                        selectedLocation === currentUser.address
+                          ? 'bg-purple-500/20 border-purple-500/40 text-white shadow-md'
+                          : 'bg-black/20 border-white/5 text-slate-300 hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="font-bold text-xs truncate">My Profile Address</span>
+                      <span className="text-[10px] text-slate-400 truncate mt-0.5">{currentUser.zone || currentUser.address}</span>
+                    </button>
+                  )}
+                  {SAVED_LOCATIONS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(preset)}
+                      className={`p-2.5 rounded-2xl border text-left transition flex flex-col justify-between ${
+                        selectedLocation.includes(preset.zone) || selectedLocation === preset.address
+                          ? 'bg-purple-500/20 border-purple-500/40 text-white shadow-md'
+                          : 'bg-black/20 border-white/5 text-slate-300 hover:bg-white/5'
+                      }`}
+                    >
+                      <span className="font-bold text-xs truncate">{preset.label}</span>
+                      <span className="text-[10px] text-slate-400 truncate mt-0.5">{preset.zone}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+
+            {dispatchError && (
+              <div className="p-3 rounded-xl bg-red-950/60 border border-red-500/40 text-red-200 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span>{dispatchError}</span>
+              </div>
+            )}
 
             {/* Care Notes */}
             <div>
@@ -715,11 +759,17 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5">
-                              <img loading="lazy" decoding="async"
-                                src={bid.nurse.photoUrl}
-                                alt={bid.nurse.name}
-                                className="w-10 h-10 rounded-xl object-cover border border-purple-400"
-                              />
+                              {bid.nurse.photoUrl ? (
+                                <img loading="lazy" decoding="async"
+                                  src={bid.nurse.photoUrl}
+                                  alt={bid.nurse.name}
+                                  className="w-10 h-10 rounded-xl object-cover border border-purple-400"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-xl bg-purple-500/20 border border-purple-400/50 flex items-center justify-center text-purple-200">
+                                  <User className="w-5 h-5" />
+                                </div>
+                              )}
                               <div>
                                 <h4 className="font-bold text-xs text-white flex items-center gap-1">
                                   <span>{bid.nurse.name}</span>
@@ -727,7 +777,7 @@ export const InstantCareDispatchView: React.FC<InstantCareDispatchViewProps> = (
                                 </h4>
                                 <p className="text-[10px] text-slate-400 flex items-center gap-1">
                                   <MapPin className="w-3 h-3 text-purple-400" />
-                                  <span>{bid.nurse.qualificationTitle || 'Licensed Nurse'} • {bid.nurse.zones?.[0] || 'Kingston'}</span>
+                                  <span>{bid.nurse.qualificationTitle || 'Licensed Nurse'}{bid.nurse.zones?.[0] ? ` • ${bid.nurse.zones[0]}` : ''}</span>
                                 </p>
                               </div>
                             </div>

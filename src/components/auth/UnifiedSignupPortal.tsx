@@ -99,21 +99,7 @@ const COMMON_ALLERGIES = [
   'Food Allergies (Shellfish / Peanuts)'
 ];
 
-const SAMPLE_PHOTO_PRESETS = [
-  { label: 'Sister Campbell', url: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Nurse Davis', url: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Nurse Sterling', url: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400' },
-  { label: 'Nurse Morrison', url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400' }
-];
-
-const SAMPLE_DOCS = {
-  cert: 'https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?auto=format&fit=crop&q=80&w=800',
-  govid: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-  dlFront: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-  dlBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-  trn: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=800',
-  bank: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=800'
-};
+const SAMPLE_PHOTO_PRESETS: { label: string; url: string }[] = [];
 
 interface ProfilePhotoUploaderProps {
   role: 'nurse' | 'admin' | 'client';
@@ -226,15 +212,6 @@ const ProfilePhotoUploader: React.FC<ProfilePhotoUploaderProps> = ({
           <span>{isUploading ? 'Processing...' : profilePhotoUrl ? 'Change Photo' : 'Upload Photo'}</span>
         </button>
 
-        {!profilePhotoUrl && SAMPLE_PHOTO_PRESETS.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onPhotoSelected(SAMPLE_PHOTO_PRESETS[0].url)}
-            className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white font-medium text-xs border border-white/10 transition cursor-pointer"
-          >
-            Use Sample Photo
-          </button>
-        )}
       </div>
     </div>
   );
@@ -395,11 +372,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     email: '',
     phone: '',
     dateOfBirth: '',
-    gender: 'female',
-    parish: 'Kingston',
+    gender: '',
+    parish: '',
     address: '',
     repName: '',
-    repRelation: 'Daughter',
+    repRelation: '',
     repPhone: '',
     repEmail: '',
     repAddress: '',
@@ -413,7 +390,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     newMedName: '',
     newMedDosage: '',
     newMedInstructions: '',
-    newMedScheduledTime: '08:00 AM',
+    newMedScheduledTime: '',
     newMedPurpose: '',
     nurseTrn: '',
     nurseNcjLicense: '',
@@ -451,9 +428,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const setPhone = (v: string) => handleInputChange('phone', v);
   const dateOfBirth = formData.dateOfBirth || '';
   const setDateOfBirth = (v: string) => handleInputChange('dateOfBirth', v);
-  const gender = formData.gender || 'female';
+  const gender = formData.gender || '';
   const setGender = (v: any) => handleInputChange('gender', v);
-  const parish = formData.parish || 'Kingston';
+  const parish = formData.parish || '';
   const setParish = (v: string) => handleInputChange('parish', v);
   const address = formData.address || '';
   const setAddress = (v: string) => handleInputChange('address', v);
@@ -473,7 +450,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   // CLIENT SPECIFIC: Next of Kin / Person using app on behalf of them
   const repName = formData.repName || '';
   const setRepName = (v: string) => handleInputChange('repName', v);
-  const repRelation = formData.repRelation || 'Daughter';
+  const repRelation = formData.repRelation || '';
   const setRepRelation = (v: string) => handleInputChange('repRelation', v);
   const repPhone = formData.repPhone || '';
   const setRepPhone = (v: string) => handleInputChange('repPhone', v);
@@ -489,13 +466,13 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const setRepNotes = (v: string) => handleInputChange('repNotes', v);
 
   // CLIENT SPECIFIC: Health, Illness & Allergies
-  const [selectedIllness, setSelectedIllness] = useState(COMMON_ILLNESSES[0]);
+  const [selectedIllness, setSelectedIllness] = useState('');
   const customIllness = formData.customIllness || '';
   const setCustomIllness = (v: string) => handleInputChange('customIllness', v);
-  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(['No Known Drug Allergies (NKDA)']);
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>([]);
   const customAllergy = formData.customAllergy || '';
   const setCustomAllergy = (v: string) => handleInputChange('customAllergy', v);
-  const mobilityStatus = formData.mobilityStatus || 'independent';
+  const mobilityStatus = formData.mobilityStatus || '';
   const setMobilityStatus = (v: any) => handleInputChange('mobilityStatus', v);
   const dietaryRestrictions = formData.dietaryRestrictions || '';
   const setDietaryRestrictions = (v: string) => handleInputChange('dietaryRestrictions', v);
@@ -511,8 +488,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const setNewMedDosage = (v: string) => handleInputChange('newMedDosage', v);
   const newMedInstructions = formData.newMedInstructions || '';
   const setNewMedInstructions = (v: string) => handleInputChange('newMedInstructions', v);
-  const [newMedTimeOfDay, setNewMedTimeOfDay] = useState<('morning' | 'midday' | 'evening' | 'bedtime' | 'as_needed')[]>(['morning']);
-  const newMedScheduledTime = formData.newMedScheduledTime || '08:00 AM';
+  const [newMedTimeOfDay, setNewMedTimeOfDay] = useState<('morning' | 'midday' | 'evening' | 'bedtime' | 'as_needed')[]>([]);
+  const newMedScheduledTime = formData.newMedScheduledTime || '';
   const setNewMedScheduledTime = (v: string) => handleInputChange('newMedScheduledTime', v);
   const newMedPurpose = formData.newMedPurpose || '';
   const setNewMedPurpose = (v: string) => handleInputChange('newMedPurpose', v);
@@ -678,13 +655,14 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   // Toggle Allergies
   const toggleAllergy = (item: string) => {
     if (item === 'No Known Drug Allergies (NKDA)') {
-      setSelectedAllergies(['No Known Drug Allergies (NKDA)']);
+      setSelectedAllergies(prev =>
+        prev.includes('No Known Drug Allergies (NKDA)') ? [] : ['No Known Drug Allergies (NKDA)']
+      );
       return;
     }
     const filtered = selectedAllergies.filter(a => a !== 'No Known Drug Allergies (NKDA)');
     if (filtered.includes(item)) {
-      const next = filtered.filter(a => a !== item);
-      setSelectedAllergies(next.length === 0 ? ['No Known Drug Allergies (NKDA)'] : next);
+      setSelectedAllergies(filtered.filter(a => a !== item));
     } else {
       setSelectedAllergies([...filtered, item]);
     }
@@ -710,11 +688,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     const newMed: PatientMedication = {
       id: `med-${Date.now()}`,
       name: newMedName.trim(),
-      dosage: newMedDosage.trim() || '1 dose',
-      instructions: newMedInstructions.trim() || 'Take as prescribed',
-      timesOfDay: newMedTimeOfDay.length > 0 ? newMedTimeOfDay : ['morning'],
+      dosage: newMedDosage.trim(),
+      instructions: newMedInstructions.trim(),
+      timesOfDay: newMedTimeOfDay,
       scheduledTime: newMedScheduledTime,
-      purpose: newMedPurpose.trim() || 'Health maintenance'
+      purpose: newMedPurpose.trim()
     };
     setMedications([...medications, newMed]);
     setNewMedName('');
@@ -912,10 +890,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     const cleanUsername = username.trim().toLowerCase() || cleanEmail.split('@')[0] || `user_${Date.now()}`;
     const cleanFullName = fullName.trim();
     const cleanPhone = phone.trim();
-    const cleanAddress = address.trim() ? `${address.trim()}, ${parish}` : parish;
-    const defaultPatientPhoto = profilePhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400';
-    const defaultRepPhoto = repPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400';
-    const resolvedIllness = selectedIllness === 'Other (Please specify in text box below)' ? (customIllness.trim() || 'Specialized Condition') : selectedIllness;
+    const cleanAddress = [address.trim(), parish.trim()].filter(Boolean).join(', ');
+    const defaultPatientPhoto = profilePhotoUrl || '';
+    const defaultRepPhoto = repPhotoUrl || '';
+    const resolvedIllness = selectedIllness === 'Other (Please specify in text box below)'
+      ? customIllness.trim()
+      : selectedIllness.trim();
 
     try {
       // Clear any previous signed-in user session BEFORE registering the new account
@@ -1137,17 +1117,17 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         parish: parish,
         dateOfBirth: dateOfBirth,
         gender: gender,
-        emergencyContact: {
-          name: nurseEmergencyContact,
+        emergencyContact: nurseEmergencyContact.trim() ? {
+          name: nurseEmergencyContact.trim(),
           phone: cleanPhone,
-          relation: 'Next of Kin'
-        },
+          relation: 'Emergency Contact'
+        } : undefined,
         trnNumber: nurseTrn.trim(),
         ncjLicense: nurseNcjLicense.trim(),
         driversLicenseNumber: driversLicenseNumber.trim(),
-        yearsExperience: Number(yearsExperience) || 4,
-        hourlyRateJMD: Number(hourlyRate) || 7500,
-        institutionAttended: institutionAttended || 'Accredited Jamaican Nursing Institution',
+        yearsExperience: Number(yearsExperience) || 0,
+        hourlyRateJMD: Number(hourlyRate) || 0,
+        institutionAttended: institutionAttended.trim(),
         photoUrl: finalProfilePhotoUrl || undefined,
         profilePhotoUrl: finalProfilePhotoUrl || undefined,
         biometricVerification: finalBiometricRecord,
@@ -1233,11 +1213,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         trnCertificateUrl: finalTrnCertUrl,
         proofOfAddressUrl: finalProofOfAddressUrl,
         driversLicenseNumber: driversLicenseNumber.trim() || undefined,
-        emergencyContact: {
-          name: repName.trim() || cleanFullName,
-          phone: repPhone.trim() || cleanPhone,
-          relation: repRelation.trim() || 'Trusted Family'
-        },
+        emergencyContact: (repName.trim() || repPhone.trim()) ? {
+          name: repName.trim(),
+          phone: repPhone.trim(),
+          relation: repRelation.trim()
+        } : undefined,
         documents: {
           profilePhotoUrl: finalProfilePhotoUrl || undefined,
           governmentIdUrl: finalGovIdUrl,
@@ -1312,32 +1292,33 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       let newAccount: UserAccount;
 
       if (role === 'client') {
-        const trustedFamily: TrustedFamilyMember = {
+        const hasRep = Boolean(repName.trim() || repPhone.trim() || repEmail.trim());
+        const trustedFamily: TrustedFamilyMember | undefined = hasRep ? {
           name: repName.trim(),
           relation: repRelation.trim(),
-          phone: repPhone.trim() || cleanPhone,
-          email: repEmail.trim() || cleanEmail,
+          phone: repPhone.trim(),
+          email: repEmail.trim(),
           photoUrl: defaultRepPhoto,
           canManageCare: true,
-          notes: repNotes,
-          whatsAppUpdatesOptIn: true,
-          whatsAppPhone: repPhone.trim() || cleanPhone
-        };
+          notes: repNotes.trim(),
+          whatsAppUpdatesOptIn: Boolean(repPhone.trim()),
+          whatsAppPhone: repPhone.trim()
+        } : undefined;
 
         const patientBio: ClientPatientBioData = {
           dateOfBirth: dateOfBirth,
-          age: dateOfBirth ? Math.max(1, new Date().getFullYear() - new Date(dateOfBirth).getFullYear()) : 55,
-          gender: gender,
-          bloodType: 'O+',
+          age: dateOfBirth ? Math.max(1, new Date().getFullYear() - new Date(dateOfBirth).getFullYear()) : undefined,
+          gender: gender as any,
+          bloodType: '',
           residentialAddress: cleanAddress,
           zone: parish,
-          knownIllnesses: [resolvedIllness],
+          knownIllnesses: resolvedIllness ? [resolvedIllness] : [],
           allergies: selectedAllergies,
-          mobilityStatus: mobilityStatus,
-          dietaryRestrictions: dietaryRestrictions,
-          specialCareInstructions: specialCareInstructions,
+          mobilityStatus: mobilityStatus as any,
+          dietaryRestrictions: dietaryRestrictions.trim(),
+          specialCareInstructions: specialCareInstructions.trim(),
           medications: medications,
-          trustedFamilyMember: trustedFamily,
+          ...(trustedFamily ? { trustedFamilyMember: trustedFamily } : {}),
           profileSharedWith: [cleanEmail, repEmail.trim()].filter(Boolean)
         };
 
@@ -1358,19 +1339,21 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           dateOfBirth: dateOfBirth,
           repPhotoUrl: defaultRepPhoto,
           repDateOfBirth: repDateOfBirth,
-          emergencyContact: {
-            name: `${repName.trim()} (${repRelation.trim()})`,
-            phone: repPhone.trim() || cleanPhone,
-            relation: repRelation.trim()
-          },
-          accountHolder: {
-            name: repName.trim(),
-            email: repEmail.trim() || cleanEmail,
-            phone: repPhone.trim() || cleanPhone,
-            country: 'Jamaica',
-            billingAddress: repAddress.trim() || cleanAddress,
-            relationshipToPatient: repRelation.trim()
-          },
+          ...(hasRep ? {
+            emergencyContact: {
+              name: repName.trim() && repRelation.trim() ? `${repName.trim()} (${repRelation.trim()})` : (repName.trim() || repRelation.trim()),
+              phone: repPhone.trim(),
+              relation: repRelation.trim()
+            },
+            accountHolder: {
+              name: repName.trim(),
+              email: repEmail.trim(),
+              phone: repPhone.trim(),
+              country: 'Jamaica',
+              billingAddress: repAddress.trim() || cleanAddress,
+              relationshipToPatient: repRelation.trim()
+            }
+          } : {}),
           patientBioData: patientBio,
           bioData: patientBio,
           createdAt: new Date().toISOString()
@@ -1380,23 +1363,23 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         const newNurseProfile: NurseProfile = {
           id: userId,
           name: cleanFullName,
-          phone: cleanPhone || '(876) 555-0199',
+          phone: cleanPhone,
           email: cleanEmail,
           parish: parish,
           address: cleanAddress,
-          photoUrl: finalProfilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
-          institutionAttended: institutionAttended,
-          nursingCouncilLicense: nurseNcjLicense.trim() || 'NCJ-RN-PENDING',
-          trnNumber: nurseTrn.trim() || '',
-          trn: nurseTrn.trim() || '',
+          photoUrl: finalProfilePhotoUrl || '',
+          institutionAttended: institutionAttended.trim(),
+          nursingCouncilLicense: nurseNcjLicense.trim(),
+          trnNumber: nurseTrn.trim(),
+          trn: nurseTrn.trim(),
           licenseVerified: false,
           status: 'pending_approval',
-          rating: 5.0,
+          rating: 0,
           reviewCount: 0,
-          yearsExperience: Number(yearsExperience) || 5,
-          specialties: [nurseSpecialty.trim(), 'Vitals Surveillance', 'In-Home Care'],
-          zones: [parish, 'New Kingston', 'St. Andrew', 'Portmore'],
-          hourlyRateJMD: Number(hourlyRate) || 7500,
+          yearsExperience: Number(yearsExperience) || 0,
+          specialties: nurseSpecialty.trim() ? [nurseSpecialty.trim()] : [],
+          zones: parish ? [parish] : [],
+          hourlyRateJMD: Number(hourlyRate) || 0,
           bio: nurseBio.trim(),
           governmentIdType: "Passport & National ID",
           governmentIdUrl: finalGovIdUrl,
@@ -1419,11 +1402,13 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             gender: gender as any,
             residentialAddress: cleanAddress,
             residentialParish: parish,
-            emergencyContact: {
-              name: nurseEmergencyContact,
-              phone: cleanPhone,
-              relation: 'Next of Kin'
-            },
+            ...(nurseEmergencyContact.trim() ? {
+              emergencyContact: {
+                name: nurseEmergencyContact.trim(),
+                phone: cleanPhone,
+                relation: 'Emergency Contact'
+              }
+            } : {}),
             nationalIdNumber: nurseTrn.trim()
           },
           submittedForReviewAt: new Date().toISOString(),
@@ -1461,8 +1446,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           nursingCouncilLicense: nurseNcjLicense.trim(),
           driversLicenseNumber: driversLicenseNumber.trim(),
           title: nurseSpecialty,
-          avatarUrl: finalProfilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
-          avatar: finalProfilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
+          avatarUrl: finalProfilePhotoUrl || '',
+          avatar: finalProfilePhotoUrl || '',
           createdAt: new Date().toISOString()
         };
       } else {
@@ -1483,8 +1468,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           title: adminTitle,
           department: adminDepartment,
           staffId: adminStaffId,
-          avatarUrl: finalProfilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
-          avatar: finalProfilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+          avatarUrl: finalProfilePhotoUrl || '',
+          avatar: finalProfilePhotoUrl || '',
           createdAt: new Date().toISOString()
         };
 
@@ -1704,11 +1689,17 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             <div className="space-y-3.5 animate-fadeIn">
               {/* Profile Photo Upload & Camera Capture */}
               <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-3.5">
-                <img
-                  src={profilePhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'}
-                  alt="Patient Photo Preview"
-                  className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-400/60 shrink-0"
-                />
+                {profilePhotoUrl ? (
+                  <img
+                    src={profilePhotoUrl}
+                    alt="Patient Photo Preview"
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-400/60 shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl bg-purple-950/60 border-2 border-purple-400/50 flex items-center justify-center shrink-0">
+                    <User className="w-7 h-7 text-purple-300" />
+                  </div>
+                )}
                 <div className="flex-1 space-y-1.5">
                   <span className="text-xs font-bold text-white block">Patient Profile Photo *</span>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1831,6 +1822,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => setGender(e.target.value as any)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-purple-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select gender...</option>
                     <option value="female">Female</option>
                     <option value="male">Male</option>
                     <option value="other">Other</option>
@@ -1843,6 +1835,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => setParish(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-purple-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select parish...</option>
                     {JAMAICAN_PARISHES.map(p => (
                       <option key={p} value={p} className="bg-[#0f0a26] text-white">{p}</option>
                     ))}
@@ -1885,11 +1878,17 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
 
               {/* Next of Kin Photo Upload */}
               <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-3.5">
-                <img
-                  src={repPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'}
-                  alt="Representative Photo Preview"
-                  className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-400/60 shrink-0"
-                />
+                {repPhotoUrl ? (
+                  <img
+                    src={repPhotoUrl}
+                    alt="Representative Photo Preview"
+                    className="w-16 h-16 rounded-2xl object-cover border-2 border-purple-400/60 shrink-0"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-2xl bg-purple-950/60 border-2 border-purple-400/50 flex items-center justify-center shrink-0">
+                    <Users className="w-7 h-7 text-purple-300" />
+                  </div>
+                )}
                 <div className="flex-1 space-y-1.5">
                   <span className="text-xs font-bold text-white block">Photo of Person Using App on Behalf *</span>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -1943,6 +1942,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => setRepRelation(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-purple-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select relationship...</option>
                     <option value="Daughter">Daughter</option>
                     <option value="Son">Son</option>
                     <option value="Spouse / Husband / Wife">Spouse / Partner</option>
@@ -2047,6 +2047,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => setSelectedIllness(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/60 border border-white/20 text-white focus:border-purple-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select condition (optional)...</option>
                     {COMMON_ILLNESSES.map(ill => (
                       <option key={ill} value={ill} className="bg-[#0f0a26] text-white">
                         {ill}
@@ -2264,40 +2265,52 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 {/* Patient Summary */}
                 <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
                   <div className="flex items-center gap-2">
-                    <img
-                      src={profilePhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'}
-                      alt="Patient"
-                      className="w-10 h-10 rounded-xl object-cover border border-purple-400/50"
-                    />
+                    {profilePhotoUrl ? (
+                      <img
+                        src={profilePhotoUrl}
+                        alt="Patient"
+                        className="w-10 h-10 rounded-xl object-cover border border-purple-400/50"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-400/50 flex items-center justify-center shrink-0">
+                        <User className="w-5 h-5 text-purple-300" />
+                      </div>
+                    )}
                     <div>
-                      <strong className="text-white block">{fullName}</strong>
+                      <strong className="text-white block">{fullName || '—'}</strong>
                       <span className="text-[10px] text-purple-300 font-mono">@{username}</span>
                     </div>
                   </div>
                   <div className="text-[11px] text-slate-300 space-y-0.5">
-                    <p>Phone: <strong className="text-white">{phone}</strong></p>
-                    <p>Parish: <strong className="text-white">{parish}</strong></p>
-                    <p>Illness: <strong className="text-amber-300">{selectedIllness === 'Other (Please specify in text box below)' ? customIllness : selectedIllness}</strong></p>
+                    <p>Phone: <strong className="text-white">{phone || 'Not provided'}</strong></p>
+                    <p>Parish: <strong className="text-white">{parish || 'Not specified'}</strong></p>
+                    <p>Illness: <strong className="text-amber-300">{selectedIllness === 'Other (Please specify in text box below)' ? (customIllness || 'Not specified') : (selectedIllness || 'None selected')}</strong></p>
                   </div>
                 </div>
 
                 {/* Representative Summary */}
                 <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
                   <div className="flex items-center gap-2">
-                    <img
-                      src={repPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'}
-                      alt="Next of Kin"
-                      className="w-10 h-10 rounded-xl object-cover border border-purple-400/50"
-                    />
+                    {repPhotoUrl ? (
+                      <img
+                        src={repPhotoUrl}
+                        alt="Next of Kin"
+                        className="w-10 h-10 rounded-xl object-cover border border-purple-400/50"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-400/50 flex items-center justify-center shrink-0">
+                        <Users className="w-5 h-5 text-purple-300" />
+                      </div>
+                    )}
                     <div>
-                      <strong className="text-white block">{repName}</strong>
-                      <span className="text-[10px] text-purple-300 font-medium">{repRelation} (App Delegate)</span>
+                      <strong className="text-white block">{repName || 'Not provided'}</strong>
+                      <span className="text-[10px] text-purple-300 font-medium">{repRelation || 'Next of Kin'}</span>
                     </div>
                   </div>
                   <div className="text-[11px] text-slate-300 space-y-0.5">
-                    <p>Rep Phone: <strong className="text-white">{repPhone}</strong></p>
-                    <p>Rep Email: <strong className="text-white">{repEmail || email}</strong></p>
-                    <p>Auth: <span className="text-emerald-300">Full Care &amp; Booking Management</span></p>
+                    <p>Rep Phone: <strong className="text-white">{repPhone || 'Not provided'}</strong></p>
+                    <p>Rep Email: <strong className="text-white">{repEmail || 'Not provided'}</strong></p>
+                    <p>Auth: <span className="text-emerald-300">Care &amp; Booking Management</span></p>
                   </div>
                 </div>
               </div>
@@ -2486,6 +2499,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => setParish(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select parish...</option>
                     {JAMAICAN_PARISHES.map(p => (
                       <option key={p} value={p} className="bg-[#0f0a26] text-white">{p}</option>
                     ))}
@@ -2834,11 +2848,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => handleInputChange('institutionAttended', e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select nursing institution...</option>
                     <option value="The UWI School of Nursing Mona (UWISON)">The UWI School of Nursing Mona (UWISON)</option>
                     <option value="Northern Caribbean University (NCU) Department of Nursing">Northern Caribbean University (NCU) Department of Nursing</option>
                     <option value="Excelsior Community College (EXED) School of Nursing">Excelsior Community College (EXED) School of Nursing</option>
                     <option value="Knox Community College School of Nursing">Knox Community College School of Nursing</option>
-                    <option value="Brown's Town Community College School of Nursing">Brown's Town Community College School of Nursing</option>
+                    <option value="Brown's Town Community College School of Nursing">Brown&apos;s Town Community College School of Nursing</option>
                     <option value="Western Hospitality & Healthcare Academy">Western Hospitality &amp; Healthcare Academy</option>
                     <option value="Kingston School of Nursing (KSN)">Kingston School of Nursing (KSN)</option>
                     <option value="Other Accredited Nursing School">Other Accredited Nursing School</option>
@@ -2864,6 +2879,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => handleInputChange('nurseSpecialty', e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select clinical specialty...</option>
                     <option value="Elderly & Geriatric Home Care">Elderly &amp; Geriatric Home Care</option>
                     <option value="Wound Dressing & Post-Op Recovery">Wound Dressing &amp; Post-Op Recovery</option>
                     <option value="IV Infusion & Injections">IV Infusion &amp; Injections</option>
@@ -2916,6 +2932,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     onChange={e => handleInputChange('bankName', e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
                   >
+                    <option value="">Select bank...</option>
                     <option value="National Commercial Bank (NCB) Jamaica">National Commercial Bank (NCB)</option>
                     <option value="Scotiabank Jamaica">Scotiabank Jamaica</option>
                     <option value="JN Bank">JN Bank</option>
@@ -3174,6 +3191,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 onChange={e => setParish(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-amber-400 outline-none cursor-pointer"
               >
+                <option value="">Select parish...</option>
                 {JAMAICAN_PARISHES.map(p => (
                   <option key={p} value={p} className="bg-[#0f0a26] text-white">{p}</option>
                 ))}
@@ -3210,6 +3228,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 onChange={e => setAdminDepartment(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-amber-400 outline-none cursor-pointer"
               >
+                <option value="">Select department...</option>
                 <option value="Clinical Operations">Clinical Operations</option>
                 <option value="Quality Assurance">Quality Assurance</option>
                 <option value="Patient Services">Patient Services</option>

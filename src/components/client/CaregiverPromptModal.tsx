@@ -130,14 +130,14 @@ export const CaregiverPromptModal: React.FC<CaregiverPromptModalProps> = ({
   const assignedNurse = nurse || nurses.find(n => n.id === booking.nurseId) || {
     id: booking.nurseId,
     name: booking.nurseName || 'Assigned Caregiver',
-    photoUrl: booking.nursePhoto || 'https://images.unsplash.com/photo-1594824813533-91c1ddab680c?auto=format&fit=crop&q=80&w=300',
-    phone: booking.nursePhone || '+1 (876) 555-0100',
+    photoUrl: booking.nursePhoto || '',
+    phone: booking.nursePhone || '',
     careLevel: 'registered_nurse',
-    rating: 4.95,
-    reviewsCount: 142,
-    nursingCouncilLicense: 'NCJ-RN-8849',
-    zones: [booking.zone || 'Kingston 6'],
-    yearsExperience: 8
+    rating: 0,
+    reviewsCount: 0,
+    nursingCouncilLicense: '',
+    zones: booking.zone ? [booking.zone] : [],
+    yearsExperience: 0
   };
 
   const isUrgent = remainingSeconds <= 12;

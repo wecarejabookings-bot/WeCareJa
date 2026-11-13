@@ -417,20 +417,20 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   const initialBio: ClientPatientBioData = user.patientBioData || {
     dateOfBirth: user.dateOfBirth || '',
     age: user.careRecipient?.age || undefined,
-    gender: 'female',
+    gender: '' as any,
     bloodType: '',
     residentialAddress: user.address || '',
     zone: user.zone || '',
     knownIllnesses: [],
     allergies: [],
-    mobilityStatus: 'independent',
+    mobilityStatus: '' as any,
     dietaryRestrictions: '',
     specialCareInstructions: '',
     medications: [],
     trustedFamilyMember: {
       name: user.emergencyContact?.name || '',
       relation: user.emergencyContact?.relation || '',
-      phone: user.emergencyContact?.phone || user.phone || '',
+      phone: user.emergencyContact?.phone || '',
       email: '',
       photoUrl: '',
       canManageCare: true,
@@ -468,12 +468,12 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
       return (initialBio.medications || []).map(m => ({
         id: m.id || `rem-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         medicationName: m.name,
-        dosage: m.dosage || '1 Tablet',
-        frequency: m.timesOfDay?.includes('midday') ? 'Twice daily (Midday & Evening)' : 'Once daily (Morning)',
-        time: m.scheduledTime || '08:00 AM',
-        scheduledTimes: [m.scheduledTime || '08:00 AM'],
-        instructions: m.instructions || 'Take with full glass of water after food',
-        purpose: m.purpose || 'Daily health maintenance',
+        dosage: m.dosage || '',
+        frequency: m.timesOfDay?.includes('midday') ? 'Twice daily' : (m.timesOfDay?.length ? 'Once daily' : ''),
+        time: m.scheduledTime || '',
+        scheduledTimes: m.scheduledTime ? [m.scheduledTime] : [],
+        instructions: m.instructions || '',
+        purpose: m.purpose || '',
         iconType: 'tablet',
         timesOfDay: m.timesOfDay || ['morning'],
         takenToday: !!m.takenToday,
@@ -486,14 +486,14 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
     return [];
   });
 
-  // Suggestive Reminder Form States (engineered for effortless use)
+  // Reminder Form States (blank until selected or entered by user)
   const [remName, setRemName] = useState('');
-  const [remDosage, setRemDosage] = useState('1 Tablet');
-  const [remFrequency, setRemFrequency] = useState('Once daily (Morning)');
-  const [remTime, setRemTime] = useState('08:00 AM');
-  const [remInstructions, setRemInstructions] = useState('Take with full glass of water after meals');
-  const [remPurpose, setRemPurpose] = useState('High Blood Pressure regulation');
-  const [remTimesOfDay, setRemTimesOfDay] = useState<('morning' | 'midday' | 'evening' | 'bedtime' | 'as_needed')[]>(['morning']);
+  const [remDosage, setRemDosage] = useState('');
+  const [remFrequency, setRemFrequency] = useState('');
+  const [remTime, setRemTime] = useState('');
+  const [remInstructions, setRemInstructions] = useState('');
+  const [remPurpose, setRemPurpose] = useState('');
+  const [remTimesOfDay, setRemTimesOfDay] = useState<('morning' | 'midday' | 'evening' | 'bedtime' | 'as_needed')[]>([]);
   const [speakingReminderId, setSpeakingReminderId] = useState<string | null>(null);
 
   // Voice Read-Aloud Engine for low-literacy or vision-impaired patients
@@ -549,12 +549,12 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
     const newReminder: DailyMedicationReminder = {
       id: newRemId,
       medicationName: remName.trim(),
-      dosage: remDosage.trim() || '1 Tablet',
-      frequency: remFrequency.trim() || 'Once daily',
-      time: remTime,
-      scheduledTimes: [remTime],
-      instructions: remInstructions.trim() || 'Take with full glass of water',
-      purpose: remPurpose.trim() || 'Daily health maintenance',
+      dosage: remDosage.trim(),
+      frequency: remFrequency.trim(),
+      time: remTime.trim(),
+      scheduledTimes: remTime.trim() ? [remTime.trim()] : [],
+      instructions: remInstructions.trim(),
+      purpose: remPurpose.trim(),
       iconType: 'tablet',
       timesOfDay: remTimesOfDay,
       takenToday: false,
@@ -583,14 +583,14 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
       medications: [newMed, ...(prev.medications || [])]
     }));
 
-    // Reset fields to safe default
+    // Reset fields cleanly
     setRemName('');
-    setRemDosage('1 Tablet');
-    setRemFrequency('Once daily (Morning)');
-    setRemTime('08:00 AM');
-    setRemInstructions('Take with full glass of water after food');
+    setRemDosage('');
+    setRemFrequency('');
+    setRemTime('');
+    setRemInstructions('');
     setRemPurpose('');
-    setRemTimesOfDay(['morning']);
+    setRemTimesOfDay([]);
 
     soundFX.playSuccessPing();
     confetti({ particleCount: 35, spread: 50, origin: { y: 0.6 } });
@@ -654,14 +654,8 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
   const handleTrigger15MinMedAlert = (targetMed?: PatientMedication) => {
     const meds = currentBio.medications || [];
-    const chosenMed = targetMed || meds[0] || {
-      id: 'demo-med',
-      name: 'Amlodipine Besylate',
-      dosage: '5mg oral tablet',
-      scheduledTime: '08:00 AM',
-      instructions: 'Take 1 tablet with full glass of water.',
-      timesOfDay: ['morning']
-    };
+    const chosenMed = targetMed || meds[0];
+    if (!chosenMed) return;
 
     setSimulatedAlertMed(chosenMed);
     soundFX.playMedicationPushAlert();
@@ -672,11 +666,36 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
     if (user.patientBioData) {
       setCurrentBio(user.patientBioData);
       setAddress(user.patientBioData.residentialAddress || user.address || '');
-      setZone(user.patientBioData.zone || user.zone || 'New Kingston');
+      setZone(user.patientBioData.zone || user.zone || '');
+    } else {
+      setCurrentBio({
+        dateOfBirth: user.dateOfBirth || '',
+        age: user.careRecipient?.age || undefined,
+        gender: '' as any,
+        bloodType: '',
+        residentialAddress: user.address || '',
+        zone: user.zone || '',
+        knownIllnesses: [],
+        allergies: [],
+        mobilityStatus: '' as any,
+        dietaryRestrictions: '',
+        specialCareInstructions: '',
+        medications: [],
+        trustedFamilyMember: {
+          name: user.emergencyContact?.name || '',
+          relation: user.emergencyContact?.relation || '',
+          phone: user.emergencyContact?.phone || '',
+          email: '',
+          photoUrl: '',
+          canManageCare: true,
+          notes: ''
+        },
+        profileSharedWith: []
+      });
+      setAddress(user.address || '');
+      setZone(user.zone || '');
     }
-    if ((user?.medicationReminders?.length || 0) > 0) {
-      setMedicationReminders(user.medicationReminders || []);
-    }
+    setMedicationReminders(user?.medicationReminders || []);
   }, [user.id]);
 
   // --------------------------------------------------------------------------
@@ -763,8 +782,16 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   };
 
   const handleWhatsAppShare = () => {
-    const text = `🏥 WeCare Track Jamaica • HOME NURSING Patient Care Summary for ${user.name}: View health profile, medications, and assigned nurse visits: ${shareableProfileUrl}`;
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const text = `WeCare Track Jamaica Patient Care Summary for ${user.name}: ${shareableProfileUrl}`;
+    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    navigator.clipboard?.writeText(url).catch(() => {});
+    const link = document.createElement('a');
+    link.href = url;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.click();
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
     soundFX.playSuccessPing();
   };
 
@@ -931,11 +958,17 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
         {/* Modal Top Header with Real-Time Auto-Save Status */}
         <div className="relative z-10 p-5 sm:p-6 border-b border-white/10 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img loading="lazy" decoding="async"
-              src={user.avatarUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400'}
-              alt={user.name}
-              className="w-12 h-12 rounded-2xl object-cover border-2 border-purple-400 shadow-md shrink-0"
-            />
+            {user.avatarUrl ? (
+              <img loading="lazy" decoding="async"
+                src={user.avatarUrl}
+                alt={user.name}
+                className="w-12 h-12 rounded-2xl object-cover border-2 border-purple-400 shadow-md shrink-0"
+              />
+            ) : (
+              <div className="w-12 h-12 rounded-2xl bg-purple-950/60 border-2 border-purple-400/50 flex items-center justify-center shrink-0">
+                <User className="w-6 h-6 text-purple-300" />
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black text-white">{user.name}</h3>
@@ -945,7 +978,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
               </div>
               <p className="text-xs text-slate-300 flex items-center gap-1.5 mt-0.5">
                 <MapPin className="w-3.5 h-3.5 text-[#E63946]" />
-                <span>{address || user.address}, {zone || user.zone}</span>
+                <span>{[address || user.address, zone || user.zone].filter(Boolean).join(', ') || 'No address recorded'}</span>
               </p>
             </div>
           </div>
@@ -1044,10 +1077,11 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   <label className="text-[10px] text-slate-400 block uppercase font-bold">Blood Type</label>
                   {viewerRole === 'client' ? (
                     <select
-                      value={currentBio.bloodType || 'O+'}
+                      value={currentBio.bloodType || ''}
                       onChange={(e) => setCurrentBio(prev => ({ ...prev, bloodType: e.target.value }))}
                       className="w-full bg-[#1b072c] border border-white/20 rounded-xl px-2.5 py-1.5 text-sm font-black text-red-400 focus:outline-none"
                     >
+                      <option value="">Not specified</option>
                       <option value="O+">O+ Positive</option>
                       <option value="O-">O- Negative</option>
                       <option value="A+">A+ Positive</option>
@@ -1058,7 +1092,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       <option value="AB-">AB- Negative</option>
                     </select>
                   ) : (
-                    <span className="text-sm font-black text-red-400">{currentBio.bloodType || 'O+'}</span>
+                    <span className="text-sm font-black text-red-400">{currentBio.bloodType || '—'}</span>
                   )}
                 </div>
 
@@ -1067,10 +1101,11 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   <label className="text-[10px] text-slate-400 block uppercase font-bold">Mobility Status</label>
                   {viewerRole === 'client' ? (
                     <select
-                      value={currentBio.mobilityStatus || 'needs_cane_walker'}
+                      value={currentBio.mobilityStatus || ''}
                       onChange={(e) => setCurrentBio(prev => ({ ...prev, mobilityStatus: e.target.value as any }))}
                       className="w-full bg-[#1b072c] border border-white/20 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none"
                     >
+                      <option value="">Not specified</option>
                       <option value="independent">Independent</option>
                       <option value="needs_cane_walker">Needs Cane / Walker</option>
                       <option value="wheelchair_bound">Wheelchair Bound</option>
@@ -1078,7 +1113,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                     </select>
                   ) : (
                     <span className="text-xs font-bold text-white capitalize">
-                      {String(currentBio?.mobilityStatus || 'needs_cane_walker').replace(/_/g, ' ')}
+                      {currentBio?.mobilityStatus ? String(currentBio.mobilityStatus).replace(/_/g, ' ') : '—'}
                     </span>
                   )}
                 </div>
@@ -1091,12 +1126,13 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       type="number"
                       min={1}
                       max={120}
-                      value={currentBio.age || 79}
-                      onChange={(e) => setCurrentBio(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+                      placeholder="—"
+                      value={currentBio.age || ''}
+                      onChange={(e) => setCurrentBio(prev => ({ ...prev, age: parseInt(e.target.value) || undefined }))}
                       className="w-full bg-[#1b072c] border border-white/20 rounded-xl px-2.5 py-1.5 text-sm font-bold text-purple-300 focus:outline-none"
                     />
                   ) : (
-                    <span className="text-sm font-bold text-purple-300">{currentBio.age ? `${currentBio.age} yrs` : '79 yrs'}</span>
+                    <span className="text-sm font-bold text-purple-300">{currentBio.age ? `${currentBio.age} yrs` : '—'}</span>
                   )}
                 </div>
 
@@ -1105,16 +1141,17 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   <label className="text-[10px] text-slate-400 block uppercase font-bold">Gender</label>
                   {viewerRole === 'client' ? (
                     <select
-                      value={currentBio.gender || 'female'}
+                      value={currentBio.gender || ''}
                       onChange={(e) => setCurrentBio(prev => ({ ...prev, gender: e.target.value as any }))}
                       className="w-full bg-[#1b072c] border border-white/20 rounded-xl px-2.5 py-1.5 text-xs font-bold text-white focus:outline-none"
                     >
+                      <option value="">Not specified</option>
                       <option value="female">Female</option>
                       <option value="male">Male</option>
                       <option value="other">Other</option>
                     </select>
                   ) : (
-                    <span className="text-sm font-bold text-white capitalize">{currentBio.gender || 'Female'}</span>
+                    <span className="text-sm font-bold text-white capitalize">{currentBio.gender || '—'}</span>
                   )}
                 </div>
               </div>
@@ -1187,6 +1224,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       onChange={(e) => setZone(e.target.value)}
                       className="w-full p-2.5 rounded-xl bg-[#1b072c] border border-white/15 text-white focus:outline-none focus:ring-1 focus:ring-purple-400"
                     >
+                      <option value="">Select parish / service zone...</option>
                       {ALL_SERVICE_ZONES.map(z => (
                         <option key={z} value={z}>{z}</option>
                       ))}
@@ -1382,10 +1420,12 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="text-sm font-black text-white">Daily Medication Compliance</h4>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                              <Flame className="w-3 h-3 text-amber-400" />
-                              <span>5-Day Streak</span>
-                            </span>
+                            {totalScheduled > 0 && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                                <Flame className="w-3 h-3 text-amber-400" />
+                                <span>{takenCount} of {totalScheduled} Taken Today</span>
+                              </span>
+                            )}
                           </div>
                           <p className="text-[11px] text-slate-300">
                             Today • {new Date().toLocaleDateString('en-JM', { weekday: 'long', month: 'short', day: 'numeric' })}
@@ -2154,11 +2194,17 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
               {currentBio.trustedFamilyMember && (
                 <div className="p-5 rounded-3xl bg-white/[0.04] border border-purple-500/30 space-y-4">
                   <div className="flex flex-col sm:flex-row items-center gap-4">
-                    <img loading="lazy" decoding="async"
-                      src={currentBio.trustedFamilyMember.photoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400'}
-                      alt={currentBio.trustedFamilyMember.name}
-                      className="w-20 h-20 rounded-2xl object-cover border-2 border-emerald-400 shadow-lg shrink-0"
-                    />
+                    {currentBio.trustedFamilyMember.photoUrl ? (
+                      <img loading="lazy" decoding="async"
+                        src={currentBio.trustedFamilyMember.photoUrl}
+                        alt={currentBio.trustedFamilyMember.name || 'Guardian'}
+                        className="w-20 h-20 rounded-2xl object-cover border-2 border-emerald-400 shadow-lg shrink-0"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-2xl bg-purple-950/60 border-2 border-emerald-400/50 flex items-center justify-center shrink-0">
+                        <Users className="w-8 h-8 text-emerald-300" />
+                      </div>
+                    )}
                     <div className="space-y-2 flex-1 text-center sm:text-left">
                       <span className="text-[10px] uppercase font-bold text-emerald-400">
                         Primary Family Medical Guardian
@@ -2180,6 +2226,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                             onChange={(e) => handleUpdateFamilyMember('relation', e.target.value)}
                             className="w-full p-2 rounded-xl bg-[#1b072c] border border-white/15 text-white font-bold text-xs focus:outline-none"
                           >
+                            <option value="">Select relationship...</option>
                             <option value="Son">Son</option>
                             <option value="Daughter">Daughter</option>
                             <option value="Spouse / Partner">Spouse / Partner</option>
@@ -2348,7 +2395,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Latest BP Reading</span>
                   <div className="text-base font-black text-red-400 font-mono">
-                    {(currentBio.vitalsLog || []).find(v => v.deviceType === 'blood_pressure')?.formattedValue || '122/80 mmHg'}
+                    {(currentBio.vitalsLog || []).find(v => v.deviceType === 'blood_pressure')?.formattedValue || '—'}
                   </div>
                   <span className="text-[10px] text-slate-400">Bluetooth Digital Cuff</span>
                 </div>
@@ -2358,7 +2405,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   <div className="text-base font-black text-pink-400 font-mono">
                     {(currentBio.vitalsLog || []).find(v => v.metrics?.heartRate !== undefined)
                       ? `${(currentBio.vitalsLog || []).find(v => v.metrics?.heartRate !== undefined)?.metrics.heartRate} bpm`
-                      : '74 bpm'}
+                      : '—'}
                   </div>
                   <span className="text-[10px] text-slate-400">Optical Pulse Sensor</span>
                 </div>
@@ -2366,7 +2413,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Oxygen Sat (SpO2)</span>
                   <div className="text-base font-black text-cyan-400 font-mono">
-                    {(currentBio.vitalsLog || []).find(v => v.deviceType === 'pulse_oximeter')?.formattedValue || '98%'}
+                    {(currentBio.vitalsLog || []).find(v => v.deviceType === 'pulse_oximeter')?.formattedValue || '—'}
                   </div>
                   <span className="text-[10px] text-slate-400">Fingertip Pulse Oximeter</span>
                 </div>
@@ -2374,7 +2421,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 space-y-1">
                   <span className="text-[10px] text-slate-400 uppercase font-bold block">Blood Glucose</span>
                   <div className="text-base font-black text-amber-400 font-mono">
-                    {(currentBio.vitalsLog || []).find(v => v.deviceType === 'glucometer')?.formattedValue || '5.8 mmol/L'}
+                    {(currentBio.vitalsLog || []).find(v => v.deviceType === 'glucometer')?.formattedValue || '—'}
                   </div>
                   <span className="text-[10px] text-slate-400">Smart Glucose Meter</span>
                 </div>
