@@ -39,8 +39,8 @@ if (!rawEnvUrl || !rawEnvKey) {
   );
 }
 
-const SUPABASE_URL = sanitizeSupabaseUrl(rawEnvUrl);
-const SUPABASE_ANON_KEY = sanitizeSupabaseKey(rawEnvKey);
+export const SUPABASE_URL = sanitizeSupabaseUrl(rawEnvUrl);
+export const SUPABASE_ANON_KEY = sanitizeSupabaseKey(rawEnvKey);
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
@@ -495,7 +495,7 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
   // 6. Check server-side proxy route (checks dossiers.json, memory cache & Supabase)
   try {
     const res = await fetch(`/api/auth/lookup-username?username=${encodeURIComponent(clean)}`);
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const json = await res.json();
       if (json.success && json.email) {
         saveUsernameToCache(clean, json.email);
@@ -648,7 +648,7 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
           // 3. Check central server dossier database by email
           try {
             const dossierRes = await fetch(`/api/applicants/dossier/${encodeURIComponent(normalizedTargetEmail)}`);
-            if (dossierRes.ok) {
+            if (dossierRes.ok && dossierRes.headers.get('content-type')?.includes('application/json')) {
               const dossierJson = await dossierRes.json();
               const d = dossierJson?.dossier;
               if (d && d.email?.toLowerCase() === normalizedTargetEmail) {
@@ -1024,7 +1024,7 @@ export async function applyRlsPoliciesInSupabase(): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sql })
     });
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       if (data.success) {
         console.log('RLS policies executed via server API route');

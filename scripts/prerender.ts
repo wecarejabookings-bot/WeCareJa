@@ -118,11 +118,18 @@ async function prerender() {
       `<link rel="canonical" href="${page.url}" />`
     );
 
-    // Replace skeleton inside root with pre-rendered landing markup
-    pageHtml = pageHtml.replace(
-      /<div id="root">([\s\S]*?)<\/div>/,
-      `<div id="root">${page.markup}</div>`
-    );
+    // Replace skeleton inside root with pre-rendered landing markup without leaving unclosed skeleton tags
+    if (pageHtml.includes('<!--PRERENDER_START-->') && pageHtml.includes('<!--PRERENDER_END-->')) {
+      pageHtml = pageHtml.replace(
+        /<!--PRERENDER_START-->[\s\S]*?<!--PRERENDER_END-->/,
+        page.markup
+      );
+    } else {
+      pageHtml = pageHtml.replace(
+        /<div id="root">[\s\S]*<\/div>\s*(?=<\/body>)/,
+        `<div id="root">${page.markup}</div>`
+      );
+    }
 
     fs.writeFileSync(page.outFile, pageHtml, 'utf8');
     console.log(`[SSG Prerender] Generated static route: ${page.route} -> ${path.relative(process.cwd(), page.outFile)}`);

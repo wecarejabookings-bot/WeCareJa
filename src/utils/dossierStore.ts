@@ -514,7 +514,7 @@ export async function uploadDocument(
       })
     });
 
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       if (data.success && data.url) {
         cacheUploadedDocUrl(data.url, category, userId, cleanEmail);
@@ -555,7 +555,7 @@ export async function fetchUserUploadedDocuments(identifier: string): Promise<Ar
   if (!clean) return [];
   try {
     const res = await fetch(`/api/documents/by-user/${encodeURIComponent(clean)}`);
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       if (data.success && Array.isArray(data.documents)) {
         return data.documents;
@@ -617,7 +617,7 @@ export async function saveApplicantDossier(dossier: Partial<ApplicantDossier>): 
       body: JSON.stringify(payload)
     });
 
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       if (data.success && data.dossier) {
         const synced = deepMergeDossiers(payload, data.dossier);
@@ -639,7 +639,7 @@ export async function fetchAllApplicantDossiers(): Promise<ApplicantDossier[]> {
   let serverDossiers: ApplicantDossier[] = [];
   try {
     const res = await fetch('/api/applicants/dossiers');
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       if (data.success && Array.isArray(data.dossiers)) {
         serverDossiers = data.dossiers;
@@ -721,7 +721,7 @@ export async function fetchApplicantDossier(
 
     const qs = params.toString();
     const res = await fetch(`/api/applicants/dossier/${encodeURIComponent(primary)}${qs ? `?${qs}` : ''}`);
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       if (data.success && data.dossier) {
         remoteDossier = data.dossier;
@@ -813,7 +813,7 @@ export async function updateApplicantStatusInDb(
       })
     });
 
-    if (res.ok) {
+    if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
       const data = await res.json();
       return Boolean(data.success);
     }
