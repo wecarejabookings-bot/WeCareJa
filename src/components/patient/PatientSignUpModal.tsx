@@ -104,7 +104,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
 
   // Step 2: Patient Bio Data & Health History
   const [dob, setDob] = useState('');
-  const [gender, setGender] = useState<'male' | 'female' | 'other' | ''>('');
+  const [gender, setGender] = useState<'male' | 'female' | 'other' | 'prefer_not_to_say' | ''>('');
   const [bloodType, setBloodType] = useState('');
   const [zone, setZone] = useState('');
   const [address, setAddress] = useState('');
@@ -126,13 +126,22 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
   const [newMedScheduledTime, setNewMedScheduledTime] = useState('08:00 AM');
   const [newMedPurpose, setNewMedPurpose] = useState('');
 
-  // Step 4: Trusted Family Member / Guardian Bio & Photo
+  // Step 4: Trusted Family Member / Next of Kin & Authorized User
   const [familyMemberName, setFamilyMemberName] = useState('');
   const [familyRelation, setFamilyRelation] = useState('');
   const [familyPhone, setFamilyPhone] = useState('');
+  const [familyAlternatePhone, setFamilyAlternatePhone] = useState('');
   const [familyEmail, setFamilyEmail] = useState('');
+  const [familyAddress, setFamilyAddress] = useState('');
+  const [familyDateOfBirth, setFamilyDateOfBirth] = useState('');
   const [familyPhotoUrl, setFamilyPhotoUrl] = useState('');
   const [familyNotes, setFamilyNotes] = useState('');
+  const [isFamilyAuthorizedUser, setIsFamilyAuthorizedUser] = useState(false);
+  const [authCanBook, setAuthCanBook] = useState(false);
+  const [authCanCancel, setAuthCanCancel] = useState(false);
+  const [authCanApproveCodes, setAuthCanApproveCodes] = useState(false);
+  const [authCanViewMedical, setAuthCanViewMedical] = useState(false);
+  const [authCanManagePayments, setAuthCanManagePayments] = useState(false);
   const [allowProfileSharing, setAllowProfileSharing] = useState(false);
   const [clientWhatsAppOptIn, setClientWhatsAppOptIn] = useState(false);
   const [familyWhatsAppOptIn, setFamilyWhatsAppOptIn] = useState(false);
@@ -280,6 +289,10 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       setStep(2);
       soundFX.playSuccessPing();
     } else if (step === 2) {
+      if (!gender) {
+        setError('Please select the patient’s gender.');
+        return;
+      }
       if (!zone.trim()) {
         setError('Please select a Parish / Zone.');
         return;
@@ -295,11 +308,31 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       soundFX.playSuccessPing();
     } else if (step === 4) {
       if (!familyMemberName.trim()) {
-        setError('Please provide the trusted family member / guardian’s name.');
+        setError('Please provide the Next of Kin / Authorized Family Member’s full legal name.');
+        return;
+      }
+      if (!familyRelation.trim()) {
+        setError('Please select the Next of Kin’s relationship to the patient.');
         return;
       }
       if (!familyPhone.trim()) {
-        setError('Please provide a contact phone number for the trusted family member.');
+        setError('Please provide a contact phone number for the Next of Kin.');
+        return;
+      }
+      if (!familyEmail.trim() || !familyEmail.includes('@')) {
+        setError('Please provide a valid email address for the Next of Kin (required for Authorized User access and clinical alerts).');
+        return;
+      }
+      if (!familyDateOfBirth.trim()) {
+        setError('Please provide the Date of Birth of the Next of Kin.');
+        return;
+      }
+      if (!familyAddress.trim()) {
+        setError('Please provide the residential/contact address of the Next of Kin.');
+        return;
+      }
+      if (isFamilyAuthorizedUser && !authCanBook && !authCanCancel && !authCanApproveCodes && !authCanViewMedical && !authCanManagePayments) {
+        setError('Please select at least one Authorized User permission for your Next of Kin, or uncheck Authorized User designation.');
         return;
       }
       setStep(5);
@@ -309,7 +342,17 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
 
   const handleCompleteRegistration = async () => {
     setError(null);
-    
+
+    if (!gender) {
+      setError('Please select the patient’s gender before completing registration.');
+      setStep(2);
+      return;
+    }
+    if (!familyMemberName.trim() || !familyRelation.trim() || !familyPhone.trim() || !familyEmail.trim() || !familyDateOfBirth.trim() || !familyAddress.trim()) {
+      setError('All Next of Kin / Authorized User details (Name, Relationship, Phone, Email, Date of Birth, and Address) are required.');
+      setStep(4);
+      return;
+    }
     if (!consentDataProtection) {
       setError('Please review and check the mandatory Jamaica Data Protection Act 2020 consent checkbox before completing registration.');
       return;
@@ -335,6 +378,28 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       const cleanFullName = name.trim();
       const cleanPhone = phone.trim();
 
+      const authorizedPermissions = {
+        canBookServices: authCanBook,
+        canCancelBookings: authCanCancel,
+        canApproveVisitCodes: authCanApproveCodes,
+        canViewMedicalRecords: authCanViewMedical,
+        canManagePayments: authCanManagePayments
+      };
+
+      const nextOfKinAuthData = {
+        name: familyMemberName.trim(),
+        relation: familyRelation.trim(),
+        phone: familyPhone.trim(),
+        alternatePhone: familyAlternatePhone.trim() || undefined,
+        email: familyEmail.trim(),
+        address: familyAddress.trim(),
+        dateOfBirth: familyDateOfBirth.trim(),
+        isAuthorizedUser: isFamilyAuthorizedUser,
+        canManageCare: isFamilyAuthorizedUser,
+        authorizedPermissions,
+        notes: familyNotes.trim()
+      };
+
       let userId = `user-client-${Date.now()}`;
       try {
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -346,7 +411,14 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
               full_name: cleanFullName,
               role: 'client',
               phone: cleanPhone,
-              address
+              gender,
+              address,
+              emergencyContact: {
+                name: familyMemberName.trim(),
+                phone: familyPhone.trim(),
+                relation: familyRelation.trim()
+              },
+              nextOfKin: nextOfKinAuthData
             }
           }
         });
@@ -374,13 +446,8 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       const defaultFamilyPhoto = familyPhotoUrl || '';
 
       const trustedFamily: TrustedFamilyMember = {
-        name: familyMemberName.trim(),
-        relation: familyRelation.trim(),
-        phone: familyPhone.trim(),
-        email: familyEmail.trim(),
+        ...nextOfKinAuthData,
         photoUrl: defaultFamilyPhoto,
-        canManageCare: true,
-        notes: familyNotes.trim(),
         whatsAppUpdatesOptIn: familyWhatsAppOptIn,
         whatsAppPhone: familyPhone.trim()
       };
@@ -399,7 +466,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
         specialCareInstructions: specialCareInstructions.trim(),
         medications,
         trustedFamilyMember: trustedFamily,
-        profileSharedWith: allowProfileSharing ? [familyEmail.trim(), cleanEmail].filter(Boolean) : []
+        profileSharedWith: allowProfileSharing || isFamilyAuthorizedUser ? [familyEmail.trim(), cleanEmail].filter(Boolean) : []
       };
 
       const newAccount: UserAccount = {
@@ -412,16 +479,26 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
         full_name: cleanFullName,
         email: cleanEmail,
         phone: cleanPhone,
+        gender: gender || undefined,
+        dateOfBirth: dob || undefined,
+        repDateOfBirth: familyDateOfBirth.trim() || undefined,
+        isBookingOnBehalf: isFamilyAuthorizedUser,
         avatarUrl: defaultPatientPhoto || undefined,
         zone: zone.trim(),
         address: address.trim(),
-        emergencyContact: familyMemberName.trim() || familyPhone.trim()
-          ? {
-              name: familyRelation.trim() ? `${familyMemberName.trim()} (${familyRelation.trim()})` : familyMemberName.trim(),
-              phone: familyPhone.trim(),
-              relation: familyRelation.trim()
-            }
-          : undefined,
+        emergencyContact: {
+          name: familyRelation.trim() ? `${familyMemberName.trim()} (${familyRelation.trim()})` : familyMemberName.trim(),
+          phone: familyPhone.trim(),
+          relation: familyRelation.trim()
+        },
+        accountHolder: {
+          name: familyMemberName.trim(),
+          email: familyEmail.trim(),
+          phone: familyPhone.trim(),
+          country: 'Jamaica',
+          billingAddress: familyAddress.trim() || address.trim(),
+          relationshipToPatient: familyRelation.trim()
+        },
         patientBioData: patientBio,
         whatsAppUpdatesOptIn: clientWhatsAppOptIn,
         whatsAppPhone: cleanPhone || undefined,
@@ -458,11 +535,18 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
         name: cleanFullName,
         role: 'client',
         phone: cleanPhone,
+        gender: gender || undefined,
+        dateOfBirth: dob || undefined,
         address,
         parish: zone,
         photoUrl: defaultPatientPhoto,
         profilePhotoUrl: defaultPatientPhoto,
-        emergencyContact: newAccount.emergencyContact,
+        emergencyContact: {
+          name: familyMemberName.trim(),
+          phone: familyPhone.trim(),
+          relation: familyRelation.trim()
+        },
+        nextOfKin: nextOfKinAuthData,
         status: 'approved',
         submittedAt: new Date().toISOString()
       }).catch(() => {});
@@ -749,8 +833,11 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Gender</label>
+                  <label className="font-bold text-slate-300 block mb-1">
+                    Gender <span className="text-red-400">*</span>
+                  </label>
                   <select
+                    required
                     value={gender}
                     onChange={(e) => setGender(e.target.value as any)}
                     className="w-full p-2.5 rounded-xl bg-[#1c062c] border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
@@ -758,7 +845,8 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                     <option value="">Select gender...</option>
                     <option value="female">Female</option>
                     <option value="male">Male</option>
-                    <option value="other">Other / Prefer not to say</option>
+                    <option value="other">Other</option>
+                    <option value="prefer_not_to_say">Prefer not to say</option>
                   </select>
                 </div>
 
@@ -1110,20 +1198,20 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
             </div>
           )}
 
-          {/* STEP 4: TRUSTED FAMILY MEMBER / GUARDIAN BIO & PHOTO */}
+          {/* STEP 4: NEXT OF KIN & AUTHORIZED USER BIO & PHOTO */}
           {step === 4 && (
             <div className="space-y-4 animate-fadeIn">
               <div className="p-3.5 rounded-2xl bg-purple-950/40 border border-purple-500/20 text-xs text-purple-200 flex items-center gap-2.5">
                 <Users className="w-5 h-5 text-emerald-400 shrink-0" />
                 <span>
-                  To ensure maximum patient safety, WeCare links one verified <strong>Trusted Family Member / Guardian</strong> to the patient account with their photo, contact info, and care management rights.
+                  Clients are required to provide complete <strong>Next of Kin</strong> details because your Next of Kin can be designated as an <strong>Authorized User</strong> to book care, cancel bookings, approve visit codes, and manage clinical updates on your behalf.
                 </span>
               </div>
 
               {/* Family Member Photo Upload / Camera */}
               <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
                 <label className="text-xs font-bold text-slate-200 block">
-                  Trusted Family Member Profile Photo <span className="text-purple-300 font-normal">(Shared with nurses and administrators)</span>
+                  Trusted Family Member Profile Photo <span className="text-purple-300 font-normal">(Optional — Shared with nurses and administrators)</span>
                 </label>
                 <div className="flex flex-col sm:flex-row items-center gap-4">
                   <div className="relative w-24 h-24 rounded-2xl bg-purple-900/40 border-2 border-dashed border-purple-400/50 flex items-center justify-center overflow-hidden shrink-0 group">
@@ -1162,25 +1250,28 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                 </div>
               </div>
 
-              {/* Family Member Bio Inputs */}
+              {/* Next of Kin Bio Inputs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
                 <div>
                   <label className="font-bold text-slate-300 block mb-1">
-                    Family Member Legal Name <span className="text-red-400">*</span>
+                    Next of Kin Full Legal Name <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="text"
                     value={familyMemberName}
                     onChange={(e) => setFamilyMemberName(e.target.value)}
-                    placeholder="e.g. David Campbell"
+                    placeholder=""
                     className="w-full p-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Relationship to Patient</label>
+                  <label className="font-bold text-slate-300 block mb-1">
+                    Relationship to Patient <span className="text-red-400">*</span>
+                  </label>
                   <select
+                    required
                     value={familyRelation}
                     onChange={(e) => setFamilyRelation(e.target.value)}
                     className="w-full p-3 rounded-xl bg-[#1c062c] border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
@@ -1188,7 +1279,8 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                     <option value="">Select relationship...</option>
                     <option value="Son">Son</option>
                     <option value="Daughter">Daughter</option>
-                    <option value="Spouse">Spouse / Partner</option>
+                    <option value="Spouse / Partner">Spouse / Partner</option>
+                    <option value="Parent">Parent</option>
                     <option value="Sibling">Sister / Brother</option>
                     <option value="Grandchild">Grandson / Granddaughter</option>
                     <option value="Legal Guardian">Legal Guardian / Power of Attorney</option>
@@ -1198,37 +1290,141 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
 
                 <div>
                   <label className="font-bold text-slate-300 block mb-1">
-                    Family Contact Phone (+1 876) <span className="text-red-400">*</span>
+                    Next of Kin Primary Phone (+1 876) <span className="text-red-400">*</span>
                   </label>
                   <input
                     type="tel"
                     value={familyPhone}
                     onChange={(e) => setFamilyPhone(e.target.value)}
-                    placeholder="+1 (876) 555-9988"
+                    placeholder=""
                     className="w-full p-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                     required
                   />
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Family Email Address</label>
+                  <label className="font-bold text-slate-300 block mb-1">Alternate Phone (Optional)</label>
                   <input
-                    type="email"
-                    value={familyEmail}
-                    onChange={(e) => setFamilyEmail(e.target.value)}
-                    placeholder="david.campbell@gmail.com"
+                    type="tel"
+                    value={familyAlternatePhone}
+                    onChange={(e) => setFamilyAlternatePhone(e.target.value)}
+                    placeholder=""
                     className="w-full p-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                   />
                 </div>
 
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1">
+                    Next of Kin Email (For Auth &amp; Alerts) <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={familyEmail}
+                    onChange={(e) => setFamilyEmail(e.target.value)}
+                    placeholder=""
+                    className="w-full p-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1">
+                    Next of Kin Date of Birth <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={familyDateOfBirth}
+                    onChange={(e) => setFamilyDateOfBirth(e.target.value)}
+                    className="w-full p-3 rounded-xl bg-white/5 border border-white/15 text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-300">
+                      Next of Kin Residential / Contact Address <span className="text-red-400">*</span>
+                    </label>
+                    {address.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setFamilyAddress([address.trim(), zone.trim()].filter(Boolean).join(', '))}
+                        className="text-[11px] font-bold text-purple-300 hover:text-white underline cursor-pointer"
+                      >
+                        Same as Patient Address
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={familyAddress}
+                    onChange={(e) => setFamilyAddress(e.target.value)}
+                    placeholder=""
+                    className="w-full p-3 rounded-xl bg-white/5 border border-white/15 text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                </div>
+
+                {/* Authorized User Designation & Permissions */}
+                <div className="sm:col-span-2 p-3.5 rounded-2xl bg-purple-950/35 border border-purple-500/35 space-y-2.5">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isFamilyAuthorizedUser}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsFamilyAuthorizedUser(checked);
+                        if (checked && !authCanBook && !authCanCancel && !authCanApproveCodes && !authCanViewMedical && !authCanManagePayments) {
+                          setAuthCanBook(true);
+                          setAuthCanCancel(true);
+                          setAuthCanApproveCodes(true);
+                          setAuthCanViewMedical(true);
+                        }
+                      }}
+                      className="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-black/50 border-white/20"
+                    />
+                    <span>
+                      <strong className="text-white text-xs block">Designate Next of Kin as an Authorized User</strong>
+                      <span className="text-[11px] text-purple-200/90 block">
+                        Authorize this Next of Kin to act on your behalf for bookings, cancellations, visit codes, or medical records.
+                      </span>
+                    </span>
+                  </label>
+
+                  {isFamilyAuthorizedUser && (
+                    <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { val: authCanBook, set: setAuthCanBook, label: 'Book & Schedule Care Visits' },
+                        { val: authCanCancel, set: setAuthCanCancel, label: 'Cancel or Reschedule Bookings' },
+                        { val: authCanApproveCodes, set: setAuthCanApproveCodes, label: 'Approve Visit Start & End Codes' },
+                        { val: authCanViewMedical, set: setAuthCanViewMedical, label: 'View Medical Bio & Medications' },
+                        { val: authCanManagePayments, set: setAuthCanManagePayments, label: 'Manage Billing & Payments' }
+                      ].map(perm => (
+                        <label
+                          key={perm.label}
+                          className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-white/10 text-[11px] text-slate-200 cursor-pointer hover:border-purple-400/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={perm.val}
+                            onChange={(e) => perm.set(e.target.checked)}
+                            className="w-3.5 h-3.5 rounded text-purple-600 bg-black/60 border-white/20"
+                          />
+                          <span>{perm.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="sm:col-span-2">
                   <label className="font-bold text-slate-300 block mb-1">
-                    Family Authorization &amp; Emergency Notes
+                    Care Authorization &amp; Emergency Notes (Optional)
                   </label>
                   <textarea
                     value={familyNotes}
                     onChange={(e) => setFamilyNotes(e.target.value)}
-                    placeholder="e.g. Primary contact for billing and medical updates. Call immediately if systolic blood pressure exceeds 160."
+                    placeholder=""
                     className="w-full p-2.5 rounded-xl bg-white/5 border border-white/15 text-xs text-white placeholder-slate-500 focus:ring-2 focus:ring-purple-500 focus:outline-none h-16 resize-none"
                   />
                 </div>
@@ -1320,10 +1516,14 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
                   <div className="p-2 rounded-xl bg-black/30">
                     <span className="text-slate-400 block text-[10px]">Username</span>
                     <span className="font-mono text-purple-300 font-bold">@{username}</span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-black/30">
+                    <span className="text-slate-400 block text-[10px]">Gender</span>
+                    <span className="font-bold text-white capitalize">{gender ? gender.replace(/_/g, ' ') : 'Not specified'}</span>
                   </div>
                   <div className="p-2 rounded-xl bg-black/30">
                     <span className="text-slate-400 block text-[10px]">Blood Type</span>
@@ -1362,11 +1562,16 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                 </div>
               </div>
 
-              {/* Trusted Family Member Preview Card */}
+              {/* Trusted Family Member / Authorized User Preview Card */}
               <div className="p-4 rounded-2xl bg-purple-950/30 border border-purple-500/20 space-y-2">
-                <span className="text-[10px] uppercase font-bold text-emerald-400 block">
-                  Verified Trusted Family Member &amp; Guardian
-                </span>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 block">
+                    Verified Next of Kin &amp; Guardian
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isFamilyAuthorizedUser ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-white/10 text-slate-300'}`}>
+                    {isFamilyAuthorizedUser ? 'Authorized User Enabled' : 'Emergency Contact Only'}
+                  </span>
+                </div>
                 <div className="flex items-center gap-3">
                   {familyPhotoUrl ? (
                     <img loading="lazy" decoding="async"
@@ -1379,10 +1584,13 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
                       <Users className="w-6 h-6 text-emerald-300" />
                     </div>
                   )}
-                  <div>
+                  <div className="space-y-0.5">
                     <h4 className="text-sm font-bold text-white">{familyMemberName}</h4>
                     <p className="text-xs text-purple-200">
                       {[familyRelation, familyPhone, familyEmail].filter(Boolean).join(' • ')}
+                    </p>
+                    <p className="text-[11px] text-slate-300">
+                      Address: {familyAddress || 'Not specified'} • DOB: {familyDateOfBirth || 'Not specified'}
                     </p>
                   </div>
                 </div>

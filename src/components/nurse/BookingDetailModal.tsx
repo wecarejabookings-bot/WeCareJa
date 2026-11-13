@@ -321,6 +321,37 @@ export const BookingDetailModal: React.FC<BookingDetailModalProps> = ({
           </div>
         </div>
 
+        {booking.status === 'cancelled' && (
+          <div className="mx-5 mt-4 p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 flex flex-col gap-1.5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-black text-rose-200">
+                <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>
+                  Booking{' '}
+                  {booking.cancelledBy === 'client'
+                    ? `Cancelled by Client${booking.clientName ? ` (${booking.clientName})` : ''}`
+                    : booking.cancelledBy === 'admin'
+                    ? 'Cancelled by Admin'
+                    : 'Cancelled by Nurse'}
+                </span>
+              </div>
+              {booking.cancelledAt && (
+                <span className="text-[10px] text-rose-300/80 font-mono">
+                  {new Date(booking.cancelledAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+            <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 block mb-0.5">
+                Reason for Cancellation
+              </span>
+              <p className="text-xs text-rose-100 leading-relaxed">
+                {booking.cancelReason || 'No reason provided'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="flex items-center gap-1.5 px-5 pt-2 border-b border-white/10 bg-white/[0.02]">
           <button

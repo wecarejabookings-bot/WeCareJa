@@ -21,8 +21,16 @@ function sanitizeKey(raw?: string): string {
   return clean;
 }
 
-const rawUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || process.env?.VITE_SUPABASE_URL;
-const rawKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_ANON_KEY;
+let rawUrl: string | undefined;
+let rawKey: string | undefined;
+try {
+  rawUrl = import.meta.env?.VITE_SUPABASE_URL;
+  rawKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+} catch {}
+try {
+  if (!rawUrl) rawUrl = process.env.VITE_SUPABASE_URL;
+  if (!rawKey) rawKey = process.env.VITE_SUPABASE_ANON_KEY;
+} catch {}
 
 export const url = sanitizeUrl(rawUrl);
 export const key = sanitizeKey(rawKey);

@@ -29,7 +29,8 @@ import {
   ShieldCheck,
   Stethoscope,
   Pill,
-  Timer
+  Timer,
+  XCircle
 } from 'lucide-react';
 
 interface PatientHistorySectionProps {
@@ -69,13 +70,17 @@ export const PatientHistorySection: React.FC<PatientHistorySectionProps> = ({
   const [expandedBookingId, setExpandedBookingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Filter completed bookings for patient history
+  // Include completed, closed, cancelled, and disputed visits in history
   const completedBookings = useMemo(() => {
     return bookings.filter(b => 
-      ['completed', 'closed'].includes(b.status) || 
-      (b.clinicalNotes && b.status !== 'cancelled')
-    ).sort((a, b) => new Date(b.scheduledDateTime).getTime() - new Date(a.scheduledDateTime).getTime());
+      ['completed', 'closed', 'cancelled', 'disputed'].includes(b.status) || 
+      Boolean(b.clinicalNotes)
+    ).sort((a, b) => new Date(b.cancelledAt || b.scheduledDateTime).getTime() - new Date(a.cancelledAt || a.scheduledDateTime).getTime());
   }, [bookings]);
+
+  const completedOnlyBookings = useMemo(() => {
+    return completedBookings.filter(b => b.status !== 'cancelled');
+  }, [completedBookings]);
 
   // Derived filtered bookings
   const filteredBookings = useMemo(() => {
@@ -123,17 +128,17 @@ export const PatientHistorySection: React.FC<PatientHistorySectionProps> = ({
     });
   }, [completedBookings, searchQuery, selectedCategory, selectedRatingFilter, selectedDate, selectedStatus]);
 
-  // Summary Metrics
-  const totalCareMinutes = completedBookings.reduce((acc, curr) => acc + (curr.actualDurationMinutes || curr.baseDurationMinutes || 45), 0);
+  // Summary Metrics (exclude cancelled bookings)
+  const totalCareMinutes = completedOnlyBookings.reduce((acc, curr) => acc + (curr.actualDurationMinutes || curr.baseDurationMinutes || 45), 0);
   const totalCareHours = (totalCareMinutes / 60).toFixed(1);
-  const totalSpentJMD = completedBookings.reduce((acc, curr) => acc + (curr.priceJMD || 0), 0);
-  const ratedCount = completedBookings.filter(b => b.rating).length;
+  const totalSpentJMD = completedOnlyBookings.reduce((acc, curr) => acc + (curr.priceJMD || 0), 0);
+  const ratedCount = completedOnlyBookings.filter(b => b.rating).length;
   const avgRating = ratedCount > 0 
-    ? (completedBookings.reduce((acc, curr) => acc + (curr.rating || 0), 0) / ratedCount).toFixed(1)
+    ? (completedOnlyBookings.reduce((acc, curr) => acc + (curr.rating || 0), 0) / ratedCount).toFixed(1)
     : '—';
 
   // Latest Vital Sign Record
-  const latestVitalsBooking = completedBookings.find(b => b.clinicalNotes);
+  const latestVitalsBooking = completedOnlyBookings.find(b => b.clinicalNotes);
   const latestVitals = latestVitalsBooking?.clinicalNotes;
 
   const handleCopyClinicalNotes = (booking: Booking) => {
@@ -235,7 +240,7 @@ ${booking.clinicalNotes.nurseRecommendations}
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Completed Visits
               </span>
               <strong className="text-xl md:text-2xl font-black text-white mt-1 block">
-                {completedBookings.length}
+                {completedOnlyBookings.length}
               </strong>
               <span className="text-[10px] text-slate-400">Total home sessions</span>
             </div>
@@ -370,6 +375,7 @@ ${booking.clinicalNotes.nurseRecommendations}
             >
               <option value="all" className="bg-slate-900 text-white">All Statuses</option>
               <option value="completed" className="bg-slate-900 text-white">Completed</option>
+              <option value="cancelled" className="bg-slate-900 text-white">Cancelled</option>
               <option value="closed" className="bg-slate-900 text-white">Closed / Audited</option>
               <option value="disputed" className="bg-slate-900 text-white">Disputed</option>
             </select>
@@ -458,12 +464,25 @@ ${booking.clinicalNotes.nurseRecommendations}
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div className="space-y-1.5">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> Completed &amp; Documented
-                        </span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30 flex items-center gap-1">
-                          <Timer className="w-3 h-3" /> {booking.actualDurationMinutes || booking.baseDurationMinutes || 45} mins care
-                        </span>
+                        {booking.status === 'cancelled' ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center gap-1">
+                            <XCircle className="w-3 h-3" />
+                            {booking.cancelledBy === 'nurse'
+                              ? 'Cancelled by Nurse'
+                              : booking.cancelledBy === 'admin'
+                              ? 'Cancelled by Admin'
+                              : 'Cancelled by Client'}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Completed &amp; Documented
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-200 border border-purple-500/30 flex items-center gap-1">
+                              <Timer className="w-3 h-3" /> {booking.actualDurationMinutes || booking.baseDurationMinutes || 45} mins care
+                            </span>
+                          </>
+                        )}
                         <span className="text-xs font-mono text-purple-300 font-bold">
                           #{booking.id}
                         </span>
@@ -500,29 +519,31 @@ ${booking.clinicalNotes.nurseRecommendations}
                         <span className="text-lg md:text-xl font-black text-[#C77DFF] block">
                           {formatJMD(booking.priceJMD)}
                         </span>
-                        <span className="text-[10px] text-emerald-400 font-medium block">
-                          Payment Settled • Official Receipt
+                        <span className={`text-[10px] font-medium block ${booking.status === 'cancelled' ? 'text-rose-300' : 'text-emerald-400'}`}>
+                          {booking.status === 'cancelled' ? 'Cancelled • Escrow Refunded' : 'Payment Settled • Official Receipt'}
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <button
-                          onClick={() => onDownloadMedicalSummary ? onDownloadMedicalSummary(booking) : onViewInvoice(booking)}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white border border-emerald-400/30 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
-                          title="Generate print-optimized PDF of clinical notes, invoice, and visit details"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Download Medical Summary</span>
-                        </button>
+                      {booking.status !== 'cancelled' && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            onClick={() => onDownloadMedicalSummary ? onDownloadMedicalSummary(booking) : onViewInvoice(booking)}
+                            className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white border border-emerald-400/30 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            title="Generate print-optimized PDF of clinical notes, invoice, and visit details"
+                          >
+                            <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Download Medical Summary</span>
+                          </button>
 
-                        <button
-                          onClick={() => onViewInvoice(booking)}
-                          className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 hover:text-white border border-purple-400/30 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
-                        >
-                          <Receipt className="w-3.5 h-3.5 text-[#C77DFF]" />
-                          <span>Invoice</span>
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => onViewInvoice(booking)}
+                            className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 hover:text-white border border-purple-400/30 text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <Receipt className="w-3.5 h-3.5 text-[#C77DFF]" />
+                            <span>Invoice</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -555,43 +576,71 @@ ${booking.clinicalNotes.nurseRecommendations}
                     </div>
 
                     {/* Patient Rating Box */}
-                    <div className="flex items-center gap-3 self-start sm:self-center">
-                      {booking.rating ? (
-                        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center gap-2">
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Star
-                                key={star}
-                                className={`w-4 h-4 ${
-                                  star <= (booking.rating || 0)
-                                    ? 'text-amber-400 fill-amber-400'
-                                    : 'text-slate-600'
-                                }`}
-                              />
-                            ))}
+                    {booking.status !== 'cancelled' && (
+                      <div className="flex items-center gap-3 self-start sm:self-center">
+                        {booking.rating ? (
+                          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`w-4 h-4 ${
+                                    star <= (booking.rating || 0)
+                                      ? 'text-amber-400 fill-amber-400'
+                                      : 'text-slate-600'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-xs font-bold text-amber-300 font-mono">
+                              {booking.rating}.0 / 5.0
+                            </span>
+                            <button
+                              onClick={() => onOpenRating(booking)}
+                              className="ml-2 text-[10px] text-purple-300 hover:text-white underline font-semibold"
+                              title="Edit Rating"
+                            >
+                              Edit
+                            </button>
                           </div>
-                          <span className="text-xs font-bold text-amber-300 font-mono">
-                            {booking.rating}.0 / 5.0
-                          </span>
+                        ) : (
                           <button
                             onClick={() => onOpenRating(booking)}
-                            className="ml-2 text-[10px] text-purple-300 hover:text-white underline font-semibold"
-                            title="Edit Rating"
+                            className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-purple-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
                           >
-                            Edit
+                            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+                            <span>Leave Nurse Rating</span>
                           </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => onOpenRating(booking)}
-                          className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-purple-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-                        >
-                          <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-                          <span>Leave Nurse Rating</span>
-                        </button>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
+
+                  {/* Cancellation Reason Callout */}
+                  {booking.status === 'cancelled' && (
+                    <div className="p-4 rounded-2xl bg-rose-950/35 border border-rose-500/40 space-y-1.5 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-bold text-rose-300 flex items-center gap-1.5">
+                          <XCircle className="w-4 h-4 text-rose-400" />
+                          <span>
+                            {booking.cancelledBy === 'nurse'
+                              ? `Cancelled by Nurse${booking.nurseName ? ` (${booking.nurseName})` : ''}`
+                              : booking.cancelledBy === 'admin'
+                              ? 'Cancelled by Administration'
+                              : 'Cancelled by Client'}
+                          </span>
+                        </span>
+                        {booking.cancelledAt && (
+                          <span className="text-[10px] text-rose-200/70 font-mono">
+                            {new Date(booking.cancelledAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-rose-100 leading-relaxed">
+                        <strong>Reason for Cancellation:</strong> {booking.cancelReason || 'No reason provided'}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Patient Review Feedback Quote */}
                   {booking.reviewComment && (

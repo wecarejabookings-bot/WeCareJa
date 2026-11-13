@@ -89,6 +89,28 @@ export interface ApplicantDossier {
     relation?: string;
   };
 
+  // Expanded Client Next of Kin / Authorized User details
+  nextOfKin?: {
+    name?: string;
+    relation?: string;
+    phone?: string;
+    alternatePhone?: string;
+    email?: string;
+    address?: string;
+    dateOfBirth?: string;
+    isAuthorizedUser?: boolean;
+    canManageCare?: boolean;
+    authorizedPermissions?: {
+      canBookServices?: boolean;
+      canCancelBookings?: boolean;
+      canApproveVisitCodes?: boolean;
+      canViewMedicalRecords?: boolean;
+      canManagePayments?: boolean;
+    };
+    notes?: string;
+  };
+  bioData?: any;
+
   // Biometric and Signature
   signature?: any;
   biometricVerification?: {
@@ -270,12 +292,38 @@ export function deepMergeDossiers(
     ...(proofOfAddressUrl ? { proofOfAddressUrl } : {})
   };
 
+  const mergedEmergencyContact =
+    n.emergencyContact?.name || b.emergencyContact?.name
+      ? {
+          name: n.emergencyContact?.name || b.emergencyContact?.name || '',
+          phone: n.emergencyContact?.phone || b.emergencyContact?.phone || '',
+          relation: n.emergencyContact?.relation || b.emergencyContact?.relation || ''
+        }
+      : undefined;
+
+  const mergedNextOfKin =
+    n.nextOfKin || b.nextOfKin
+      ? {
+          ...(b.nextOfKin || {}),
+          ...(n.nextOfKin || {}),
+          name: n.nextOfKin?.name || b.nextOfKin?.name || '',
+          relation: n.nextOfKin?.relation || b.nextOfKin?.relation || '',
+          phone: n.nextOfKin?.phone || b.nextOfKin?.phone || '',
+          email: n.nextOfKin?.email || b.nextOfKin?.email || '',
+          address: n.nextOfKin?.address || b.nextOfKin?.address || '',
+          dateOfBirth: n.nextOfKin?.dateOfBirth || b.nextOfKin?.dateOfBirth || ''
+        }
+      : undefined;
+
   const merged: Partial<ApplicantDossier> = {
     ...b,
     ...n,
     fullName: n.fullName || b.fullName || n.name || b.name || '',
     name: n.name || n.fullName || b.name || b.fullName || '',
     email: (n.email || b.email || '').toLowerCase().trim(),
+    gender: n.gender || b.gender || n.bioData?.gender || b.bioData?.gender,
+    emergencyContact: mergedEmergencyContact,
+    nextOfKin: mergedNextOfKin,
     photoUrl,
     profilePhotoUrl: photoUrl,
     driversLicenseFrontUrl,

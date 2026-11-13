@@ -371,6 +371,13 @@ export const NursePortal: React.FC<NursePortalProps> = ({
   const inProgressVisits = activeVisits.filter(b => b.status === 'in_progress');
   const pendingRequests = bookings.filter(b => b.status === 'requested');
   const completedVisits = nurseBookings.filter(b => b.status === 'completed');
+  const cancelledVisits = useMemo(
+    () =>
+      nurseBookings
+        .filter(b => b.status === 'cancelled')
+        .sort((a, b) => new Date(b.cancelledAt || b.scheduledDateTime).getTime() - new Date(a.cancelledAt || a.scheduledDateTime).getTime()),
+    [nurseBookings]
+  );
 
   const toggleZone = (zone: string) => {
     if (selectedZones.includes(zone)) {
@@ -981,6 +988,57 @@ export const NursePortal: React.FC<NursePortalProps> = ({
         onUpdateNurseProfile={onUpdateNurseProfile}
         activeBookingsCount={activeVisits.length}
       />
+
+      {/* Cancelled Bookings Alert Banner for Nurse */}
+      {cancelledVisits.length > 0 && (
+        <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 backdrop-blur-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center shrink-0 mt-0.5">
+              <XCircle className="w-5 h-5 text-rose-400" />
+            </div>
+            <div className="space-y-1 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-black text-rose-200">
+                  {cancelledVisits.length} Cancelled Booking{cancelledVisits.length > 1 ? 's' : ''}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                  {cancelledVisits[0].cancelledBy === 'client'
+                    ? `Cancelled by Client${cancelledVisits[0].clientName ? ` (${cancelledVisits[0].clientName})` : ''}`
+                    : cancelledVisits[0].cancelledBy === 'admin'
+                    ? 'Cancelled by Admin'
+                    : 'Cancelled by Nurse'}
+                </span>
+              </div>
+              <p className="text-slate-200">
+                Latest: <strong className="text-white">{cancelledVisits[0].serviceName}</strong> (#{cancelledVisits[0].id}) — Reason:{' '}
+                <span className="text-rose-200 font-semibold">{cancelledVisits[0].cancelReason || 'No reason provided'}</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                soundFX.playTabSwitch();
+                setActiveTab('profile');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 hover:text-white border border-rose-500/40 text-[11px] font-bold transition cursor-pointer"
+            >
+              View on Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                soundFX.playTabSwitch();
+                setActiveTab('active');
+              }}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-[11px] font-bold transition cursor-pointer"
+            >
+              View Visits
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Live In-Progress Care Visit Floating / Top HUD Banner */}
       {inProgressVisits.length > 0 && (
@@ -1918,6 +1976,64 @@ export const NursePortal: React.FC<NursePortalProps> = ({
               )}
             </SmartBookingSearch>
           )}
+
+          {cancelledVisits.length > 0 && (
+            <div className="p-5 rounded-3xl bg-rose-950/20 backdrop-blur-xl border border-rose-500/30 space-y-3 mt-4">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black text-rose-200 flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>Cancelled Visits &amp; Reasons ({cancelledVisits.length})</span>
+                </h4>
+                <span className="text-[11px] text-rose-300 font-medium">
+                  Cancellation history &amp; client notes
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {cancelledVisits.map((booking) => {
+                  const actorLabel =
+                    booking.cancelledBy === 'client'
+                      ? `Cancelled by Client${booking.clientName ? ` (${booking.clientName})` : ''}`
+                      : booking.cancelledBy === 'admin'
+                      ? 'Cancelled by Admin'
+                      : 'Cancelled by Nurse';
+                  return (
+                    <div
+                      key={booking.id}
+                      onClick={() => setSelectedBookingForDetailModal(booking)}
+                      className="p-4 rounded-2xl bg-slate-950/60 hover:bg-slate-950/80 border border-rose-500/25 space-y-2 text-xs cursor-pointer transition"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 inline-block mb-1">
+                            {actorLabel}
+                          </span>
+                          <p className="font-bold text-white text-sm">{booking.serviceName}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {booking.clientName ? `Patient: ${booking.clientName} • ` : ''}
+                            {booking.scheduledDateTime ? new Date(booking.scheduledDateTime).toLocaleString() : 'Schedule N/A'}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">#{booking.id}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-300 mb-0.5">
+                          Reason for Cancellation
+                        </p>
+                        <p className="text-xs text-rose-100 leading-relaxed">
+                          {booking.cancelReason || 'No reason provided'}
+                        </p>
+                      </div>
+                      {booking.cancelledAt && (
+                        <p className="text-[10px] text-slate-400">
+                          Cancelled on {new Date(booking.cancelledAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -2094,6 +2210,55 @@ export const NursePortal: React.FC<NursePortalProps> = ({
               Independent contractor registration for Kingston &amp; St Andrew parish healthcare visits.
             </p>
           </div>
+
+          {cancelledVisits.length > 0 && (
+            <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/35 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-rose-200 flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>Cancelled Bookings on Your Profile ({cancelledVisits.length})</span>
+                </h4>
+              </div>
+              <div className="space-y-2.5">
+                {cancelledVisits.map((booking) => {
+                  const actorLabel =
+                    booking.cancelledBy === 'client'
+                      ? `Cancelled by Client${booking.clientName ? ` (${booking.clientName})` : ''}`
+                      : booking.cancelledBy === 'admin'
+                      ? 'Cancelled by Admin'
+                      : 'Cancelled by Nurse';
+                  return (
+                    <div
+                      key={booking.id}
+                      className="p-3.5 rounded-xl bg-slate-950/60 border border-rose-500/25 space-y-1.5 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-bold text-white">{booking.serviceName}</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            {actorLabel}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400">#{booking.id}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-400">
+                        {booking.scheduledDateTime ? `Scheduled: ${new Date(booking.scheduledDateTime).toLocaleString()}` : ''}
+                        {booking.cancelledAt ? ` • Cancelled: ${new Date(booking.cancelledAt).toLocaleString()}` : ''}
+                      </p>
+                      <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/25">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 block mb-0.5">
+                          Reason for Cancellation
+                        </span>
+                        <span className="text-xs text-rose-100 leading-relaxed">
+                          {booking.cancelReason || 'No reason provided'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Official Document & Nursing Council Badge Status */}
           {currentNurse.status === 'approved' ? (
@@ -2723,6 +2888,9 @@ export const NursePortal: React.FC<NursePortalProps> = ({
           nurse={currentNurse}
           isOpen={isPreviewProfileOpen}
           onClose={() => setIsPreviewProfileOpen(false)}
+          viewerRole="nurse"
+          currentUserId={currentNurse.id}
+          allBookings={bookings}
           onSelectNurseForBooking={() => setIsPreviewProfileOpen(false)}
         />
       )}

@@ -684,13 +684,26 @@ export interface DailyMedicationReminder {
   createdAt: string;
 }
 
+export interface AuthorizedUserPermissions {
+  canBookServices?: boolean;
+  canCancelBookings?: boolean;
+  canApproveVisitCodes?: boolean;
+  canViewMedicalRecords?: boolean;
+  canManagePayments?: boolean;
+}
+
 export interface TrustedFamilyMember {
   name: string;
   relation: string; // e.g., "Son", "Daughter", "Spouse", "Sibling", "Legal Guardian"
   phone: string;
+  alternatePhone?: string;
   email?: string;
+  address?: string;
+  dateOfBirth?: string;
   photoUrl: string; // Uploaded profile photo of the trusted family member
   canManageCare: boolean;
+  isAuthorizedUser?: boolean;
+  authorizedPermissions?: AuthorizedUserPermissions;
   notes?: string;
   whatsAppUpdatesOptIn?: boolean; // Required opt-in for Meta WhatsApp Cloud API
   whatsAppPhone?: string;
@@ -699,7 +712,7 @@ export interface TrustedFamilyMember {
 export interface ClientPatientBioData {
   dateOfBirth?: string; // e.g. "1948-03-12"
   age?: number;
-  gender?: 'male' | 'female' | 'other';
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | string;
   bloodType?: string; // e.g. "O+", "A+"
   residentialAddress?: string;
   zone?: string;
@@ -755,6 +768,7 @@ export interface UserAccount {
   full_name?: string;
   email: string;
   phone: string;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | string;
   avatarUrl?: string;
   avatar?: string;
   zone?: string;

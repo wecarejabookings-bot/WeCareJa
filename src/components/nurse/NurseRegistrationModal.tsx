@@ -760,6 +760,12 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       setCurrentStep(1);
       return;
     }
+    if (!gender || !emergencyContactName.trim() || !emergencyContactPhone.trim() || !emergencyContactRelation.trim()) {
+      soundFX.playWarningSound();
+      setStepValidationError('Gender and complete Emergency Contact / Next of Kin information (Name, Phone, Relationship) are required in Step 1.');
+      setCurrentStep(1);
+      return;
+    }
     setStepValidationError(null);
 
     const newNurseId = `nurse-${Date.now()}`;
@@ -974,8 +980,10 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
       name: newNurse.name,
       role: 'nurse_pending',
       phone: newNurse.phone,
+      gender: gender || undefined,
+      dateOfBirth: dateOfBirth || undefined,
       address: newNurse.residentialAddress || address,
-      parish: residentialParish || 'St. Andrew',
+      parish: residentialParish || '',
       trnNumber: newNurse.trnNumber,
       driversLicenseNumber: newNurse.driversLicenseNumber,
       ncjLicense: newNurse.nursingCouncilLicense,
@@ -1494,10 +1502,12 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                           Gender / Biological Sex *
                         </label>
                         <select
+                          required
                           value={gender}
                           onChange={(e) => setGender(e.target.value as any)}
                           className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
                         >
+                          <option value="">Select gender...</option>
                           <option value="female">Female</option>
                           <option value="male">Male</option>
                           <option value="other">Other</option>
@@ -1540,10 +1550,12 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                           Parish *
                         </label>
                         <select
+                          required
                           value={residentialParish}
                           onChange={(e) => setResidentialParish(e.target.value)}
                           className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
                         >
+                          <option value="">Select parish...</option>
                           <option value="St. Andrew">St. Andrew</option>
                           <option value="Kingston">Kingston</option>
                           <option value="St. Catherine">St. Catherine</option>
@@ -1559,34 +1571,37 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                     {/* Next of Kin / Emergency Contact */}
                     <div className="pt-2 border-t border-white/10 space-y-2">
                       <span className="text-[11px] font-bold text-slate-300 block">
-                        Emergency Contact / Next of Kin (Private Record)
+                        Emergency Contact / Next of Kin * (Private Required Record)
                       </span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Contact Name</label>
+                          <label className="block text-[10px] text-slate-300 font-bold mb-1">Contact Name *</label>
                           <input
                             type="text"
-                            placeholder="e.g. Michael Palmer"
+                            required
+                            placeholder=""
                             value={emergencyContactName}
                             onChange={(e) => setEmergencyContactName(e.target.value)}
                             className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400 font-medium"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Contact Phone</label>
+                          <label className="block text-[10px] text-slate-300 font-bold mb-1">Contact Phone *</label>
                           <input
                             type="tel"
-                            placeholder="+1 (876) 555-4912"
+                            required
+                            placeholder=""
                             value={emergencyContactPhone}
                             onChange={(e) => setEmergencyContactPhone(e.target.value)}
                             className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400 font-mono"
                           />
                         </div>
                         <div>
-                          <label className="block text-[10px] text-slate-400 mb-1">Relationship</label>
+                          <label className="block text-[10px] text-slate-300 font-bold mb-1">Relationship *</label>
                           <input
                             type="text"
-                            placeholder="e.g. Spouse / Next of Kin"
+                            required
+                            placeholder=""
                             value={emergencyContactRelation}
                             onChange={(e) => setEmergencyContactRelation(e.target.value)}
                             className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400 font-medium"
@@ -1629,6 +1644,21 @@ export const NurseRegistrationModal: React.FC<NurseRegistrationModalProps> = ({
                         if (!photoUrl) {
                           soundFX.playWarningSound();
                           setStepValidationError('Live biometric face scan is mandatory for all healthcare practitioners. Please complete your face scan above to proceed.');
+                          return;
+                        }
+                        if (!name.trim() || !phone.trim() || !email.trim()) {
+                          soundFX.playWarningSound();
+                          setStepValidationError('Please enter your Full Name, Phone, and Email address before proceeding.');
+                          return;
+                        }
+                        if (!dateOfBirth.trim() || !gender || !address.trim() || !residentialParish.trim()) {
+                          soundFX.playWarningSound();
+                          setStepValidationError('Please enter your Date of Birth, Gender, Physical Address, and Parish.');
+                          return;
+                        }
+                        if (!emergencyContactName.trim() || !emergencyContactPhone.trim() || !emergencyContactRelation.trim()) {
+                          soundFX.playWarningSound();
+                          setStepValidationError('Please complete your Emergency Contact / Next of Kin Name, Phone, and Relationship.');
                           return;
                         }
                         setStepValidationError(null);

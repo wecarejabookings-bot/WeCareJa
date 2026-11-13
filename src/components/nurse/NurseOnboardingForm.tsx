@@ -75,6 +75,10 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
   const [ncjLicense, setNcjLicense] = useState<string>('');
   const [trn, setTrn] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
+  const [gender, setGender] = useState<string>('');
+  const [emergencyName, setEmergencyName] = useState<string>('');
+  const [emergencyPhone, setEmergencyPhone] = useState<string>('');
+  const [emergencyRelation, setEmergencyRelation] = useState<string>('');
   const [parish, setParish] = useState<string>('Kingston');
   const [serviceType, setServiceType] = useState<string>('Elderly & Geriatric Home Care');
   const [experienceYears, setExperienceYears] = useState<number>(4);
@@ -165,6 +169,18 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       return;
     }
 
+    if (!gender.trim()) {
+      setErrorToast('Please select your gender.');
+      soundFX.playWarningSound();
+      return;
+    }
+
+    if (!emergencyName.trim() || !emergencyPhone.trim() || !emergencyRelation.trim()) {
+      setErrorToast('Please provide your Emergency Contact / Next of Kin Name, Phone, and Relationship.');
+      soundFX.playWarningSound();
+      return;
+    }
+
     if (!signatureData || !signatureData.signed) {
       setErrorToast('Please read, digitally sign, and accept the Healthcare Practitioner Agreement in the signature box below.');
       soundFX.playWarningSound();
@@ -176,6 +192,12 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
 
     const uid = `nurse-reg-${Date.now()}`;
     let authenticatedUserId = uid;
+
+    const resolvedEmergencyContact = {
+      name: emergencyName.trim(),
+      phone: emergencyPhone.trim(),
+      relation: emergencyRelation.trim()
+    };
 
     try {
       // 1. Supabase Auth Registration
@@ -190,6 +212,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
             full_name: fullName.trim(),
             role: 'nurse',
             phone: phone.trim(),
+            gender: gender.trim(),
+            emergencyContact: resolvedEmergencyContact,
             address: parish,
             trn: trn.trim()
           }
@@ -258,6 +282,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         id: authenticatedUserId,
         email: cleanEmail,
         fullName: fullName.trim(),
+        gender: gender.trim(),
+        emergencyContact: resolvedEmergencyContact,
         trnNumber: trn.trim(),
         ncjLicense: ncjLicense.trim(),
         trnCertificateUrl: finalDocUrl || undefined
@@ -309,6 +335,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         name: fullName.trim(),
         role: 'nurse_pending',
         phone: phone.trim(),
+        gender: gender.trim(),
+        emergencyContact: resolvedEmergencyContact,
         address: parish,
         parish,
         trnNumber: trn.trim(),
@@ -327,6 +355,8 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         email: cleanEmail,
         photoUrl: '',
         phone: phone.trim(),
+        gender: gender.trim(),
+        emergencyContact: resolvedEmergencyContact,
         address: parish,
         parish,
         nursingCouncilLicense: ncjLicense.trim(),
@@ -345,7 +375,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         totalEarningsJMD: 0,
         pendingPayoutJMD: 0,
         completedVisitsCount: 0
-      }).catch(() => {});
+      } as any).catch(() => {});
 
       // Save credential backup locally
       try {
@@ -396,11 +426,29 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
       bio: '',
       totalEarningsJMD: 0,
       pendingPayoutJMD: 0,
-      completedVisitsCount: 0
+      completedVisitsCount: 0,
+      bioData: {
+        dateOfBirth: '',
+        gender: gender.trim() as any,
+        residentialParish: parish,
+        emergencyContact: {
+          name: emergencyName.trim(),
+          phone: emergencyPhone.trim(),
+          relation: emergencyRelation.trim()
+        }
+      }
     };
 
     // Push to Supabase profiles
-    saveNurseProfileToSupabase(newNurseProfile).catch(() => {});
+    saveNurseProfileToSupabase({
+      ...newNurseProfile,
+      gender: gender.trim(),
+      emergencyContact: {
+        name: emergencyName.trim(),
+        phone: emergencyPhone.trim(),
+        relation: emergencyRelation.trim()
+      }
+    } as any).catch(() => {});
 
     // Save nurse to local roster so they are immediately available
     try {
@@ -623,6 +671,68 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
                       onChange={(e) => setPhone(e.target.value)}
                       className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
                     />
+                  </div>
+                </div>
+
+                {/* Gender and Emergency Contact / Next of Kin (Required) */}
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/15 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Gender *
+                      </label>
+                      <select
+                        required
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        className="w-full bg-[#120520] border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-[#F59E0B]"
+                      >
+                        <option value="">Select gender...</option>
+                        <option value="female">Female</option>
+                        <option value="male">Male</option>
+                        <option value="other">Other</option>
+                        <option value="prefer_not_to_say">Prefer not to say</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Emergency Contact / Next of Kin Name *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder=""
+                        value={emergencyName}
+                        onChange={(e) => setEmergencyName(e.target.value)}
+                        className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Emergency Contact Phone *
+                      </label>
+                      <input
+                        type="tel"
+                        required
+                        placeholder=""
+                        value={emergencyPhone}
+                        onChange={(e) => setEmergencyPhone(e.target.value)}
+                        className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-300 mb-1">
+                        Relationship *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        placeholder=""
+                        value={emergencyRelation}
+                        onChange={(e) => setEmergencyRelation(e.target.value)}
+                        className="w-full bg-black/40 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#F59E0B]"
+                      />
+                    </div>
                   </div>
                 </div>
 

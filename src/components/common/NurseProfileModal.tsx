@@ -7,6 +7,7 @@ import { ServiceLogo } from './ServiceLogo';
 import { checkNurseBookingConflict, getNurseScheduleForDate } from '../../utils/bookingAvailability';
 import { 
   X, 
+  XCircle,
   ShieldCheck, 
   CheckCircle2, 
   Star, 
@@ -93,6 +94,19 @@ export const NurseProfileModal: React.FC<NurseProfileModalProps> = ({
   );
 
   const daySchedule = getNurseScheduleForDate(nurse.id, targetDateStr, allBookings);
+
+  const cancelledBookingsForViewer = allBookings
+    .filter((b) => {
+      if (b.status !== 'cancelled') return false;
+      const matchesNurse = b.nurseId === nurse.id || b.nurseName === nurse.name;
+      if (!matchesNurse) return false;
+      if (viewerRole === 'nurse' || viewerRole === 'admin') return true;
+      if (viewerRole === 'client' && currentUserId) {
+        return b.clientId === currentUserId;
+      }
+      return false;
+    })
+    .sort((a, b) => new Date(b.cancelledAt || b.scheduledDateTime).getTime() - new Date(a.cancelledAt || a.scheduledDateTime).getTime());
 
   return (
     <>
@@ -289,6 +303,53 @@ export const NurseProfileModal: React.FC<NurseProfileModalProps> = ({
                   variant="banner"
                   onOpenScopeModal={() => setShowScopeModal(true)}
                 />
+
+                {/* Cancelled Bookings & Cancellation Reasons */}
+                {cancelledBookingsForViewer.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-rose-950/30 border border-rose-500/35 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="text-xs font-bold text-rose-200 uppercase tracking-wider flex items-center gap-1.5">
+                        <XCircle className="w-4 h-4 text-rose-400" />
+                        <span>Cancelled Bookings &amp; Reasons ({cancelledBookingsForViewer.length})</span>
+                      </h4>
+                    </div>
+                    <div className="space-y-2">
+                      {cancelledBookingsForViewer.map((b) => {
+                        const actorLabel =
+                          b.cancelledBy === 'client'
+                            ? `Cancelled by Client${viewerRole !== 'client' && b.clientName ? ` (${b.clientName})` : ''}`
+                            : b.cancelledBy === 'admin'
+                            ? 'Cancelled by Admin'
+                            : 'Cancelled by Nurse';
+                        return (
+                          <div key={b.id} className="p-3 rounded-xl bg-slate-950/60 border border-rose-500/25 space-y-1.5 text-xs">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold text-white">{b.serviceName}</span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                                  {actorLabel}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-400">#{b.id}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400">
+                              {b.scheduledDateTime ? `Scheduled: ${new Date(b.scheduledDateTime).toLocaleString()}` : ''}
+                              {b.cancelledAt ? ` • Cancelled: ${new Date(b.cancelledAt).toLocaleString()}` : ''}
+                            </p>
+                            <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/25">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 block mb-0.5">
+                                Reason for Cancellation
+                              </span>
+                              <span className="text-xs text-rose-100 leading-relaxed">
+                                {b.cancelReason || 'No reason provided'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Bio & Care Philosophy */}
                 <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 space-y-2">

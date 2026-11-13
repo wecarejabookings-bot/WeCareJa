@@ -21,9 +21,17 @@ function sanitizeSupabaseKey(raw?: string): string {
   return clean;
 }
 
-// Read Supabase credentials with fallback error message if missing
-const rawEnvUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL || process.env?.VITE_SUPABASE_URL;
-const rawEnvKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY || process.env?.VITE_SUPABASE_ANON_KEY;
+// Read Supabase credentials safely across Vite client, SSR, and Node without throwing ReferenceError
+let rawEnvUrl: string | undefined;
+let rawEnvKey: string | undefined;
+try {
+  rawEnvUrl = import.meta.env?.VITE_SUPABASE_URL;
+  rawEnvKey = import.meta.env?.VITE_SUPABASE_ANON_KEY;
+} catch {}
+try {
+  if (!rawEnvUrl) rawEnvUrl = process.env.VITE_SUPABASE_URL;
+  if (!rawEnvKey) rawEnvKey = process.env.VITE_SUPABASE_ANON_KEY;
+} catch {}
 
 if (!rawEnvUrl || !rawEnvKey) {
   console.warn(
@@ -230,6 +238,35 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
     localUserAccount?.avatarUrl ||
     '';
 
+  const resolvedGender =
+    profile.gender ||
+    localDossier?.gender ||
+    localDossier?.bioData?.gender ||
+    localNurseData?.gender ||
+    localUserAccount?.gender ||
+    localUserAccount?.patientBioData?.gender ||
+    '';
+
+  const resolvedEmergencyContact =
+    profile.emergency_contact ||
+    profile.emergencyContact ||
+    localDossier?.emergencyContact ||
+    localNurseData?.emergencyContact ||
+    localUserAccount?.emergencyContact ||
+    undefined;
+
+  const resolvedPatientBioData =
+    localUserAccount?.patientBioData ||
+    (localDossier?.nextOfKin || resolvedGender
+      ? {
+          knownIllnesses: [],
+          allergies: [],
+          medications: [],
+          ...(resolvedGender ? { gender: resolvedGender } : {}),
+          ...(localDossier?.nextOfKin ? { trustedFamilyMember: localDossier.nextOfKin } : {})
+        }
+      : undefined);
+
   return {
     ...(localUserAccount && cleanMail && localUserAccount.email?.toLowerCase() === cleanMail ? localUserAccount : {}),
     id: profile.id,
@@ -238,6 +275,9 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
     full_name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || '') : '')),
     email: cleanMail || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
     phone: profile.phone || localDossier?.phone || localNurseData?.phone || (isMaster ? '(876) 582-7613' : ''),
+    gender: resolvedGender || undefined,
+    emergencyContact: resolvedEmergencyContact,
+    ...(resolvedPatientBioData && !localUserAccount?.patientBioData ? { patientBioData: resolvedPatientBioData } : {}),
     role: normalizedRole,
     approvalStatus: approvalStatus,
     nurseProfileId: resolvedNurseProfileId,
@@ -289,6 +329,19 @@ export function buildUserAccountFromSession(user: any, fallbackUsername?: string
     full_name: resolvedName,
     email: email || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
     phone: meta.phone || (isMaster ? '(876) 582-7613' : ''),
+    gender: meta.gender || undefined,
+    emergencyContact: meta.emergencyContact || undefined,
+    ...(meta.nextOfKin || meta.gender
+      ? {
+          patientBioData: {
+            knownIllnesses: [],
+            allergies: [],
+            medications: [],
+            ...(meta.gender ? { gender: meta.gender } : {}),
+            ...(meta.nextOfKin ? { trustedFamilyMember: meta.nextOfKin } : {})
+          }
+        }
+      : {}),
     role: role,
     approvalStatus: approvalStatus,
     nurseProfileId: role === 'nurse' ? (meta.nurseProfileId || user.id) : undefined,
@@ -657,6 +710,13 @@ export async function signUpClientUser(data: {
   password: string;
   fullName: string;
   phone: string;
+  gender?: string;
+  emergencyContact?: {
+    name: string;
+    phone: string;
+    relation: string;
+  };
+  nextOfKin?: any;
   address?: string;
   medicalInfo?: string;
 }) {
@@ -693,6 +753,9 @@ export async function signUpClientUser(data: {
           username: cleanUsername,
           full_name: data.fullName,
           phone: data.phone,
+          gender: data.gender || '',
+          emergencyContact: data.emergencyContact || undefined,
+          nextOfKin: data.nextOfKin || undefined,
           role: 'client'
         }
       }
@@ -747,6 +810,19 @@ export async function signUpClientUser(data: {
     full_name: data.fullName,
     email: cleanEmail,
     phone: data.phone,
+    gender: data.gender || undefined,
+    emergencyContact: data.emergencyContact,
+    ...(data.gender || data.nextOfKin
+      ? {
+          patientBioData: {
+            knownIllnesses: [],
+            allergies: [],
+            medications: [],
+            ...(data.gender ? { gender: data.gender } : {}),
+            ...(data.nextOfKin ? { trustedFamilyMember: data.nextOfKin } : {})
+          }
+        }
+      : {}),
     role: 'client',
     approvalStatus: 'approved',
     title: 'Verified Family Client',
@@ -1308,41 +1384,50 @@ export async function fetchBookingsFromSupabase(): Promise<Booking[]> {
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data)) {
-      return data.map((b: any) => ({
-        id: b.id,
-        serviceId: b.service_id || '',
-        serviceName: b.service_name || '',
-        clientId: b.client_id || '',
-        clientName: b.client_name || '',
-        clientPhone: b.client_phone || '',
-        clientAddress: b.client_address || '',
-        zone: b.zone || '',
-        ...(b.emergency_name || b.emergency_phone
-          ? {
-              clientEmergencyContact: {
-                name: b.emergency_name || '',
-                phone: b.emergency_phone || '',
-                relation: b.emergency_relation || ''
+      return data.map((b: any) => {
+        const rawNotes = typeof b.notes === 'string' ? b.notes : '';
+        const cancelNoteMatch = rawNotes.match(/\[Cancelled by (client|nurse|admin) at ([^\]]+)\]:\s*(.*)$/is);
+        const parsedCancelledBy = (cancelNoteMatch?.[1]?.toLowerCase() as 'client' | 'nurse' | 'admin' | undefined);
+        const parsedCancelledAt = cancelNoteMatch?.[2]?.trim() || undefined;
+        const parsedCancelReason = cancelNoteMatch?.[3]?.trim() || undefined;
+        const cleanedNotes = cancelNoteMatch ? rawNotes.replace(cancelNoteMatch[0], '').trim() : rawNotes;
+
+        return {
+          id: b.id,
+          serviceId: b.service_id || '',
+          serviceName: b.service_name || '',
+          clientId: b.client_id || '',
+          clientName: b.client_name || '',
+          clientPhone: b.client_phone || '',
+          clientAddress: b.client_address || '',
+          zone: b.zone || '',
+          ...(b.emergency_name || b.emergency_phone
+            ? {
+                clientEmergencyContact: {
+                  name: b.emergency_name || '',
+                  phone: b.emergency_phone || '',
+                  relation: b.emergency_relation || ''
+                }
               }
-            }
-          : {}),
-        nurseId: b.nurse_id || undefined,
-        nurseName: b.nurse_name || undefined,
-        scheduledDateTime: b.scheduled_datetime || b.created_at,
-        createdAt: b.created_at || new Date().toISOString(),
-        status: b.status || 'requested',
-        priceJMD: Number(b.price_jmd || 0),
-        platformFeeJMD: Number(b.platform_fee_jmd || 0),
-        nurseEarningsJMD: Number(b.nurse_earnings_jmd || 0),
-        paymentMethod: b.payment_method || 'cash_on_delivery',
-        paymentStatus: b.payment_status || (b.status === 'cancelled' ? 'refunded' : 'held_in_escrow'),
-        cancelReason: b.cancel_reason || undefined,
-        cancelledBy: b.cancelled_by || undefined,
-        cancelledAt: b.cancelled_at || undefined,
-        freeCancelDeadline: b.free_cancel_deadline || new Date(Date.now() + 86400000).toISOString(),
-        supplies_checklist_ack: Boolean(b.supplies_checklist_ack),
-        notes: b.notes || ''
-      }));
+            : {}),
+          nurseId: b.nurse_id || undefined,
+          nurseName: b.nurse_name || undefined,
+          scheduledDateTime: b.scheduled_datetime || b.created_at,
+          createdAt: b.created_at || new Date().toISOString(),
+          status: b.status || 'requested',
+          priceJMD: Number(b.price_jmd || 0),
+          platformFeeJMD: Number(b.platform_fee_jmd || 0),
+          nurseEarningsJMD: Number(b.nurse_earnings_jmd || 0),
+          paymentMethod: b.payment_method || 'cash_on_delivery',
+          paymentStatus: b.payment_status || (b.status === 'cancelled' ? 'refunded' : 'held_in_escrow'),
+          cancelReason: b.cancel_reason || parsedCancelReason || undefined,
+          cancelledBy: b.cancelled_by || parsedCancelledBy || undefined,
+          cancelledAt: b.cancelled_at || parsedCancelledAt || undefined,
+          freeCancelDeadline: b.free_cancel_deadline || new Date(Date.now() + 86400000).toISOString(),
+          supplies_checklist_ack: Boolean(b.supplies_checklist_ack),
+          notes: cleanedNotes
+        };
+      });
     }
   } catch (err) {
     console.warn('Could not read bookings from Supabase:', err);
@@ -1583,6 +1668,8 @@ export async function saveNurseProfileToSupabase(nurse: NurseProfile): Promise<b
       email: cleanEmail || existingDossier.email,
       username: cleanUsername || existingDossier.username,
       fullName: cleanName || existingDossier.fullName,
+      gender: (nurse as any).gender || existingDossier.gender,
+      emergencyContact: (nurse as any).emergencyContact || existingDossier.emergencyContact,
       trnNumber: nurse.trnNumber || existingDossier.trnNumber,
       ncjLicense: nurse.nursingCouncilLicense || existingDossier.ncjLicense,
       driversLicenseNumber: nurse.driversLicenseNumber || existingDossier.driversLicenseNumber,

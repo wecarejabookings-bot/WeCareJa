@@ -116,6 +116,7 @@ import {
   Building,
   Banknote,
   X,
+  XCircle,
   Users
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -572,6 +573,13 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   }, [bookings, currentUser?.id, isUserAdmin]);
   const activeBookingsList = clientBookings.filter(b => ['requested', 'accepted', 'en_route', 'in_progress'].includes(b.status));
   const completedBookingsList = clientBookings.filter(b => ['completed', 'cancelled', 'disputed', 'closed'].includes(b.status) || (b.clinicalNotes && b.status !== 'cancelled'));
+  const cancelledBookingsList = useMemo(
+    () =>
+      clientBookings
+        .filter(b => b.status === 'cancelled')
+        .sort((a, b) => new Date(b.cancelledAt || b.scheduledDateTime).getTime() - new Date(a.cancelledAt || a.scheduledDateTime).getTime()),
+    [clientBookings]
+  );
 
   // Frequent Bookings based on past history for 1-Tap Re-Booking
   const clientFrequentBookings = useMemo(() => {
@@ -3327,6 +3335,70 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         )}
       </SmartBookingSearch>
     )}
+
+          {cancelledBookingsList.length > 0 && (
+            <div className="bg-rose-950/20 backdrop-blur-xl rounded-3xl p-5 border border-rose-500/30 space-y-3 mt-4">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-sm font-black text-rose-200 flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>Cancelled Bookings &amp; Reasons ({cancelledBookingsList.length})</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => {
+                    soundFX.playTabSwitch();
+                    setActiveTab('history');
+                  }}
+                  className="text-[11px] font-bold text-rose-300 hover:text-white underline cursor-pointer"
+                >
+                  View in History
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {cancelledBookingsList.map((booking) => {
+                  const actorLabel =
+                    booking.cancelledBy === 'nurse'
+                      ? `Cancelled by Nurse${booking.nurseName ? ` (${booking.nurseName})` : ''}`
+                      : booking.cancelledBy === 'admin'
+                      ? 'Cancelled by Admin'
+                      : 'Cancelled by Client';
+                  return (
+                    <div
+                      key={booking.id}
+                      className="p-4 rounded-2xl bg-slate-950/60 border border-rose-500/25 space-y-2 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 inline-block mb-1">
+                            {actorLabel}
+                          </span>
+                          <p className="font-bold text-white text-sm">{booking.serviceName}</p>
+                          <p className="text-[11px] text-slate-400">
+                            {booking.nurseName ? `Practitioner: ${booking.nurseName} • ` : ''}
+                            {booking.scheduledDateTime ? new Date(booking.scheduledDateTime).toLocaleString() : 'Schedule N/A'}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 shrink-0">#{booking.id}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-rose-300 mb-0.5">
+                          Reason for Cancellation
+                        </p>
+                        <p className="text-xs text-rose-100 leading-relaxed">
+                          {booking.cancelReason || 'No reason provided'}
+                        </p>
+                      </div>
+                      {booking.cancelledAt && (
+                        <p className="text-[10px] text-slate-400">
+                          Cancelled on {new Date(booking.cancelledAt).toLocaleString()}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -3641,6 +3713,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
         isOpen={!!viewingNurseProfile}
         onClose={() => setViewingNurseProfile(null)}
         viewerRole="client"
+        currentUserId={currentUser?.id}
         allBookings={bookings}
         requestedDate={visitDate}
         requestedTime={visitTime}
@@ -3741,6 +3814,7 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
           user={currentUser}
           onUpdateUser={onUpdateUser}
           viewerRole="client"
+          bookings={clientBookings}
         />
       )}
 

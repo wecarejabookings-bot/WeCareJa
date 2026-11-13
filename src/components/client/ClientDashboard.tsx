@@ -819,6 +819,47 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
               </button>
             </div>
           )}
+
+          {/* Cancelled Bookings & Reasons */}
+          {bookings.some(b => b.status === 'cancelled') && (
+            <div className="space-y-3 pt-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-rose-300 flex items-center gap-1.5">
+                <XCircle className="w-4 h-4 text-rose-400" />
+                <span>Cancelled Bookings ({bookings.filter(b => b.status === 'cancelled').length})</span>
+              </h4>
+              <div className="space-y-2.5">
+                {bookings
+                  .filter(b => b.status === 'cancelled')
+                  .sort((a, b) => new Date(b.cancelledAt || b.scheduledDateTime).getTime() - new Date(a.cancelledAt || a.scheduledDateTime).getTime())
+                  .map((booking, idx) => (
+                    <div
+                      key={`cancelled-booking-${booking.id || idx}-${idx}`}
+                      className="p-4 rounded-2xl bg-rose-950/25 border border-rose-500/30 space-y-2 text-xs"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <h5 className="text-sm font-bold text-white">{booking.serviceName}</h5>
+                          <p className="text-slate-300 mt-0.5">
+                            Nurse: <strong className="text-white">{booking.nurseName || 'Unassigned'}</strong> • {formatVisitSchedule(booking.scheduledDateTime, booking.date)}
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-500/30">
+                          {booking.cancelledBy === 'nurse'
+                            ? `Cancelled by Nurse${booking.nurseName ? ` (${booking.nurseName})` : ''}`
+                            : booking.cancelledBy === 'admin'
+                            ? 'Cancelled by Admin'
+                            : 'Cancelled by Client'}
+                        </span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-black/30 border border-rose-500/20 text-rose-100">
+                        <strong className="text-rose-300">Reason: </strong>
+                        <span>{booking.cancelReason || 'No reason provided'}</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Active Medical Milestones & Daily Adherence */}

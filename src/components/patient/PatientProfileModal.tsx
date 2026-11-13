@@ -41,7 +41,8 @@ import {
   HelpCircle,
   RotateCcw,
   Bell,
-  Volume2
+  Volume2,
+  XCircle
 } from 'lucide-react';
 import { 
   UserAccount, 
@@ -49,7 +50,8 @@ import {
   ClientPatientBioData, 
   TrustedFamilyMember, 
   MedicationComplianceEntry, 
-  DailyMedicationReminder 
+  DailyMedicationReminder,
+  Booking
 } from '../../types';
 import { ALL_SERVICE_ZONES } from '../../data/mockData';
 import { soundFX } from '../../utils/soundEffects';
@@ -63,6 +65,7 @@ interface PatientProfileModalProps {
   user: UserAccount;
   onUpdateUser: (updatedUser: UserAccount) => void;
   viewerRole?: 'client' | 'nurse' | 'admin';
+  bookings?: Booking[];
 }
 
 const COMMON_ILLNESS_OPTIONS = [
@@ -402,10 +405,15 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   onClose,
   user,
   onUpdateUser,
-  viewerRole = 'client'
+  viewerRole = 'client',
+  bookings = []
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'medications' | 'family' | 'share' | 'devices'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'medications' | 'family' | 'share' | 'devices' | 'cancellations'>('overview');
   const [isSyncHealthDataModalOpen, setIsSyncHealthDataModalOpen] = useState(false);
+
+  const cancelledBookings = (bookings || [])
+    .filter((b) => b.status === 'cancelled')
+    .sort((a, b) => new Date(b.cancelledAt || b.scheduledDateTime).getTime() - new Date(a.cancelledAt || a.scheduledDateTime).getTime());
   const [copiedLink, setCopiedLink] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<string>('Just now');
@@ -417,7 +425,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
   const initialBio: ClientPatientBioData = user.patientBioData || {
     dateOfBirth: user.dateOfBirth || '',
     age: user.careRecipient?.age || undefined,
-    gender: '' as any,
+    gender: (user.gender || '') as any,
     bloodType: '',
     residentialAddress: user.address || '',
     zone: user.zone || '',
@@ -431,9 +439,12 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
       name: user.emergencyContact?.name || '',
       relation: user.emergencyContact?.relation || '',
       phone: user.emergencyContact?.phone || '',
-      email: '',
-      photoUrl: '',
-      canManageCare: true,
+      email: user.accountHolder?.email || '',
+      address: user.accountHolder?.billingAddress || '',
+      dateOfBirth: user.repDateOfBirth || '',
+      photoUrl: user.repPhotoUrl || '',
+      canManageCare: Boolean(user.isBookingOnBehalf),
+      isAuthorizedUser: Boolean(user.isBookingOnBehalf),
       notes: ''
     },
     profileSharedWith: []
@@ -671,7 +682,7 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
       setCurrentBio({
         dateOfBirth: user.dateOfBirth || '',
         age: user.careRecipient?.age || undefined,
-        gender: '' as any,
+        gender: (user.gender || '') as any,
         bloodType: '',
         residentialAddress: user.address || '',
         zone: user.zone || '',
@@ -685,9 +696,12 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
           name: user.emergencyContact?.name || '',
           relation: user.emergencyContact?.relation || '',
           phone: user.emergencyContact?.phone || '',
-          email: '',
-          photoUrl: '',
-          canManageCare: true,
+          email: user.accountHolder?.email || '',
+          address: user.accountHolder?.billingAddress || '',
+          dateOfBirth: user.repDateOfBirth || '',
+          photoUrl: user.repPhotoUrl || '',
+          canManageCare: Boolean(user.isBookingOnBehalf),
+          isAuthorizedUser: Boolean(user.isBookingOnBehalf),
           notes: ''
         },
         profileSharedWith: []
@@ -725,10 +739,13 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
 
       const updatedUser: UserAccount = {
         ...user,
+        gender: currentBio.gender || user.gender,
         patientBioData: updatedBio,
         medicationReminders: medicationReminders,
         address: address || user.address,
         zone: zone || user.zone,
+        repDateOfBirth: currentBio.trustedFamilyMember?.dateOfBirth || user.repDateOfBirth,
+        isBookingOnBehalf: currentBio.trustedFamilyMember?.isAuthorizedUser ?? user.isBookingOnBehalf,
         emergencyContact: currentBio.trustedFamilyMember ? {
           name: currentBio.trustedFamilyMember.name,
           phone: currentBio.trustedFamilyMember.phone,
@@ -1026,7 +1043,8 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
             { id: 'medications', label: `2. Daily Medication Reminders (${medicationReminders.length})`, icon: Bell, badge: `${medicationReminders.filter(r => r.takenToday).length}/${medicationReminders.length} Taken` },
             { id: 'family', label: '3. Family Guardian', icon: Users, badge: 'Emergency' },
             { id: 'share', label: '4. Share Care Summary', icon: Share2, badge: 'WhatsApp' },
-            { id: 'devices', label: '5. Sync Health Devices', icon: Activity, badge: `${(currentBio.vitalsLog || []).length} Readings` }
+            { id: 'devices', label: '5. Sync Health Devices', icon: Activity, badge: `${(currentBio.vitalsLog || []).length} Readings` },
+            { id: 'cancellations', label: `6. Cancelled Bookings`, icon: XCircle, badge: `${cancelledBookings.length}` }
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1060,6 +1078,44 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
           {/* TAB 1: HEALTH & MEDICAL BIO */}
           {activeTab === 'overview' && (
             <div className="space-y-4 animate-fadeIn">
+              {/* Cancelled Bookings Alert on Profile Overview */}
+              {cancelledBookings.length > 0 && (
+                <div className="p-4 rounded-2xl bg-rose-950/50 border border-rose-500/40 space-y-2.5 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-rose-200 flex items-center gap-1.5">
+                      <XCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      Cancelled Bookings ({cancelledBookings.length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('cancellations')}
+                      className="text-[11px] font-bold text-rose-300 hover:text-white underline cursor-pointer"
+                    >
+                      View All Reasons
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {cancelledBookings.slice(0, 2).map((b) => (
+                      <div key={b.id} className="p-2.5 rounded-xl bg-black/30 border border-rose-500/25 space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-1.5">
+                          <strong className="text-white">{b.serviceName} (#{b.id})</strong>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-500/30">
+                            {b.cancelledBy === 'nurse'
+                              ? `Cancelled by Nurse${b.nurseName ? ` (${b.nurseName})` : ''}`
+                              : b.cancelledBy === 'admin'
+                              ? 'Cancelled by Admin'
+                              : 'Cancelled by Client'}
+                          </span>
+                        </div>
+                        <p className="text-rose-100/90 text-[11px]">
+                          <strong>Reason:</strong> {b.cancelReason || 'No reason provided'}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Quick Auto-Save Notification Banner */}
               <div className="p-3 rounded-2xl bg-purple-950/40 border border-purple-500/25 flex items-center justify-between gap-2 text-xs text-purple-200">
                 <div className="flex items-center gap-2">
@@ -1228,6 +1284,21 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                       {ALL_SERVICE_ZONES.map(z => (
                         <option key={z} value={z}>{z}</option>
                       ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-300 block mb-1">Patient Gender</label>
+                    <select
+                      value={currentBio.gender || user.gender || ''}
+                      onChange={(e) => setCurrentBio(prev => ({ ...prev, gender: e.target.value }))}
+                      disabled={viewerRole !== 'client'}
+                      className="w-full p-2.5 rounded-xl bg-[#1b072c] border border-white/15 text-white focus:outline-none focus:ring-1 focus:ring-purple-400 disabled:opacity-70"
+                    >
+                      <option value="">Select gender...</option>
+                      <option value="female">Female</option>
+                      <option value="male">Male</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
                     </select>
                   </div>
                 </div>
@@ -2266,6 +2337,105 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                         />
                       </div>
                     </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 block font-bold mb-1">Date of Birth</label>
+                      <input
+                        type="date"
+                        value={currentBio.trustedFamilyMember.dateOfBirth || ''}
+                        onChange={(e) => handleUpdateFamilyMember('dateOfBirth', e.target.value)}
+                        className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-bold text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-slate-400 block font-bold mb-1">Alternate Phone</label>
+                      <input
+                        type="tel"
+                        value={currentBio.trustedFamilyMember.alternatePhone || ''}
+                        onChange={(e) => handleUpdateFamilyMember('alternatePhone', e.target.value)}
+                        className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-bold text-xs focus:outline-none"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="text-[10px] text-slate-400 block font-bold mb-1">Next of Kin Residential / Contact Address</label>
+                      <input
+                        type="text"
+                        value={currentBio.trustedFamilyMember.address || ''}
+                        onChange={(e) => handleUpdateFamilyMember('address', e.target.value)}
+                        className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-bold text-xs focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Authorized User Designation & Permissions */}
+                  <div className="p-3.5 rounded-2xl bg-purple-950/35 border border-purple-500/30 space-y-2.5">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(currentBio.trustedFamilyMember.isAuthorizedUser)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setCurrentBio(prev => ({
+                            ...prev,
+                            trustedFamilyMember: prev.trustedFamilyMember
+                              ? {
+                                  ...prev.trustedFamilyMember,
+                                  isAuthorizedUser: checked,
+                                  canManageCare: checked
+                                }
+                              : undefined
+                          }));
+                        }}
+                        className="mt-0.5 rounded text-purple-500 bg-black/40 border-white/20"
+                      />
+                      <div className="text-xs">
+                        <span className="font-bold text-white block">Authorized User on Client Account</span>
+                        <span className="text-[11px] text-purple-200/80 block">
+                          Next of Kin can act on the client&apos;s behalf using the authorized permissions selected below.
+                        </span>
+                      </div>
+                    </label>
+
+                    {Boolean(currentBio.trustedFamilyMember.isAuthorizedUser) && (
+                      <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        {[
+                          { key: 'canBookServices' as const, label: 'Book & Schedule Care Visits' },
+                          { key: 'canCancelBookings' as const, label: 'Cancel or Reschedule Bookings' },
+                          { key: 'canApproveVisitCodes' as const, label: 'Approve Visit Start & End Codes' },
+                          { key: 'canViewMedicalRecords' as const, label: 'View Medical Bio & Medications' },
+                          { key: 'canManagePayments' as const, label: 'Manage Billing & Payments' }
+                        ].map(perm => (
+                          <label
+                            key={perm.key}
+                            className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-white/10 text-slate-200 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(currentBio.trustedFamilyMember?.authorizedPermissions?.[perm.key])}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                setCurrentBio(prev => ({
+                                  ...prev,
+                                  trustedFamilyMember: prev.trustedFamilyMember
+                                    ? {
+                                        ...prev.trustedFamilyMember,
+                                        authorizedPermissions: {
+                                          ...(prev.trustedFamilyMember.authorizedPermissions || {}),
+                                          [perm.key]: val
+                                        }
+                                      }
+                                    : undefined
+                                }));
+                              }}
+                              className="w-3.5 h-3.5 rounded text-purple-500 bg-black/50 border-white/20"
+                            />
+                            <span>{perm.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -2473,6 +2643,64 @@ export const PatientProfileModal: React.FC<PatientProfileModalProps> = ({
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* TAB 6: CANCELLED BOOKINGS & CANCELLATION REASONS */}
+          {activeTab === 'cancellations' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/30 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                    <XCircle className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black text-white">Cancelled Bookings &amp; Reasons</h4>
+                    <p className="text-xs text-rose-200/80">Record of visits cancelled by nurses, clients, or administration along with the stated reason.</p>
+                  </div>
+                </div>
+              </div>
+
+              {cancelledBookings.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-white/[0.03] border border-white/10 text-center text-xs text-slate-400">
+                  No cancelled bookings on this profile.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {cancelledBookings.map((b) => (
+                    <div key={b.id} className="p-4 rounded-2xl bg-white/[0.04] border border-rose-500/30 space-y-2 text-xs">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <span className="font-mono text-[10px] text-purple-300">#{b.id}</span>
+                          <h5 className="text-sm font-bold text-white">{b.serviceName}</h5>
+                          <p className="text-[11px] text-slate-300 mt-0.5">
+                            Practitioner: <strong className="text-white">{b.nurseName || 'Unassigned'}</strong> • Scheduled: {new Date(b.scheduledDateTime).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-200 border border-rose-500/30">
+                            {b.cancelledBy === 'nurse'
+                              ? `Cancelled by Nurse${b.nurseName ? `: ${b.nurseName}` : ''}`
+                              : b.cancelledBy === 'admin'
+                              ? 'Cancelled by Admin'
+                              : 'Cancelled by Client'}
+                          </span>
+                          {b.cancelledAt && (
+                            <span className="block text-[10px] text-slate-400">
+                              {new Date(b.cancelledAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-100">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-300 block mb-0.5">Reason for Cancellation</span>
+                        <p className="text-xs leading-relaxed">{b.cancelReason || 'No reason specified'}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

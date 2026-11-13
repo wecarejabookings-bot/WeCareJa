@@ -378,11 +378,18 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     repName: '',
     repRelation: '',
     repPhone: '',
+    repAlternatePhone: '',
     repEmail: '',
     repAddress: '',
     repDateOfBirth: '',
     repPhotoUrl: '',
     repNotes: '',
+    repIsAuthorizedUser: false,
+    repAuthCanBook: false,
+    repAuthCanCancel: false,
+    repAuthCanApproveCodes: false,
+    repAuthCanViewMedical: false,
+    repAuthCanManagePayments: false,
     customIllness: '',
     customAllergy: '',
     dietaryRestrictions: '',
@@ -404,6 +411,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     accountNumber: '',
     lynkWallet: '',
     nurseEmergencyContact: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    emergencyContactRelation: '',
     adminTitle: '',
     adminDepartment: '',
     adminStaffId: '',
@@ -453,6 +463,18 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const repRelation = formData.repRelation || '';
   const setRepRelation = (v: string) => handleInputChange('repRelation', v);
   const repPhone = formData.repPhone || '';
+  const repAlternatePhone = formData.repAlternatePhone || '';
+  const emergencyContactName = formData.emergencyContactName || formData.nurseEmergencyContact || '';
+  const emergencyContactPhone = formData.emergencyContactPhone || '';
+  const emergencyContactRelation = formData.emergencyContactRelation || '';
+  const repIsAuthorizedUser = Boolean(formData.repIsAuthorizedUser);
+  const repAuthorizedPermissions = {
+    canBookServices: Boolean(formData.repAuthCanBook),
+    canCancelBookings: Boolean(formData.repAuthCanCancel),
+    canApproveVisitCodes: Boolean(formData.repAuthCanApproveCodes),
+    canViewMedicalRecords: Boolean(formData.repAuthCanViewMedical),
+    canManagePayments: Boolean(formData.repAuthCanManagePayments)
+  };
   const setRepPhone = (v: string) => handleInputChange('repPhone', v);
   const repEmail = formData.repEmail || '';
   const setRepEmail = (v: string) => handleInputChange('repEmail', v);
@@ -730,6 +752,18 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         setErrorMsg('Please enter your telephone number.');
         return;
       }
+      if (!dateOfBirth.trim()) {
+        setErrorMsg('Please enter your date of birth.');
+        return;
+      }
+      if (!gender.trim()) {
+        setErrorMsg('Please select your gender.');
+        return;
+      }
+      if (!parish.trim()) {
+        setErrorMsg('Please select your primary parish.');
+        return;
+      }
       if (!address.trim()) {
         setErrorMsg('Please enter your street address.');
         return;
@@ -738,11 +772,38 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       soundFX.playStepComplete();
     } else if (clientStep === 2) {
       if (!repName.trim()) {
-        setErrorMsg('Please provide the full name of your Next of Kin or representative using the app on your behalf.');
+        setErrorMsg('Please provide the full legal name of your Next of Kin or Authorized Representative.');
+        return;
+      }
+      if (!repRelation.trim()) {
+        setErrorMsg('Please select your Next of Kin\'s relationship to the patient.');
         return;
       }
       if (!repPhone.trim()) {
-        setErrorMsg('Please provide a contact telephone number for your Next of Kin / representative.');
+        setErrorMsg('Please provide a contact telephone number for your Next of Kin.');
+        return;
+      }
+      if (!repEmail.trim() || !repEmail.includes('@')) {
+        setErrorMsg('Please provide a valid email address for your Next of Kin (required since Next of Kin can act as an Authorized User).');
+        return;
+      }
+      if (!repDateOfBirth.trim()) {
+        setErrorMsg('Please provide the Date of Birth of your Next of Kin for identity & Authorized User verification.');
+        return;
+      }
+      if (!repAddress.trim()) {
+        setErrorMsg('Please provide the residential/contact address of your Next of Kin.');
+        return;
+      }
+      if (
+        repIsAuthorizedUser &&
+        !repAuthorizedPermissions.canBookServices &&
+        !repAuthorizedPermissions.canCancelBookings &&
+        !repAuthorizedPermissions.canApproveVisitCodes &&
+        !repAuthorizedPermissions.canViewMedicalRecords &&
+        !repAuthorizedPermissions.canManagePayments
+      ) {
+        setErrorMsg('Please select at least one Authorized User permission for your Next of Kin, or uncheck Authorized User designation.');
         return;
       }
       setClientStep(3);
@@ -788,6 +849,34 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       }
       if (!phone.trim()) {
         setErrorMsg('Please enter your Jamaican contact phone.');
+        return;
+      }
+      if (!dateOfBirth.trim()) {
+        setErrorMsg('Please enter your date of birth.');
+        return;
+      }
+      if (!gender.trim()) {
+        setErrorMsg('Please select your gender.');
+        return;
+      }
+      if (!parish.trim()) {
+        setErrorMsg('Please select your primary parish.');
+        return;
+      }
+      if (!address.trim()) {
+        setErrorMsg('Please enter your residential street address.');
+        return;
+      }
+      if (!emergencyContactName.trim()) {
+        setErrorMsg('Please provide your Emergency Contact / Next of Kin full name.');
+        return;
+      }
+      if (!emergencyContactPhone.trim()) {
+        setErrorMsg('Please provide your Emergency Contact / Next of Kin telephone number.');
+        return;
+      }
+      if (!emergencyContactRelation.trim()) {
+        setErrorMsg('Please specify your relationship to your Emergency Contact / Next of Kin.');
         return;
       }
       setNurseStep(2);
@@ -848,12 +937,30 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       return;
     }
 
-    if (role === 'client' && !clientConsentDPA) {
-      setErrorMsg('Please review and agree to the Jamaica Data Protection Act 2020 consent terms to complete registration.');
-      return;
+    if (role === 'client') {
+      if (!gender.trim()) {
+        setErrorMsg('Please select your gender before completing registration.');
+        setClientStep(1);
+        return;
+      }
+      if (!repName.trim() || !repRelation.trim() || !repPhone.trim() || !repEmail.trim() || !repDateOfBirth.trim() || !repAddress.trim()) {
+        setErrorMsg('All Next of Kin / Authorized User details (Name, Relationship, Phone, Email, Date of Birth, and Address) are required.');
+        setClientStep(2);
+        return;
+      }
+      if (!clientConsentDPA) {
+        setErrorMsg('Please review and agree to the Jamaica Data Protection Act 2020 consent terms to complete registration.');
+        return;
+      }
     }
 
     if (role === 'nurse') {
+      if (!gender.trim() || !emergencyContactName.trim() || !emergencyContactPhone.trim() || !emergencyContactRelation.trim()) {
+        setErrorMsg('Please provide your Gender and complete Emergency Contact / Next of Kin information in Step 1.');
+        setNurseStep(1);
+        soundFX.playWarningSound();
+        return;
+      }
       const trnDigits = (formData.nurseTrn || nurseTrn).replace(/\D/g, '');
       if (trnDigits.length !== 9) {
         setErrorMsg('Jamaican TRN must be exactly 9 digits (Format: XXX-XXX-XXX).');
@@ -870,6 +977,16 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     }
 
     if (role === 'admin') {
+      if (!fullName.trim() || !username.trim() || !email.trim() || !phone.trim() || !dateOfBirth.trim() || !gender.trim() || !parish.trim() || !address.trim()) {
+        setErrorMsg('Please complete all required personal profile fields including Gender, Date of Birth, Parish, and Address.');
+        soundFX.playWarningSound();
+        return;
+      }
+      if (!emergencyContactName.trim() || !emergencyContactPhone.trim() || !emergencyContactRelation.trim()) {
+        setErrorMsg('Please provide your Emergency Contact / Next of Kin Name, Phone, and Relationship.');
+        soundFX.playWarningSound();
+        return;
+      }
       if (!adminPasskey || !adminPasskey.trim()) {
         setErrorMsg('Administrative security clearance passkey is required.');
         soundFX.playWarningSound();
@@ -923,6 +1040,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
               password: password.trim(),
               fullName: cleanFullName,
               phone: cleanPhone,
+              gender: gender,
+              emergencyContact: {
+                name: emergencyContactName.trim(),
+                phone: emergencyContactPhone.trim(),
+                relation: emergencyContactRelation.trim()
+              },
               address: cleanAddress,
               parish: parish,
               adminTitle: adminTitle,
@@ -1054,7 +1177,34 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
               full_name: cleanFullName,
               role: dbRole,
               phone: cleanPhone,
-              address: cleanAddress
+              address: cleanAddress,
+              gender: gender,
+              emergencyContact: role === 'client'
+                ? {
+                    name: repName.trim(),
+                    phone: repPhone.trim(),
+                    relation: repRelation.trim()
+                  }
+                : {
+                    name: emergencyContactName.trim(),
+                    phone: emergencyContactPhone.trim(),
+                    relation: emergencyContactRelation.trim()
+                  },
+              ...(role === 'client' ? {
+                nextOfKin: {
+                  name: repName.trim(),
+                  relation: repRelation.trim(),
+                  phone: repPhone.trim(),
+                  alternatePhone: repAlternatePhone.trim() || undefined,
+                  email: repEmail.trim(),
+                  address: repAddress.trim(),
+                  dateOfBirth: repDateOfBirth.trim(),
+                  isAuthorizedUser: repIsAuthorizedUser,
+                  canManageCare: repIsAuthorizedUser,
+                  authorizedPermissions: repAuthorizedPermissions,
+                  notes: repNotes.trim()
+                }
+              } : {})
             }
           }
         });
@@ -1107,6 +1257,21 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       }
 
       // Construct comprehensive dossier payload with FINAL canonical userId & verified document URLs
+      const clientNextOfKinPayload = role === 'client' ? {
+        name: repName.trim(),
+        relation: repRelation.trim(),
+        phone: repPhone.trim(),
+        alternatePhone: repAlternatePhone.trim() || undefined,
+        email: repEmail.trim(),
+        address: repAddress.trim(),
+        dateOfBirth: repDateOfBirth.trim(),
+        photoUrl: defaultRepPhoto,
+        isAuthorizedUser: repIsAuthorizedUser,
+        canManageCare: repIsAuthorizedUser,
+        authorizedPermissions: repAuthorizedPermissions,
+        notes: repNotes.trim()
+      } : undefined;
+
       const dossierPayload = role === 'nurse' ? {
         type: 'nurse',
         username: cleanUsername,
@@ -1117,11 +1282,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         parish: parish,
         dateOfBirth: dateOfBirth,
         gender: gender,
-        emergencyContact: nurseEmergencyContact.trim() ? {
-          name: nurseEmergencyContact.trim(),
-          phone: cleanPhone,
-          relation: 'Emergency Contact'
-        } : undefined,
+        emergencyContact: {
+          name: emergencyContactName.trim(),
+          phone: emergencyContactPhone.trim(),
+          relation: emergencyContactRelation.trim()
+        },
         trnNumber: nurseTrn.trim(),
         ncjLicense: nurseNcjLicense.trim(),
         driversLicenseNumber: driversLicenseNumber.trim(),
@@ -1168,6 +1333,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         parish: parish,
         dateOfBirth: dateOfBirth,
         gender: gender,
+        emergencyContact: {
+          name: emergencyContactName.trim(),
+          phone: emergencyContactPhone.trim(),
+          relation: emergencyContactRelation.trim()
+        },
         staffId: adminStaffId,
         department: adminDepartment,
         title: adminTitle,
@@ -1213,11 +1383,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         trnCertificateUrl: finalTrnCertUrl,
         proofOfAddressUrl: finalProofOfAddressUrl,
         driversLicenseNumber: driversLicenseNumber.trim() || undefined,
-        emergencyContact: (repName.trim() || repPhone.trim()) ? {
+        emergencyContact: {
           name: repName.trim(),
           phone: repPhone.trim(),
           relation: repRelation.trim()
-        } : undefined,
+        },
+        nextOfKin: clientNextOfKinPayload,
         documents: {
           profilePhotoUrl: finalProfilePhotoUrl || undefined,
           governmentIdUrl: finalGovIdUrl,
@@ -1297,9 +1468,14 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           name: repName.trim(),
           relation: repRelation.trim(),
           phone: repPhone.trim(),
+          alternatePhone: repAlternatePhone.trim() || undefined,
           email: repEmail.trim(),
+          address: repAddress.trim(),
+          dateOfBirth: repDateOfBirth.trim(),
           photoUrl: defaultRepPhoto,
-          canManageCare: true,
+          canManageCare: repIsAuthorizedUser,
+          isAuthorizedUser: repIsAuthorizedUser,
+          authorizedPermissions: repAuthorizedPermissions,
           notes: repNotes.trim(),
           whatsAppUpdatesOptIn: Boolean(repPhone.trim()),
           whatsAppPhone: repPhone.trim()
@@ -1332,6 +1508,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           full_name: cleanFullName,
           email: cleanEmail,
           phone: cleanPhone,
+          gender: gender,
           avatarUrl: finalProfilePhotoUrl || defaultPatientPhoto,
           avatar: finalProfilePhotoUrl || defaultPatientPhoto,
           zone: parish,
@@ -1339,6 +1516,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           dateOfBirth: dateOfBirth,
           repPhotoUrl: defaultRepPhoto,
           repDateOfBirth: repDateOfBirth,
+          isBookingOnBehalf: repIsAuthorizedUser,
           ...(hasRep ? {
             emergencyContact: {
               name: repName.trim() && repRelation.trim() ? `${repName.trim()} (${repRelation.trim()})` : (repName.trim() || repRelation.trim()),
@@ -1359,6 +1537,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           createdAt: new Date().toISOString()
         };
       } else if (role === 'nurse') {
+        const resolvedNurseEmergencyContact = {
+          name: emergencyContactName.trim(),
+          phone: emergencyContactPhone.trim(),
+          relation: emergencyContactRelation.trim()
+        };
         // Nurse Profile: created in 'pending_approval' for Admin Review
         const newNurseProfile: NurseProfile = {
           id: userId,
@@ -1402,13 +1585,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             gender: gender as any,
             residentialAddress: cleanAddress,
             residentialParish: parish,
-            ...(nurseEmergencyContact.trim() ? {
-              emergencyContact: {
-                name: nurseEmergencyContact.trim(),
-                phone: cleanPhone,
-                relation: 'Emergency Contact'
-              }
-            } : {}),
+            emergencyContact: resolvedNurseEmergencyContact,
             nationalIdNumber: nurseTrn.trim()
           },
           submittedForReviewAt: new Date().toISOString(),
@@ -1426,7 +1603,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         } catch {}
 
         // Persist to Supabase public.profiles safely while preserving DOSSIER & biometric scan
-        saveNurseProfileToSupabase({ ...newNurseProfile, biometricVerification: finalBiometricRecord } as any).then(() => {}, () => {});
+        saveNurseProfileToSupabase({
+          ...newNurseProfile,
+          gender,
+          emergencyContact: resolvedNurseEmergencyContact,
+          biometricVerification: finalBiometricRecord
+        } as any).then(() => {}, () => {});
 
         newAccount = {
           id: userId,
@@ -1439,6 +1621,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           approvalStatus: 'pending_approval',
           nurseProfileId: userId,
           phone: cleanPhone,
+          gender: gender,
+          emergencyContact: resolvedNurseEmergencyContact,
           address: cleanAddress,
           zone: parish,
           dateOfBirth: dateOfBirth,
@@ -1451,6 +1635,11 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           createdAt: new Date().toISOString()
         };
       } else {
+        const resolvedAdminEmergencyContact = {
+          name: emergencyContactName.trim(),
+          phone: emergencyContactPhone.trim(),
+          relation: emergencyContactRelation.trim()
+        };
         // Admin Profile
         newAccount = {
           id: userId,
@@ -1462,6 +1651,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           full_name: cleanFullName,
           email: cleanEmail,
           phone: cleanPhone,
+          gender: gender,
+          emergencyContact: resolvedAdminEmergencyContact,
           address: cleanAddress,
           zone: parish,
           dateOfBirth: dateOfBirth,
@@ -1818,14 +2009,16 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 <div>
                   <label className="font-bold text-slate-300 block mb-1">Gender *</label>
                   <select
+                    required
                     value={gender}
                     onChange={e => setGender(e.target.value as any)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-purple-400 outline-none cursor-pointer"
                   >
                     <option value="">Select gender...</option>
-                    <option value="female">Female</option>
-                    <option value="male">Male</option>
-                    <option value="other">Other</option>
+                    <option value="female" className="bg-[#0f0a26] text-white">Female</option>
+                    <option value="male" className="bg-[#0f0a26] text-white">Male</option>
+                    <option value="other" className="bg-[#0f0a26] text-white">Other</option>
+                    <option value="prefer_not_to_say" className="bg-[#0f0a26] text-white">Prefer not to say</option>
                   </select>
                 </div>
                 <div>
@@ -1868,12 +2061,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             </div>
           )}
 
-          {/* STEP 2: Next of Kin / Person using app on behalf */}
+          {/* STEP 2: Next of Kin / Authorized User */}
           {clientStep === 2 && (
             <div className="space-y-3.5 animate-fadeIn">
               <div className="p-3 rounded-2xl bg-purple-950/30 border border-purple-500/30 text-[11px] text-purple-200 leading-relaxed">
-                <strong className="text-white block font-bold mb-0.5">Family &amp; Representative Profile:</strong>
-                Please provide the contact details and photo of the family member or guardian who will use the app on behalf of the patient, or act as primary next of kin.
+                <strong className="text-white block font-bold mb-0.5">Next of Kin &amp; Authorized User Profile (Required):</strong>
+                Clients must provide complete Next of Kin details because your Next of Kin can be designated as an <strong>Authorized User</strong> to book care, approve visit codes, manage cancellations, or receive clinical updates on your behalf.
               </div>
 
               {/* Next of Kin Photo Upload */}
@@ -1890,7 +2083,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   </div>
                 )}
                 <div className="flex-1 space-y-1.5">
-                  <span className="text-xs font-bold text-white block">Photo of Person Using App on Behalf *</span>
+                  <span className="text-xs font-bold text-white block">Photo of Next of Kin / Authorized Representative (Optional)</span>
                   <div className="flex items-center gap-2 flex-wrap">
                     <button
                       type="button"
@@ -1924,7 +2117,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Representative Legal Name *</label>
+                  <label className="font-bold text-slate-300 block mb-1">Next of Kin Full Legal Name *</label>
                   <input
                     type="text"
                     required
@@ -1938,22 +2131,24 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 <div>
                   <label className="font-bold text-slate-300 block mb-1">Relationship to Patient *</label>
                   <select
+                    required
                     value={repRelation}
                     onChange={e => setRepRelation(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-purple-400 outline-none cursor-pointer"
                   >
                     <option value="">Select relationship...</option>
-                    <option value="Daughter">Daughter</option>
-                    <option value="Son">Son</option>
-                    <option value="Spouse / Husband / Wife">Spouse / Partner</option>
-                    <option value="Sister / Brother">Sibling</option>
-                    <option value="Legal Guardian">Legal Guardian</option>
-                    <option value="Family Caregiver">Family Caregiver</option>
-                    <option value="Other Relative">Other Relative</option>
+                    <option value="Daughter" className="bg-[#0f0a26] text-white">Daughter</option>
+                    <option value="Son" className="bg-[#0f0a26] text-white">Son</option>
+                    <option value="Spouse / Partner" className="bg-[#0f0a26] text-white">Spouse / Partner</option>
+                    <option value="Parent" className="bg-[#0f0a26] text-white">Parent</option>
+                    <option value="Sibling" className="bg-[#0f0a26] text-white">Sibling</option>
+                    <option value="Legal Guardian" className="bg-[#0f0a26] text-white">Legal Guardian</option>
+                    <option value="Family Caregiver" className="bg-[#0f0a26] text-white">Family Caregiver</option>
+                    <option value="Other Relative" className="bg-[#0f0a26] text-white">Other Relative</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Representative Phone (+1 876) *</label>
+                  <label className="font-bold text-slate-300 block mb-1">Next of Kin Primary Phone (+1 876) *</label>
                   <input
                     type="tel"
                     required
@@ -1965,9 +2160,21 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Representative Email</label>
+                  <label className="font-bold text-slate-300 block mb-1">Alternate Phone (Optional)</label>
+                  <input
+                    type="tel"
+                    value={formData.repAlternatePhone || ''}
+                    onChange={e => handleInputChange('repAlternatePhone', e.target.value)}
+                    placeholder=""
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-purple-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-300 block mb-1">Next of Kin Email (For Auth &amp; Alerts) *</label>
                   <input
                     type="email"
+                    required
                     value={formData.repEmail || ''}
                     onChange={e => handleInputChange('repEmail', e.target.value)}
                     placeholder=""
@@ -1976,9 +2183,10 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-300 block mb-1">Representative Date of Birth</label>
+                  <label className="font-bold text-slate-300 block mb-1">Next of Kin Date of Birth *</label>
                   <input
                     type="date"
+                    required
                     value={formData.repDateOfBirth || ''}
                     onChange={e => handleInputChange('repDateOfBirth', e.target.value)}
                     placeholder=""
@@ -1986,10 +2194,22 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-purple-400 outline-none cursor-pointer"
                   />
                 </div>
-                <div>
-                  <label className="font-bold text-slate-300 block mb-1">Representative Address</label>
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-300">Next of Kin Residential / Contact Address *</label>
+                    {address.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => handleInputChange('repAddress', [address.trim(), parish.trim()].filter(Boolean).join(', '))}
+                        className="text-[10px] font-bold text-purple-300 hover:text-white underline cursor-pointer"
+                      >
+                        Same as Patient Address
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="text"
+                    required
                     value={formData.repAddress || ''}
                     onChange={e => handleInputChange('repAddress', e.target.value)}
                     placeholder=""
@@ -1997,8 +2217,71 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-purple-400 outline-none"
                   />
                 </div>
+
+                {/* Authorized User Designation & Permissions */}
+                <div className="sm:col-span-2 p-3.5 rounded-2xl bg-purple-950/35 border border-purple-500/35 space-y-2.5">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.repIsAuthorizedUser)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setFormData(prev => ({
+                          ...prev,
+                          repIsAuthorizedUser: checked,
+                          ...(checked &&
+                          !prev.repAuthCanBook &&
+                          !prev.repAuthCanCancel &&
+                          !prev.repAuthCanApproveCodes &&
+                          !prev.repAuthCanViewMedical &&
+                          !prev.repAuthCanManagePayments
+                            ? {
+                                repAuthCanBook: true,
+                                repAuthCanCancel: true,
+                                repAuthCanApproveCodes: true,
+                                repAuthCanViewMedical: true
+                              }
+                            : {})
+                        }));
+                      }}
+                      className="mt-0.5 w-4 h-4 rounded text-purple-600 focus:ring-purple-500 bg-black/60 border-white/20"
+                    />
+                    <span>
+                      <strong className="text-white text-xs block">Designate this Next of Kin as an Authorized User</strong>
+                      <span className="text-[10px] text-purple-200/90 block">
+                        Grants this Next of Kin verified authority to act on your account using the permissions you enable below.
+                      </span>
+                    </span>
+                  </label>
+
+                  {Boolean(formData.repIsAuthorizedUser) && (
+                    <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {[
+                        { key: 'repAuthCanBook', label: 'Book & Schedule Care Visits' },
+                        { key: 'repAuthCanCancel', label: 'Cancel or Reschedule Bookings' },
+                        { key: 'repAuthCanApproveCodes', label: 'Approve Visit Start & End Codes' },
+                        { key: 'repAuthCanViewMedical', label: 'View Medical Bio & Medications' },
+                        { key: 'repAuthCanManagePayments', label: 'Manage Billing & Payments' }
+                      ].map(perm => (
+                        <label
+                          key={perm.key}
+                          className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-white/10 text-[11px] text-slate-200 cursor-pointer hover:border-purple-400/50"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(formData[perm.key])}
+                            onChange={e => handleInputChange(perm.key, e.target.checked)}
+                            className="w-3.5 h-3.5 rounded text-purple-600 bg-black/60 border-white/20"
+                          />
+                          <span>{perm.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="sm:col-span-2">
-                  <label className="font-bold text-slate-300 block mb-1">Permissions / Care Authority Notes</label>
+                  <label className="font-bold text-slate-300 block mb-1">Care Authority &amp; Coordination Notes (Optional)</label>
                   <input
                     type="text"
                     value={formData.repNotes || ''}
@@ -2282,6 +2565,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     </div>
                   </div>
                   <div className="text-[11px] text-slate-300 space-y-0.5">
+                    <p>Gender: <strong className="text-white capitalize">{gender || 'Not specified'}</strong></p>
                     <p>Phone: <strong className="text-white">{phone || 'Not provided'}</strong></p>
                     <p>Parish: <strong className="text-white">{parish || 'Not specified'}</strong></p>
                     <p>Illness: <strong className="text-amber-300">{selectedIllness === 'Other (Please specify in text box below)' ? (customIllness || 'Not specified') : (selectedIllness || 'None selected')}</strong></p>
@@ -2308,9 +2592,16 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     </div>
                   </div>
                   <div className="text-[11px] text-slate-300 space-y-0.5">
-                    <p>Rep Phone: <strong className="text-white">{repPhone || 'Not provided'}</strong></p>
-                    <p>Rep Email: <strong className="text-white">{repEmail || 'Not provided'}</strong></p>
-                    <p>Auth: <span className="text-emerald-300">Care &amp; Booking Management</span></p>
+                    <p>Phone: <strong className="text-white">{repPhone || 'Not provided'}</strong></p>
+                    <p>Email: <strong className="text-white">{repEmail || 'Not provided'}</strong></p>
+                    <p>DOB: <strong className="text-white">{repDateOfBirth || 'Not provided'}</strong></p>
+                    <p>Address: <strong className="text-white">{repAddress || 'Not provided'}</strong></p>
+                    <p>
+                      Authorized User:{' '}
+                      <span className={repIsAuthorizedUser ? 'text-emerald-300 font-bold' : 'text-slate-400'}>
+                        {repIsAuthorizedUser ? 'Yes — Authorized to Act on Account' : 'Emergency Contact Only'}
+                      </span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -2493,8 +2784,24 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   />
                 </div>
                 <div>
+                  <label className="font-bold text-slate-300 block mb-1">Gender *</label>
+                  <select
+                    required
+                    value={gender}
+                    onChange={e => setGender(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
+                  >
+                    <option value="">Select gender...</option>
+                    <option value="female" className="bg-[#0f0a26] text-white">Female</option>
+                    <option value="male" className="bg-[#0f0a26] text-white">Male</option>
+                    <option value="other" className="bg-[#0f0a26] text-white">Other</option>
+                    <option value="prefer_not_to_say" className="bg-[#0f0a26] text-white">Prefer not to say</option>
+                  </select>
+                </div>
+                <div>
                   <label className="font-bold text-slate-300 block mb-1">Primary Parish *</label>
                   <select
+                    required
                     value={parish}
                     onChange={e => setParish(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
@@ -2516,6 +2823,56 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     autoComplete="off"
                     className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-emerald-400 outline-none"
                   />
+                </div>
+              </div>
+
+              {/* Mandatory Nurse Emergency Contact / Next of Kin */}
+              <div className="p-3.5 rounded-2xl bg-emerald-950/25 border border-emerald-500/30 space-y-2.5">
+                <span className="text-xs font-bold text-emerald-300 block">
+                  Emergency Contact / Next of Kin (Required)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label className="font-bold text-slate-300 block mb-1">Full Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.emergencyContactName || ''}
+                      onChange={e => handleInputChange('emergencyContactName', e.target.value)}
+                      placeholder=""
+                      autoComplete="off"
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-emerald-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-300 block mb-1">Phone (+1 876) *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={formData.emergencyContactPhone || ''}
+                      onChange={e => handleInputChange('emergencyContactPhone', e.target.value)}
+                      placeholder=""
+                      autoComplete="off"
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-emerald-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="font-bold text-slate-300 block mb-1">Relationship *</label>
+                    <select
+                      required
+                      value={formData.emergencyContactRelation || ''}
+                      onChange={e => handleInputChange('emergencyContactRelation', e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white focus:border-emerald-400 outline-none cursor-pointer"
+                    >
+                      <option value="">Select...</option>
+                      <option value="Spouse / Partner" className="bg-[#0f0a26] text-white">Spouse / Partner</option>
+                      <option value="Parent" className="bg-[#0f0a26] text-white">Parent</option>
+                      <option value="Sibling" className="bg-[#0f0a26] text-white">Sibling</option>
+                      <option value="Child" className="bg-[#0f0a26] text-white">Child</option>
+                      <option value="Relative" className="bg-[#0f0a26] text-white">Relative</option>
+                      <option value="Trusted Friend" className="bg-[#0f0a26] text-white">Trusted Friend</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -3185,8 +3542,24 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
               />
             </div>
             <div>
+              <label className="font-bold text-slate-300 block mb-1">Gender *</label>
+              <select
+                required
+                value={gender}
+                onChange={e => setGender(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-amber-400 outline-none cursor-pointer"
+              >
+                <option value="">Select gender...</option>
+                <option value="female" className="bg-[#0f0a26] text-white">Female</option>
+                <option value="male" className="bg-[#0f0a26] text-white">Male</option>
+                <option value="other" className="bg-[#0f0a26] text-white">Other</option>
+                <option value="prefer_not_to_say" className="bg-[#0f0a26] text-white">Prefer not to say</option>
+              </select>
+            </div>
+            <div>
               <label className="font-bold text-slate-300 block mb-1">Primary Parish *</label>
               <select
+                required
                 value={parish}
                 onChange={e => setParish(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-amber-400 outline-none cursor-pointer"
@@ -3224,16 +3597,17 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             <div>
               <label className="font-bold text-slate-300 block mb-1">Department *</label>
               <select
+                required
                 value={adminDepartment}
                 onChange={e => setAdminDepartment(e.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/15 text-white focus:border-amber-400 outline-none cursor-pointer"
               >
                 <option value="">Select department...</option>
-                <option value="Clinical Operations">Clinical Operations</option>
-                <option value="Quality Assurance">Quality Assurance</option>
-                <option value="Patient Services">Patient Services</option>
-                <option value="Finance & Payroll">Finance &amp; Payroll</option>
-                <option value="Executive Management">Executive Management</option>
+                <option value="Clinical Operations" className="bg-[#0f0a26] text-white">Clinical Operations</option>
+                <option value="Quality Assurance" className="bg-[#0f0a26] text-white">Quality Assurance</option>
+                <option value="Patient Services" className="bg-[#0f0a26] text-white">Patient Services</option>
+                <option value="Finance & Payroll" className="bg-[#0f0a26] text-white">Finance &amp; Payroll</option>
+                <option value="Executive Management" className="bg-[#0f0a26] text-white">Executive Management</option>
               </select>
             </div>
             <div>
@@ -3267,6 +3641,56 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 autoComplete="off"
                 className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-amber-500/40 text-white font-mono focus:border-amber-400 outline-none"
               />
+            </div>
+          </div>
+
+          {/* Mandatory Administrator Emergency Contact / Next of Kin */}
+          <div className="p-3.5 rounded-2xl bg-amber-950/20 border border-amber-500/30 space-y-2.5">
+            <span className="text-xs font-bold text-amber-300 block">
+              Emergency Contact / Next of Kin (Required)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.emergencyContactName || ''}
+                  onChange={e => handleInputChange('emergencyContactName', e.target.value)}
+                  placeholder=""
+                  autoComplete="off"
+                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-amber-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Phone (+1 876) *</label>
+                <input
+                  type="tel"
+                  required
+                  value={formData.emergencyContactPhone || ''}
+                  onChange={e => handleInputChange('emergencyContactPhone', e.target.value)}
+                  placeholder=""
+                  autoComplete="off"
+                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white placeholder-slate-500 focus:border-amber-400 outline-none"
+                />
+              </div>
+              <div>
+                <label className="font-bold text-slate-300 block mb-1">Relationship *</label>
+                <select
+                  required
+                  value={formData.emergencyContactRelation || ''}
+                  onChange={e => handleInputChange('emergencyContactRelation', e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/15 text-white focus:border-amber-400 outline-none cursor-pointer"
+                >
+                  <option value="">Select...</option>
+                  <option value="Spouse / Partner" className="bg-[#0f0a26] text-white">Spouse / Partner</option>
+                  <option value="Parent" className="bg-[#0f0a26] text-white">Parent</option>
+                  <option value="Sibling" className="bg-[#0f0a26] text-white">Sibling</option>
+                  <option value="Child" className="bg-[#0f0a26] text-white">Child</option>
+                  <option value="Relative" className="bg-[#0f0a26] text-white">Relative</option>
+                  <option value="Trusted Friend" className="bg-[#0f0a26] text-white">Trusted Friend</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -3385,7 +3809,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           <div className="flex justify-end pt-2">
             <button
               type="button"
-              disabled={isSubmitting || !adminSignature?.signed || !profilePhotoUrl || !captchaVerified || !validatePasswordSecurity(formData.password || '').isValid}
+              disabled={isSubmitting || !adminSignature?.signed || !profilePhotoUrl || !captchaVerified || !validatePasswordSecurity(formData.password || '').isValid || !gender.trim() || !emergencyContactName.trim() || !emergencyContactPhone.trim() || !emergencyContactRelation.trim()}
               onClick={() => handleFinalSubmit()}
               className="px-6 py-3 rounded-xl bg-gradient-to-r from-amber-600 via-orange-600 to-[#1E1B4B] hover:opacity-95 text-white font-black transition flex items-center gap-2 cursor-pointer shadow-lg shadow-amber-950/60 disabled:opacity-50"
             >
@@ -3397,6 +3821,10 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   ? 'Upload Headshot Photo to Register'
                   : !validatePasswordSecurity(formData.password || '').isValid
                   ? 'Min 12-Char Complex Password Required'
+                  : !gender.trim()
+                  ? 'Select Gender Above to Register'
+                  : (!emergencyContactName.trim() || !emergencyContactPhone.trim() || !emergencyContactRelation.trim())
+                  ? 'Complete Emergency Contact to Register'
                   : !captchaVerified
                   ? 'Complete Bot Check to Register'
                   : !adminSignature?.signed 

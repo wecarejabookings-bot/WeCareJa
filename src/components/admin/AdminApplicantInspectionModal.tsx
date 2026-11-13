@@ -172,10 +172,9 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     );
   };
 
-  if (!applicant) return null;
-
   // Deep-merge dossier across ALL available sources so no uploaded document URL is ever shadowed
   const dossier = useMemo(() => {
+    if (!applicant) return null;
     let merged: any = {};
 
     // Source 1: applicant.bioData / applicant.dossier
@@ -261,6 +260,7 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
 
   // Extract digital signature information
   const signatureInfo = useMemo(() => {
+    if (!applicant) return null;
     if (dossier?.signature) return dossier.signature;
     if (applicant.signature) return applicant.signature;
     return {
@@ -274,22 +274,23 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
   }, [dossier, applicant]);
 
   // Role detection
-  const roleName = String(applicant.role || 'pending_applicant').toLowerCase();
+  const roleName = String(applicant?.role || 'pending_applicant').toLowerCase();
   const isNurse = roleName.includes('nurse');
   const isAdmin = roleName.includes('admin');
 
   // Extract submitted sign-up information
   const submittedInfo = useMemo(() => {
-    const fullName = applicant.full_name || applicant.name || dossier?.fullName || 'Registered Applicant';
-    const email = applicant.email || dossier?.email || '—';
-    const phone = applicant.phone || dossier?.phone || '—';
-    const parish = dossier?.parish || applicant.parish || applicant.zone || 'Kingston';
-    const address = dossier?.address || applicant.address || `${parish}, Jamaica`;
+    const safeApplicant = applicant || {};
+    const fullName = safeApplicant.full_name || safeApplicant.name || dossier?.fullName || 'Registered Applicant';
+    const email = safeApplicant.email || dossier?.email || '—';
+    const phone = safeApplicant.phone || dossier?.phone || '—';
+    const parish = dossier?.parish || safeApplicant.parish || safeApplicant.zone || 'Kingston';
+    const address = dossier?.address || safeApplicant.address || `${parish}, Jamaica`;
     
     // TRN
-    let trnNumber = dossier?.trnNumber || applicant.trnNumber || '';
-    if (!trnNumber && applicant.trn && typeof applicant.trn === 'string') {
-      const firstSegment = applicant.trn.split('|')[0].replace(/^TRN:\s*/i, '').trim();
+    let trnNumber = dossier?.trnNumber || safeApplicant.trnNumber || '';
+    if (!trnNumber && safeApplicant.trn && typeof safeApplicant.trn === 'string') {
+      const firstSegment = safeApplicant.trn.split('|')[0].replace(/^TRN:\s*/i, '').trim();
       if (firstSegment && !firstSegment.startsWith('DOC:') && !firstSegment.startsWith('DOSSIER:')) {
         trnNumber = firstSegment;
       }
@@ -297,29 +298,36 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     if (!trnNumber) trnNumber = 'Not provided';
 
     // Driver's License #
-    const dlNumber = dossier?.driversLicenseNumber || applicant.driversLicenseNumber || applicant.dlNumber || 'Not provided';
+    const dlNumber = dossier?.driversLicenseNumber || safeApplicant.driversLicenseNumber || safeApplicant.dlNumber || 'Not provided';
 
     // NCJ License #
-    const ncjLicense = dossier?.ncjLicense || applicant.ncjLicense || applicant.nursingCouncilLicense || applicant.ncj_license || (isNurse ? 'Pending NCJ' : '—');
+    const ncjLicense = dossier?.ncjLicense || safeApplicant.ncjLicense || safeApplicant.nursingCouncilLicense || safeApplicant.ncj_license || (isNurse ? 'Pending NCJ' : '—');
 
     // Admin Staff ID / Department
-    const staffId = dossier?.staffId || applicant.staffId || 'Not provided';
-    const department = dossier?.department || applicant.department || 'Clinical Operations & Credentialing';
-    const adminTitle = dossier?.title || applicant.title || 'System Administrator';
+    const staffId = dossier?.staffId || safeApplicant.staffId || 'Not provided';
+    const department = dossier?.department || safeApplicant.department || 'Clinical Operations & Credentialing';
+    const adminTitle = dossier?.title || safeApplicant.title || 'System Administrator';
 
     // Date of Birth & Gender
-    const dateOfBirth = dossier?.dateOfBirth || applicant.dateOfBirth || 'Not provided';
-    const gender = dossier?.gender || applicant.gender || 'Not specified';
+    const dateOfBirth = dossier?.dateOfBirth || safeApplicant.dateOfBirth || dossier?.bioData?.dateOfBirth || safeApplicant?.bioData?.dateOfBirth || safeApplicant?.patientBioData?.dateOfBirth || 'Not provided';
+    const gender = dossier?.gender || safeApplicant.gender || dossier?.bioData?.gender || safeApplicant?.bioData?.gender || safeApplicant?.patientBioData?.gender || 'Not specified';
 
     // Banking
-    const bankName = dossier?.bankDetails?.bankName || applicant.bankName || 'Not provided';
-    const accountNumber = dossier?.bankDetails?.accountNumber || applicant.accountNumber || 'Not provided';
-    const lynkWallet = dossier?.bankDetails?.lynkWallet || applicant.lynkWallet || 'Not provided';
+    const bankName = dossier?.bankDetails?.bankName || safeApplicant.bankName || 'Not provided';
+    const accountNumber = dossier?.bankDetails?.accountNumber || safeApplicant.accountNumber || 'Not provided';
+    const lynkWallet = dossier?.bankDetails?.lynkWallet || safeApplicant.lynkWallet || 'Not provided';
 
-    // Emergency Contact
-    const emergencyName = dossier?.emergencyContact?.name || applicant.emergencyContactName || 'Not provided';
-    const emergencyRelation = dossier?.emergencyContact?.relation || applicant.emergencyContactRelation || 'Next of Kin';
-    const emergencyPhone = dossier?.emergencyContact?.phone || applicant.emergencyContactPhone || 'Not provided';
+    // Emergency Contact / Next of Kin & Authorized User details
+    const nextOfKinObj = dossier?.nextOfKin || safeApplicant?.patientBioData?.trustedFamilyMember || safeApplicant?.bioData?.trustedFamilyMember;
+    const emergObj = dossier?.emergencyContact || safeApplicant?.emergencyContact || safeApplicant?.bioData?.emergencyContact;
+    const emergencyName = emergObj?.name || nextOfKinObj?.name || safeApplicant.emergencyContactName || 'Not provided';
+    const emergencyRelation = emergObj?.relation || nextOfKinObj?.relation || safeApplicant.emergencyContactRelation || 'Next of Kin';
+    const emergencyPhone = emergObj?.phone || nextOfKinObj?.phone || safeApplicant.emergencyContactPhone || 'Not provided';
+    const nextOfKinEmail = nextOfKinObj?.email || safeApplicant?.accountHolder?.email || '';
+    const nextOfKinAddress = nextOfKinObj?.address || safeApplicant?.accountHolder?.billingAddress || '';
+    const nextOfKinDob = nextOfKinObj?.dateOfBirth || safeApplicant?.repDateOfBirth || '';
+    const nextOfKinIsAuthorizedUser = Boolean(nextOfKinObj?.isAuthorizedUser || safeApplicant?.isBookingOnBehalf);
+    const nextOfKinPermissions = nextOfKinObj?.authorizedPermissions || null;
 
     return {
       fullName,
@@ -340,7 +348,12 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
       lynkWallet,
       emergencyName,
       emergencyRelation,
-      emergencyPhone
+      emergencyPhone,
+      nextOfKinEmail,
+      nextOfKinAddress,
+      nextOfKinDob,
+      nextOfKinIsAuthorizedUser,
+      nextOfKinPermissions
     };
   }, [applicant, dossier, isNurse]);
 
@@ -351,11 +364,11 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
       dossier?.photoUrl,
       dossier?.profilePhotoUrl,
       dossier?.documents?.profilePhotoUrl,
-      applicant.photoUrl,
-      applicant.profilePhotoUrl,
-      applicant.avatar_url,
-      applicant.avatarUrl,
-      applicant.avatar
+      applicant?.photoUrl,
+      applicant?.profilePhotoUrl,
+      applicant?.avatar_url,
+      applicant?.avatarUrl,
+      applicant?.avatar
     ) || null;
   }, [applicant, dossier, biometricInfo]);
 
@@ -364,9 +377,9 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.driversLicenseFrontUrl,
       dossier?.driversLicenseFrontUrl,
-      applicant.driversLicenseFrontUrl,
-      applicant.dlFrontUrl,
-      applicant.dl_front_url
+      applicant?.driversLicenseFrontUrl,
+      applicant?.dlFrontUrl,
+      applicant?.dl_front_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -374,9 +387,9 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.driversLicenseBackUrl,
       dossier?.driversLicenseBackUrl,
-      applicant.driversLicenseBackUrl,
-      applicant.dlBackUrl,
-      applicant.dl_back_url
+      applicant?.driversLicenseBackUrl,
+      applicant?.dlBackUrl,
+      applicant?.dl_back_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -384,9 +397,9 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.trnCertificateUrl,
       dossier?.trnCertificateUrl,
-      applicant.trnCertificateUrl,
-      applicant.trnCertUrl,
-      applicant.trn_url
+      applicant?.trnCertificateUrl,
+      applicant?.trnCertUrl,
+      applicant?.trn_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -394,10 +407,10 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.licenseDocumentUrl,
       dossier?.licenseDocumentUrl,
-      applicant.licenseDocumentUrl,
-      applicant.licenseDocUrl,
-      applicant.ncjLicenseUrl,
-      applicant.ncj_url
+      applicant?.licenseDocumentUrl,
+      applicant?.licenseDocUrl,
+      applicant?.ncjLicenseUrl,
+      applicant?.ncj_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -405,9 +418,9 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.governmentIdUrl,
       dossier?.governmentIdUrl,
-      applicant.governmentIdUrl,
-      applicant.govIdUrl,
-      applicant.gov_id_url
+      applicant?.governmentIdUrl,
+      applicant?.govIdUrl,
+      applicant?.gov_id_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -415,7 +428,7 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.governmentIdBackUrl,
       dossier?.governmentIdBackUrl,
-      applicant.governmentIdBackUrl
+      applicant?.governmentIdBackUrl
     ) || null;
   }, [applicant, dossier]);
 
@@ -423,8 +436,8 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.policeRecordUrl,
       dossier?.policeRecordUrl,
-      applicant.policeRecordUrl,
-      applicant.police_record_url
+      applicant?.policeRecordUrl,
+      applicant?.police_record_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -432,8 +445,8 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.bankLetterUrl,
       dossier?.bankLetterUrl,
-      applicant.bankLetterUrl,
-      applicant.bank_letter_url
+      applicant?.bankLetterUrl,
+      applicant?.bank_letter_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -441,8 +454,8 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.proofOfAddressUrl,
       dossier?.proofOfAddressUrl,
-      applicant.proofOfAddressUrl,
-      applicant.proof_of_address_url
+      applicant?.proofOfAddressUrl,
+      applicant?.proof_of_address_url
     ) || null;
   }, [applicant, dossier]);
 
@@ -450,7 +463,7 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     return pickValidDocUrl(
       dossier?.documents?.diplomaDocumentUrl,
       dossier?.diplomaDocumentUrl,
-      applicant.diplomaDocumentUrl
+      applicant?.diplomaDocumentUrl
     ) || null;
   }, [applicant, dossier]);
 
@@ -557,6 +570,8 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
       };
     });
   }, [rawDocumentsList, resolvedUrls]);
+
+  if (!applicant) return null;
 
   // Convenient finders for dedicated document cards
   const docDlFront = documentsList.find(d => d.id === 'dl-front');
@@ -2142,11 +2157,18 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
                 </div>
               </div>
 
-              {/* Emergency Contact */}
-              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Emergency Contact (Next of Kin)
-                </span>
+              {/* Emergency Contact / Next of Kin & Authorized User */}
+              <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Emergency Contact / Next of Kin
+                  </span>
+                  {submittedInfo.nextOfKinIsAuthorizedUser && (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                      Authorized User Designated
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
                     <span className="text-[10px] text-slate-400 block font-mono">Contact Name</span>
@@ -2160,7 +2182,50 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
                     <span className="text-[10px] text-slate-400 block font-mono">Phone</span>
                     <span className="font-mono text-amber-300">{submittedInfo.emergencyPhone}</span>
                   </div>
+                  {submittedInfo.nextOfKinEmail && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-mono">Email</span>
+                      <span className="text-slate-200 break-all">{submittedInfo.nextOfKinEmail}</span>
+                    </div>
+                  )}
+                  {submittedInfo.nextOfKinDob && (
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-mono">Date of Birth</span>
+                      <span className="font-mono text-slate-200">{submittedInfo.nextOfKinDob}</span>
+                    </div>
+                  )}
+                  {submittedInfo.nextOfKinAddress && (
+                    <div className="sm:col-span-3">
+                      <span className="text-[10px] text-slate-400 block font-mono">Address</span>
+                      <span className="text-slate-200">{submittedInfo.nextOfKinAddress}</span>
+                    </div>
+                  )}
                 </div>
+
+                {submittedInfo.nextOfKinIsAuthorizedUser && submittedInfo.nextOfKinPermissions && (
+                  <div className="pt-2 border-t border-white/10">
+                    <span className="text-[10px] text-purple-300 uppercase font-mono tracking-wider block mb-1.5">
+                      Authorized User Permissions
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 text-[10px]">
+                      {submittedInfo.nextOfKinPermissions.canBookServices && (
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-200 border border-purple-400/30 font-bold">Book Care Visits</span>
+                      )}
+                      {submittedInfo.nextOfKinPermissions.canCancelBookings && (
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-200 border border-purple-400/30 font-bold">Cancel Bookings</span>
+                      )}
+                      {submittedInfo.nextOfKinPermissions.canApproveVisitCodes && (
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-200 border border-purple-400/30 font-bold">Approve Start/End Codes</span>
+                      )}
+                      {submittedInfo.nextOfKinPermissions.canViewMedicalRecords && (
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-200 border border-purple-400/30 font-bold">View Medical Bio &amp; Meds</span>
+                      )}
+                      {submittedInfo.nextOfKinPermissions.canManagePayments && (
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-500/20 text-purple-200 border border-purple-400/30 font-bold">Manage Billing/Payments</span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

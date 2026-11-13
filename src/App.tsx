@@ -251,8 +251,13 @@ export default function App() {
 
   // State for services, nurses, bookings, and payouts
   const [services, setServices] = useState<ServiceItem[]>(() => {
-    const saved = localStorage.getItem('wecare_services');
-    return saved ? JSON.parse(saved) : INITIAL_SERVICES;
+    try {
+      const saved = localStorage.getItem('wecare_services');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_SERVICES;
+    } catch {
+      return INITIAL_SERVICES;
+    }
   });
 
   const [nurses, setNurses] = useState<NurseProfile[]>(() => {
@@ -263,6 +268,7 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           rawList = parsed.filter(n => 
+            n &&
             !n.name?.toLowerCase().includes('sharpe') && 
             !n.name?.toLowerCase().includes('althea') && 
             !n.name?.toLowerCase().includes('campbell') && 
@@ -287,6 +293,7 @@ export default function App() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           rawList = parsed.filter(b => 
+            b &&
             !b.nurseName?.toLowerCase().includes('sharpe') && 
             !b.nurseName?.toLowerCase().includes('althea') && 
             !b.nurseName?.toLowerCase().includes('campbell') && 
@@ -303,8 +310,13 @@ export default function App() {
   });
 
   const [payouts, setPayouts] = useState<PayoutRecord[]>(() => {
-    const saved = localStorage.getItem('wecare_payouts');
-    return saved ? JSON.parse(saved) : INITIAL_PAYOUTS;
+    try {
+      const saved = localStorage.getItem('wecare_payouts');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) ? parsed : INITIAL_PAYOUTS;
+    } catch {
+      return INITIAL_PAYOUTS;
+    }
   });
 
   // State for user accounts & auth - Cleaned for launch: Lead Administrator
@@ -333,8 +345,9 @@ export default function App() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const hasMaster = parsed.some((u: any) => u.username === 'sydney' || u.id === masterAdmin.id);
-          const combined = hasMaster ? parsed : [masterAdmin, ...parsed];
+          const validParsed = parsed.filter((u: any) => u && typeof u === 'object');
+          const hasMaster = validParsed.some((u: any) => u.username === 'sydney' || u.id === masterAdmin.id);
+          const combined = hasMaster ? validParsed : [masterAdmin, ...validParsed];
           localStorage.setItem('wecare_user_accounts', JSON.stringify(combined));
           return combined;
         }
@@ -357,7 +370,7 @@ export default function App() {
       const savedMilestones = localStorage.getItem('wecare_patient_milestones');
       if (savedMilestones) {
         const parsed = JSON.parse(savedMilestones);
-        if (Array.isArray(parsed) && parsed.some((p: any) => p.completedAt === '2026-08-15T14:30:00Z' || p.completedAt === '2026-08-20T09:00:00Z')) {
+        if (Array.isArray(parsed) && parsed.some((p: any) => p && (p.completedAt === '2026-08-15T14:30:00Z' || p.completedAt === '2026-08-20T09:00:00Z'))) {
           localStorage.setItem('wecare_patient_milestones', JSON.stringify(INITIAL_PATIENT_MILESTONES));
         }
       }
@@ -381,7 +394,7 @@ export default function App() {
   });
 
   // Derived current user account & authentication status
-  const currentUser = userAccounts.find(u => u.id === currentUserId) || null;
+  const currentUser = userAccounts.find(u => u && u.id === currentUserId) || null;
   const isAuthenticated = Boolean(currentUser);
   const isAdmin = Boolean(
     currentUser && (
@@ -406,20 +419,35 @@ export default function App() {
 
   // State for nurse peer collaboration messages
   const [peerMessages, setPeerMessages] = useState<NursePeerChatMessage[]>(() => {
-    const saved = localStorage.getItem('wecare_peer_messages');
-    return saved ? JSON.parse(saved) : INITIAL_PEER_MESSAGES;
+    try {
+      const saved = localStorage.getItem('wecare_peer_messages');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) ? parsed : INITIAL_PEER_MESSAGES;
+    } catch {
+      return INITIAL_PEER_MESSAGES;
+    }
   });
 
   // State for accredited Jamaican nursing schools
   const [nursingSchools, setNursingSchools] = useState<NursingSchool[]>(() => {
-    const saved = localStorage.getItem('wecare_nursing_schools');
-    return saved ? JSON.parse(saved) : INITIAL_NURSING_SCHOOLS;
+    try {
+      const saved = localStorage.getItem('wecare_nursing_schools');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_NURSING_SCHOOLS;
+    } catch {
+      return INITIAL_NURSING_SCHOOLS;
+    }
   });
 
   // State for admin scheduled video meetings
   const [videoMeetings, setVideoMeetings] = useState<VideoMeeting[]>(() => {
-    const saved = localStorage.getItem('wecare_video_meetings');
-    return saved ? JSON.parse(saved) : INITIAL_VIDEO_MEETINGS;
+    try {
+      const saved = localStorage.getItem('wecare_video_meetings');
+      const parsed = saved ? JSON.parse(saved) : null;
+      return Array.isArray(parsed) ? parsed : INITIAL_VIDEO_MEETINGS;
+    } catch {
+      return INITIAL_VIDEO_MEETINGS;
+    }
   });
 
   // Modal states
@@ -451,11 +479,19 @@ export default function App() {
   const [activeRatingBooking, setActiveRatingBooking] = useState<Booking | null>(null);
   const [emergencyActiveBooking, setEmergencyActiveBooking] = useState<Booking | null>(null);
   const [activeEmergencySOS, setActiveEmergencySOS] = useState<EmergencySOSData | null>(() => {
-    const saved = localStorage.getItem('wecare_active_emergency_sos');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('wecare_active_emergency_sos');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
   const [isFullScreenSOSOpen, setIsFullScreenSOSOpen] = useState<boolean>(() => {
-    return Boolean(localStorage.getItem('wecare_active_emergency_sos'));
+    try {
+      return Boolean(localStorage.getItem('wecare_active_emergency_sos'));
+    } catch {
+      return false;
+    }
   });
 
   // Continuous real-time GPS location tracking for emergency pinpointing
@@ -530,6 +566,21 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('wecare_bookings', JSON.stringify(bookings));
   }, [bookings]);
+
+  useEffect(() => {
+    const handleStorageSync = (event: StorageEvent) => {
+      if (event.key === 'wecare_bookings' && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (Array.isArray(parsed)) {
+            setBookings(parsed);
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('storage', handleStorageSync);
+    return () => window.removeEventListener('storage', handleStorageSync);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('wecare_payouts', JSON.stringify(payouts));
@@ -619,8 +670,33 @@ export default function App() {
               setCurrentUserId(fallbackUser.id);
               setCurrentRole(fallbackUser.role);
             }
-            // Fetch bookings and nurses now that user is authenticated
-            fetchBookingsFromSupabase().then(b => { if (b && b.length > 0) setBookings(b); }).catch(() => {});
+            // Fetch bookings and nurses now that user is authenticated (merging to preserve local cancellations/details)
+            fetchBookingsFromSupabase().then(remote => {
+              if (remote && remote.length > 0) {
+                setBookings(prev => {
+                  const map = new Map<string, Booking>();
+                  prev.forEach(b => map.set(b.id, b));
+                  remote.forEach(rb => {
+                    const lb = map.get(rb.id);
+                    if (!lb) {
+                      map.set(rb.id, rb);
+                    } else {
+                      const isCancelledEither = lb.status === 'cancelled' || rb.status === 'cancelled';
+                      map.set(rb.id, {
+                        ...lb,
+                        ...rb,
+                        status: isCancelledEither ? 'cancelled' : rb.status,
+                        cancelReason: rb.cancelReason || lb.cancelReason,
+                        cancelledBy: rb.cancelledBy || lb.cancelledBy,
+                        cancelledAt: rb.cancelledAt || lb.cancelledAt,
+                        paymentStatus: isCancelledEither ? 'refunded' : (rb.paymentStatus || lb.paymentStatus)
+                      });
+                    }
+                  });
+                  return Array.from(map.values());
+                });
+              }
+            }).catch(() => {});
             fetchNursesFromSupabase().then(n => {
               if (n && n.length > 0) {
                 setNurses(prev => {
@@ -760,11 +836,32 @@ export default function App() {
         subscriptionRef = subscription;
       }
 
-      // 4. Fetch real bookings from Supabase lazily
+      // 4. Fetch real bookings from Supabase lazily (merging to preserve local cancellations/details)
       if (!isCancelled) {
         fetchBookingsFromSupabase().then(realBookings => {
           if (realBookings && realBookings.length > 0 && !isCancelled) {
-            setBookings(realBookings);
+            setBookings(prev => {
+              const map = new Map<string, Booking>();
+              prev.forEach(b => map.set(b.id, b));
+              realBookings.forEach(rb => {
+                const lb = map.get(rb.id);
+                if (!lb) {
+                  map.set(rb.id, rb);
+                } else {
+                  const isCancelledEither = lb.status === 'cancelled' || rb.status === 'cancelled';
+                  map.set(rb.id, {
+                    ...lb,
+                    ...rb,
+                    status: isCancelledEither ? 'cancelled' : rb.status,
+                    cancelReason: rb.cancelReason || lb.cancelReason,
+                    cancelledBy: rb.cancelledBy || lb.cancelledBy,
+                    cancelledAt: rb.cancelledAt || lb.cancelledAt,
+                    paymentStatus: isCancelledEither ? 'refunded' : (rb.paymentStatus || lb.paymentStatus)
+                  });
+                }
+              });
+              return Array.from(map.values());
+            });
           }
         }).catch(() => {});
       }
@@ -3161,6 +3258,7 @@ export default function App() {
           user={currentUser}
           onUpdateUser={handleUpdateUser}
           viewerRole="client"
+          bookings={bookings.filter(b => b.clientId === currentUser.id)}
         />
       )}
 
