@@ -81,18 +81,21 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
   onOpenNursingTeamDirectory,
   onDispatchLovedOneCheck
 }) => {
-  // Load and sync medical milestones (clean authentic state, no fictitious progress)
-  const [milestones, setMilestones] = useState<MilestoneItem[]>(() => {
+  const userScope = currentUser?.id || 'guest';
+  const milestonesKey = `wecare_patient_milestones_${userScope}`;
+  const medStreakKey = `wecare_patient_med_streak_${userScope}`;
+  const medLastCheckInKey = `wecare_patient_med_last_checkin_${userScope}`;
+
+  const loadUserMilestones = (key: string): MilestoneItem[] => {
     try {
-      const saved = localStorage.getItem('wecare_patient_milestones');
+      const saved = localStorage.getItem(key);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Check if saved contains legacy fictitious data
           const hasFictitiousData = parsed.some((p: any) =>
             p.completedAt === '2026-08-15T14:30:00Z' ||
             p.completedAt === '2026-08-20T09:00:00Z' ||
-            (!bookings || bookings.length === 0 && p.category === 'therapy_sessions' && p.currentCount > 0)
+            ((!bookings || bookings.length === 0) && p.category === 'therapy_sessions' && p.currentCount > 0)
           );
           if (!hasFictitiousData) {
             const seen = new Set<string>();
@@ -106,36 +109,44 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         }
       }
     } catch {}
-    try {
-      localStorage.setItem('wecare_patient_milestones', JSON.stringify(INITIAL_PATIENT_MILESTONES));
-    } catch {}
     return INITIAL_PATIENT_MILESTONES;
-  });
+  };
 
-  // Daily medication adherence streak - strictly 0 initial (no fictitious 6-day streak)
+  // Load and sync medical milestones scoped per user
+  const [milestones, setMilestones] = useState<MilestoneItem[]>(() => loadUserMilestones(milestonesKey));
+
+  // Daily medication adherence streak scoped per user
   const [medStreak, setMedStreak] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('wecare_patient_med_streak');
-      if (saved) {
-        const num = Number(saved);
-        if (num === 6) {
-          localStorage.removeItem('wecare_patient_med_streak');
-          return 0;
-        }
-        return num;
-      }
+      const saved = localStorage.getItem(medStreakKey);
+      if (saved) return Number(saved) || 0;
     } catch {}
     return 0;
   });
 
   const [checkedInToday, setCheckedInToday] = useState<boolean>(() => {
     try {
-      const lastCheckIn = localStorage.getItem('wecare_patient_med_last_checkin');
+      const lastCheckIn = localStorage.getItem(medLastCheckInKey);
       const today = new Date().toISOString().split('T')[0];
       return lastCheckIn === today;
     } catch {}
     return false;
   });
+
+  // Reload user-scoped milestones and medication check-in state whenever currentUser changes
+  useEffect(() => {
+    setMilestones(loadUserMilestones(milestonesKey));
+    try {
+      const savedStreak = localStorage.getItem(medStreakKey);
+      setMedStreak(savedStreak ? Number(savedStreak) || 0 : 0);
+      const lastCheckIn = localStorage.getItem(medLastCheckInKey);
+      const today = new Date().toISOString().split('T')[0];
+      setCheckedInToday(lastCheckIn === today);
+    } catch {
+      setMedStreak(0);
+      setCheckedInToday(false);
+    }
+  }, [milestonesKey, medStreakKey, medLastCheckInKey]);
 
   // Calculate therapy sessions from bookings
   const therapySessionsCount = useMemo(() => {
@@ -163,12 +174,14 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
         return m;
       });
       if (changed) {
-        localStorage.setItem('wecare_patient_milestones', JSON.stringify(updated));
+        try {
+          localStorage.setItem(milestonesKey, JSON.stringify(updated));
+        } catch {}
         return updated;
       }
       return prev;
     });
-  }, [therapySessionsCount]);
+  }, [therapySessionsCount, milestonesKey]);
 
   // Handle client daily medication check-in
   const handleDailyMedCheckIn = () => {
@@ -189,8 +202,8 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
     setCheckedInToday(true);
 
     try {
-      localStorage.setItem('wecare_patient_med_streak', String(newStreak));
-      localStorage.setItem('wecare_patient_med_last_checkin', today);
+      localStorage.setItem(medStreakKey, String(newStreak));
+      localStorage.setItem(medLastCheckInKey, today);
 
       // Check if this unlocked milestone
       const updatedMilestones = milestones.map(m => {
@@ -213,7 +226,7 @@ export const ClientDashboard: React.FC<ClientDashboardProps> = ({
       });
 
       setMilestones(updatedMilestones);
-      localStorage.setItem('wecare_patient_milestones', JSON.stringify(updatedMilestones));
+      localStorage.setItem(milestonesKey, JSON.stringify(updatedMilestones));
 
       // Trigger celebration if streak hits 7
       if (newStreak === 7 && onOpenCelebration) {

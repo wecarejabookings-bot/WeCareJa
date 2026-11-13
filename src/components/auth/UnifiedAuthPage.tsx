@@ -26,7 +26,8 @@ import {
   Clock
 } from 'lucide-react';
 import { UserRole, NurseProfile, UserAccount } from '../../types';
-import { supabase, lookupEmailFromUsername, signInWithUsername, saveNurseProfileToSupabase } from '../../lib/supabase';
+import { supabase, lookupEmailFromUsername, signInWithUsername, saveNurseProfileToSupabase, clearAllSupabaseAuthTokens, saveUsernameToCache } from '../../lib/supabase';
+import { saveApplicantDossier } from '../../utils/dossierStore';
 import confetti from 'canvas-confetti';
 import { UnifiedSignupPortal } from './UnifiedSignupPortal';
 import { WeCareTrackLogo } from '../common/WeCareTrackLogo';
@@ -153,18 +154,27 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
     const cleanAddress = address.trim() ? `${address.trim()}, ${parish}` : parish;
     const cleanUsername = cleanEmail.split('@')[0] || `user_${Date.now()}`;
 
+    if (mode === 'signup' && typeof window !== 'undefined') {
+      (window as any).__wecareSignupInProgress = true;
+    }
+
     try {
       if (mode === 'signin') {
         const cleanIdent = email.trim();
         const { user, profile } = await signInWithUsername(cleanIdent, cleanPassword);
 
         if (user && profile) {
-          // Save to localStorage
+          // Save to sessionStorage & localStorage (deduped by id and email)
           try {
-            localStorage.setItem('wecare_current_user_id', user.id);
+            const profEmail = (profile.email || '').toLowerCase();
+            sessionStorage.setItem('wecare_session_user_id', profile.id);
+            localStorage.setItem('wecare_current_user_id', profile.id);
             const existingRaw = localStorage.getItem('wecare_user_accounts');
             const list = existingRaw ? JSON.parse(existingRaw) : [];
-            localStorage.setItem('wecare_user_accounts', JSON.stringify([profile, ...list.filter((u: any) => u.id !== user.id)]));
+            const deduped = Array.isArray(list)
+              ? list.filter((u: any) => u.id !== profile.id && u.id !== user.id && (!profEmail || u.email?.toLowerCase() !== profEmail))
+              : [];
+            localStorage.setItem('wecare_user_accounts', JSON.stringify([profile, ...deduped]));
           } catch {}
 
           setIsSuccess(true);
@@ -183,6 +193,16 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
       if (!cleanFullName || !cleanEmail || !cleanPassword) {
         throw new Error('Please fill in your name, email, and password.');
       }
+
+      // Clear any previous user session before creating new account
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+      clearAllSupabaseAuthTokens();
+      try {
+        sessionStorage.removeItem('wecare_session_user_id');
+        localStorage.removeItem('wecare_current_user_id');
+      } catch {}
 
       let userId = `user-${Date.now()}`;
 
@@ -248,6 +268,8 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
       } catch (profErr) {
         console.warn('profiles upsert note:', profErr);
       }
+
+      saveUsernameToCache(cleanUsername, cleanEmail);
 
       // Backup credentials locally so user can always sign back in even if Supabase confirms or rate limits
       try {
@@ -319,7 +341,7 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
         try {
           const rawNurses = localStorage.getItem('wecare_nurses');
           const currentList = rawNurses ? JSON.parse(rawNurses) : [];
-          const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email !== cleanEmail)];
+          const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email?.toLowerCase() !== cleanEmail)];
           localStorage.setItem('wecare_nurses', JSON.stringify(updatedList));
         } catch {}
       }
@@ -329,20 +351,45 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
         id: userId,
         username: cleanUsername,
         name: cleanFullName,
+        full_name: cleanFullName,
         email: cleanEmail,
         role: role,
         phone: cleanPhone,
         address: cleanAddress,
         trn: trn.trim() || '',
+        nursingCouncilLicense: ncjLicense.trim() || undefined,
+        driversLicenseNumber: driversLicenseNumber.trim() || undefined,
         createdAt: new Date().toISOString(),
         approvalStatus: role === 'nurse' ? 'pending_approval' : 'approved'
       };
 
+      saveApplicantDossier({
+        id: userId,
+        userId,
+        username: cleanUsername,
+        email: cleanEmail,
+        fullName: cleanFullName,
+        name: cleanFullName,
+        role: targetRole,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish,
+        trnNumber: trn.trim() || undefined,
+        ncjLicense: ncjLicense.trim() || undefined,
+        driversLicenseNumber: driversLicenseNumber.trim() || undefined,
+        status: role === 'nurse' ? 'pending_approval' : 'approved',
+        submittedAt: new Date().toISOString()
+      }).catch(() => {});
+
       try {
+        sessionStorage.setItem('wecare_session_user_id', userId);
         localStorage.setItem('wecare_current_user_id', userId);
         const rawAccounts = localStorage.getItem('wecare_user_accounts');
         const list = rawAccounts ? JSON.parse(rawAccounts) : [];
-        localStorage.setItem('wecare_user_accounts', JSON.stringify([newAccount, ...list.filter((u: any) => u.id !== userId)]));
+        const deduped = Array.isArray(list)
+          ? list.filter((u: any) => u.id !== userId && u.email?.toLowerCase() !== cleanEmail)
+          : [];
+        localStorage.setItem('wecare_user_accounts', JSON.stringify([newAccount, ...deduped]));
       } catch {}
 
       setIsSuccess(true);
@@ -357,6 +404,9 @@ export const UnifiedAuthPage: React.FC<UnifiedAuthPageProps> = ({
     } catch (err: any) {
       setErrorMsg(err?.message || 'Authentication failed. Please check your credentials.');
     } finally {
+      if (typeof window !== 'undefined') {
+        (window as any).__wecareSignupInProgress = false;
+      }
       setLoading(false);
     }
   };

@@ -43,6 +43,25 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 export const supabaseClient = supabase;
 
+// Remove all Supabase Auth token keys from browser storage to prevent previous-user session bleed
+export function clearAllSupabaseAuthTokens(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const removeMatchingKeys = (storage: Storage) => {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (key && (key.startsWith('sb-') || key.includes('supabase.auth'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => storage.removeItem(k));
+    };
+    removeMatchingKeys(localStorage);
+    removeMatchingKeys(sessionStorage);
+  } catch {}
+}
+
 // Default Medical Supplies catalog in JMD for home healthcare in Kingston & St Andrew
 export const DEFAULT_MEDICAL_SUPPLIES: MedicalSupplyItem[] = [
   {
@@ -159,18 +178,38 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
 
   let localNurseData: any = null;
   let localDossier: any = null;
+  let localUserAccount: any = null;
+  const cleanMail = (profile.email || email || '').toLowerCase().trim();
   try {
     const rawNurses = localStorage.getItem('wecare_nurses');
     if (rawNurses) {
       const list = JSON.parse(rawNurses);
       if (Array.isArray(list)) {
-        localNurseData = list.find((n: any) => n.id === profile.id || (n.email && (n.email.toLowerCase() === (profile.email || email)?.toLowerCase())));
+        localNurseData = list.find((n: any) => n.id === profile.id || (cleanMail && n.email && n.email.toLowerCase() === cleanMail));
       }
     }
-    const cleanMail = (profile.email || email || '').toLowerCase().trim();
     if (cleanMail) {
       const rawDossier = localStorage.getItem(`wecare_dossier_${cleanMail}`);
       if (rawDossier) localDossier = JSON.parse(rawDossier);
+    }
+    if (!localDossier && profile.id) {
+      const rawById = localStorage.getItem(`wecare_dossier_${profile.id}`);
+      if (rawById) localDossier = JSON.parse(rawById);
+    }
+    if (!localDossier && typeof profile.trn === 'string' && profile.trn.includes('DOSSIER:')) {
+      try {
+        const idx = profile.trn.indexOf('DOSSIER:');
+        localDossier = JSON.parse(profile.trn.substring(idx + 8).trim());
+      } catch {}
+    }
+    const rawAccounts = localStorage.getItem('wecare_user_accounts');
+    if (rawAccounts) {
+      const accList = JSON.parse(rawAccounts);
+      if (Array.isArray(accList)) {
+        localUserAccount = accList.find((a: any) =>
+          a.id === profile.id || (cleanMail && a.email && a.email.toLowerCase() === cleanMail)
+        );
+      }
     }
   } catch {}
 
@@ -178,37 +217,48 @@ export function mapProfileToUserAccount(profile: any, email?: string): UserAccou
     ? (profile.nurseProfileId || localNurseData?.id || profile.id) 
     : undefined;
 
-  const resolvedStatus = profile.status || localDossier?.status || (isRejectedNurse ? 'rejected' : undefined);
+  const resolvedStatus = profile.status || localDossier?.status || localUserAccount?.status || (isRejectedNurse ? 'rejected' : undefined);
   const resolvedRejectionReason = profile.rejection_reason || localDossier?.rejection_reason || localNurseData?.rejection_reason;
   const resolvedRejectedDocs = profile.rejected_documents || localDossier?.rejected_documents || localNurseData?.rejected_documents;
   const resolvedRejectionDate = profile.rejection_date || localDossier?.rejection_date || localNurseData?.rejection_date;
+  const resolvedAvatar = isMaster
+    ? 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400'
+    : (
+        profile.avatar_url ||
+        localDossier?.biometricVerification?.photoUrl ||
+        localDossier?.photoUrl ||
+        localDossier?.profilePhotoUrl ||
+        localNurseData?.photoUrl ||
+        localUserAccount?.avatarUrl ||
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'
+      );
 
   return {
+    ...(localUserAccount && cleanMail && localUserAccount.email?.toLowerCase() === cleanMail ? localUserAccount : {}),
     id: profile.id,
-    username: profile.username || (isMaster ? 'sydney' : (email?.split('@')[0] || 'user')),
-    name: profile.full_name || profile.name || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || 'Nurse Practitioner') : 'Registered Client')),
-    full_name: profile.full_name || profile.name || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || 'Nurse Practitioner') : 'Registered Client')),
-    email: profile.email || email || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
-    phone: profile.phone || localNurseData?.phone || (isMaster ? '(876) 582-7613' : ''),
+    username: profile.username || localDossier?.username || localUserAccount?.username || (isMaster ? 'sydney' : (email?.split('@')[0] || 'user')),
+    name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || 'Nurse Practitioner') : 'Registered Client')),
+    full_name: profile.full_name || profile.name || localDossier?.fullName || (isMaster ? 'Lead Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.name || 'Nurse Practitioner') : 'Registered Client')),
+    email: cleanMail || (isMaster ? 'wecareja.bookings@gmail.com' : ''),
+    phone: profile.phone || localDossier?.phone || localNurseData?.phone || (isMaster ? '(876) 582-7613' : ''),
     role: normalizedRole,
     approvalStatus: approvalStatus,
     nurseProfileId: resolvedNurseProfileId,
-    trn: profile.trn || localNurseData?.trn || localNurseData?.trnNumber || '',
+    trn: profile.trn || localDossier?.trnNumber || localNurseData?.trn || localNurseData?.trnNumber || '',
     title: isMaster ? 'Lead Operations Director & Master Administrator' : (normalizedRole === 'nurse' ? (localNurseData?.qualificationTitle || 'Registered Healthcare Practitioner') : 'Verified Family Client'),
     department: isMaster ? 'Executive Clinical Leadership & Registry Audit' : undefined,
-    avatarUrl: isMaster
-      ? 'https://images.unsplash.com/photo-1594824813629-455b5502c3ef?auto=format&fit=crop&q=80&w=400'
-      : (profile.avatar_url || localNurseData?.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400'),
-    zone: profile.zone || (localNurseData?.zones?.[0]) || 'St. Catherine & Kingston',
-    address: profile.address || localNurseData?.address || (isMaster ? '4 Claudete Drive, St. Catherine, Jamaica' : ''),
-    medical_info: profile.medical_info || '',
+    avatarUrl: resolvedAvatar,
+    avatar: resolvedAvatar,
+    zone: profile.zone || localDossier?.parish || (localNurseData?.zones?.[0]) || localUserAccount?.zone || 'St. Catherine & Kingston',
+    address: profile.address || localDossier?.address || localNurseData?.address || localUserAccount?.address || (isMaster ? '4 Claudete Drive, St. Catherine, Jamaica' : ''),
+    medical_info: profile.medical_info || localUserAccount?.medical_info || '',
     is_deleted: Boolean(profile.is_deleted),
     status: resolvedStatus,
     rejection_reason: resolvedRejectionReason,
     rejected_documents: resolvedRejectedDocs,
     rejection_date: resolvedRejectionDate,
     welcome_seen: profile.welcome_seen,
-    createdAt: profile.created_at || new Date().toISOString()
+    createdAt: profile.created_at || localUserAccount?.createdAt || new Date().toISOString()
   };
 }
 
@@ -309,27 +359,14 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
   // 3. Numeric telephone check
   const isTelephone = /^[0-9+()-\s]+$/.test(clean) && digitsOnly.length >= 7;
 
-  // 4. Check local browser cache
-  try {
-    const raw = localStorage.getItem('wecare_username_cache');
-    if (raw) {
-      const cache = JSON.parse(raw);
-      if (cache[cleanLower]) {
-        return cache[cleanLower];
-      }
-      if (digitsOnly && cache[digitsOnly]) {
-        return cache[digitsOnly];
-      }
-    }
-  } catch {}
-
-  // 5. Check local user accounts list
+  // 4. Check authoritative local user accounts list FIRST (most recently created/updated account matches first)
   try {
     const rawAccounts = localStorage.getItem('wecare_user_accounts');
     if (rawAccounts) {
       const accounts = JSON.parse(rawAccounts);
       if (Array.isArray(accounts)) {
         const found = accounts.find((a: any) => {
+          if (a.is_deleted) return false;
           if (a.email?.toLowerCase() === cleanLower) return true;
           if (a.username?.toLowerCase() === cleanLower) return true;
           if (a.name?.toLowerCase() === cleanLower || a.full_name?.toLowerCase() === cleanLower) return true;
@@ -349,7 +386,7 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
     }
   } catch {}
 
-  // 6. Query Supabase profiles table directly
+  // 5. Query Supabase profiles table directly
   try {
     if (isTelephone) {
       const { data: phoneRow } = await supabase
@@ -407,7 +444,7 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
     console.warn('Profile lookup query note:', err);
   }
 
-  // 7. Check server-side proxy route
+  // 6. Check server-side proxy route (checks dossiers.json, memory cache & Supabase)
   try {
     const res = await fetch(`/api/auth/lookup-username?username=${encodeURIComponent(clean)}`);
     if (res.ok) {
@@ -415,6 +452,20 @@ export async function lookupEmailFromUsername(usernameInput: string): Promise<st
       if (json.success && json.email) {
         saveUsernameToCache(clean, json.email);
         return json.email.toLowerCase();
+      }
+    }
+  } catch {}
+
+  // 7. Fallback to local browser username cache
+  try {
+    const raw = localStorage.getItem('wecare_username_cache');
+    if (raw) {
+      const cache = JSON.parse(raw);
+      if (cache[cleanLower]) {
+        return cache[cleanLower];
+      }
+      if (digitsOnly && cache[digitsOnly]) {
+        return cache[digitsOnly];
       }
     }
   } catch {}
@@ -433,6 +484,12 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
     throw new Error('Please enter your password.');
   }
 
+  // Clear any prior Supabase session locally so a previous user's JWT never bleeds into this login
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {}
+  clearAllSupabaseAuthTokens();
+
   // Resolve email from Email / Username / Phone
   let targetEmail = await lookupEmailFromUsername(cleanInput);
 
@@ -450,12 +507,14 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
     throw new Error(`No account found for "${cleanInput}". Please verify your email, username, or phone number.`);
   }
 
+  const normalizedTargetEmail = targetEmail.toLowerCase().trim();
+
   // Authenticate with Supabase Auth
   let authUser: any = null;
   let authSession: any = null;
 
   const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: targetEmail,
+    email: normalizedTargetEmail,
     password: cleanPass
   });
 
@@ -464,7 +523,7 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
     if (cleanInput.toLowerCase() === 'sydney' && cleanPass === '12345678') {
       try {
         const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-          email: targetEmail,
+          email: normalizedTargetEmail,
           password: cleanPass,
           options: {
             data: {
@@ -483,27 +542,89 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
     }
 
     if (!authUser) {
-      // Check if user exists in profiles and local credentials match
+      // Clear any partial Supabase tokens before checking verified local/server account fallback
+      clearAllSupabaseAuthTokens();
+
       try {
         const rawCreds = localStorage.getItem('wecare_auth_passwords');
         const creds = rawCreds ? JSON.parse(rawCreds) : {};
-        const savedPass = creds[targetEmail] || creds[cleanInput.toLowerCase()];
-        if (savedPass && savedPass === cleanPass) {
-          // Fetch profile directly by email
-          const { data: profRow } = await supabase
-            .from('profiles')
-            .select('*')
-            .ilike('email', targetEmail)
-            .maybeSingle();
+        const savedPass = creds[normalizedTargetEmail] || creds[cleanInput.toLowerCase()];
 
-          if (profRow) {
-            const fallbackAccount = mapProfileToUserAccount(profRow, targetEmail);
+        // Also check password stored directly on the matching local account record
+        let localMatchedAccount: UserAccount | null = null;
+        try {
+          const rawAccounts = localStorage.getItem('wecare_user_accounts');
+          const parsedAccounts = rawAccounts ? JSON.parse(rawAccounts) : [];
+          if (Array.isArray(parsedAccounts)) {
+            localMatchedAccount =
+              parsedAccounts.find(
+                (a: any) =>
+                  a.email?.toLowerCase() === normalizedTargetEmail ||
+                  a.username?.toLowerCase() === cleanInput.toLowerCase()
+              ) || null;
+          }
+        } catch {}
+
+        const passwordMatches =
+          (savedPass && savedPass === cleanPass) ||
+          (localMatchedAccount?.password && localMatchedAccount.password === cleanPass);
+
+        if (passwordMatches) {
+          // 1. Fetch profile directly from Supabase by email
+          try {
+            const { data: profRow } = await supabase
+              .from('profiles')
+              .select('*')
+              .ilike('email', normalizedTargetEmail)
+              .maybeSingle();
+
+            if (profRow) {
+              const fallbackAccount = mapProfileToUserAccount(profRow, normalizedTargetEmail);
+              return {
+                user: { id: fallbackAccount.id, email: normalizedTargetEmail },
+                session: null,
+                profile: fallbackAccount
+              };
+            }
+          } catch {}
+
+          // 2. Check exact local matched account
+          if (localMatchedAccount && localMatchedAccount.email?.toLowerCase() === normalizedTargetEmail) {
             return {
-              user: { id: profRow.id, email: targetEmail },
+              user: { id: localMatchedAccount.id, email: normalizedTargetEmail },
               session: null,
-              profile: fallbackAccount
+              profile: localMatchedAccount
             };
           }
+
+          // 3. Check central server dossier database by email
+          try {
+            const dossierRes = await fetch(`/api/applicants/dossier/${encodeURIComponent(normalizedTargetEmail)}`);
+            if (dossierRes.ok) {
+              const dossierJson = await dossierRes.json();
+              const d = dossierJson?.dossier;
+              if (d && d.email?.toLowerCase() === normalizedTargetEmail) {
+                const dossierAccount = mapProfileToUserAccount({
+                  id: d.id || `user-${Date.now()}`,
+                  email: normalizedTargetEmail,
+                  username: d.username || cleanInput.toLowerCase(),
+                  full_name: d.fullName || d.name,
+                  phone: d.phone,
+                  address: d.address,
+                  zone: d.parish,
+                  role: d.role || 'client',
+                  status: d.status,
+                  avatar_url: d.biometricVerification?.photoUrl || d.photoUrl || d.profilePhotoUrl,
+                  trn: d.trnNumber || d.trn
+                }, normalizedTargetEmail);
+                return {
+                  user: { id: dossierAccount.id, email: normalizedTargetEmail },
+                  session: null,
+                  profile: dossierAccount
+                };
+              }
+            }
+          } catch {}
         }
       } catch {}
 
@@ -519,13 +640,13 @@ export async function signInWithUsername(usernameInput: string, passwordInput: s
   }
 
   // Cache successful username lookup
-  saveUsernameToCache(cleanInput, targetEmail);
+  saveUsernameToCache(cleanInput, normalizedTargetEmail);
 
   // Fetch or build profile with RLS-safe fallback
   const userAccount = await fetchCurrentProfile(authUser.id, authUser);
 
   // Ensure Master Admin identity if logging in as Admin
-  if (cleanInput.toLowerCase() === 'sydney' || cleanInput.toLowerCase() === 'admin' || targetEmail === 'wecareja.bookings@gmail.com') {
+  if (cleanInput.toLowerCase() === 'sydney' || cleanInput.toLowerCase() === 'admin' || normalizedTargetEmail === 'wecareja.bookings@gmail.com') {
     userAccount.role = 'admin';
     userAccount.username = 'admin';
     userAccount.name = userAccount.name || 'Lead Administrator';
@@ -547,12 +668,18 @@ export async function signUpClientUser(data: {
   const cleanUsername = data.username.trim().toLowerCase();
   const cleanEmail = data.email.trim().toLowerCase();
 
+  // Clear any previous authenticated user's Supabase session BEFORE signing up the new user
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {}
+  clearAllSupabaseAuthTokens();
+
   // 1. Check existing accounts in local cache
   try {
     const raw = localStorage.getItem('wecare_user_accounts');
     if (raw) {
       const existing = JSON.parse(raw);
-      if (Array.isArray(existing) && existing.some((a: any) => a.username?.toLowerCase() === cleanUsername)) {
+      if (Array.isArray(existing) && existing.some((a: any) => a.username?.toLowerCase() === cleanUsername && a.email?.toLowerCase() !== cleanEmail)) {
         throw new Error(`Username "${cleanUsername}" is already taken. Please choose another username.`);
       }
     }
@@ -620,6 +747,7 @@ export async function signUpClientUser(data: {
   const clientAccount: UserAccount = {
     id: userId,
     username: cleanUsername,
+    password: data.password,
     name: data.fullName,
     full_name: data.fullName,
     email: cleanEmail,
@@ -633,15 +761,13 @@ export async function signUpClientUser(data: {
     createdAt: new Date().toISOString()
   };
 
-  // Save to local accounts
+  // Save to local accounts (deduplicating cleanly by id or email)
   try {
     const raw = localStorage.getItem('wecare_user_accounts');
     const existing = raw ? JSON.parse(raw) : [];
     if (Array.isArray(existing)) {
-      const idx = existing.findIndex((a: any) => a.id === userId || a.username === cleanUsername);
-      if (idx >= 0) existing[idx] = clientAccount;
-      else existing.push(clientAccount);
-      localStorage.setItem('wecare_user_accounts', JSON.stringify(existing));
+      const filtered = existing.filter((a: any) => a.id !== userId && a.email?.toLowerCase() !== cleanEmail);
+      localStorage.setItem('wecare_user_accounts', JSON.stringify([clientAccount, ...filtered]));
     }
   } catch {}
 
@@ -1253,45 +1379,72 @@ export async function fetchNursesFromSupabase(): Promise<NurseProfile[]> {
 
     return data.map((row: any): NurseProfile => {
       const isApproved = row.role === 'nurse' || row.role === 'caregiver' || row.role === 'registered_nurse';
-      const isRejected = row.role === 'nurse_rejected';
+      const isRejected = row.role === 'nurse_rejected' || row.status === 'rejected';
       const status: NurseProfile['status'] = isApproved ? 'approved' : isRejected ? 'rejected' : 'pending_approval';
 
-      // Parse NCJ license if stored in trn
-      let ncjLicense = 'NCJ-RN-PENDING';
-      let trnNum = row.trn || '';
-      if (row.trn && row.trn.includes('NCJ')) {
-        const parts = row.trn.split(' | ');
-        ncjLicense = parts[0]?.trim() || 'NCJ-RN-PENDING';
-        if (parts[1]) trnNum = parts[1].replace('TRN: ', '').trim();
-      } else if (row.trn) {
-        trnNum = row.trn;
-        ncjLicense = isApproved ? 'NCJ-RN-ACTIVE' : 'NCJ-RN-PENDING';
+      // Extract embedded DOSSIER JSON if present in row.trn
+      let parsedDossier: Record<string, any> = {};
+      let rawTrn = typeof row.trn === 'string' ? row.trn : '';
+      if (rawTrn.includes('DOSSIER:')) {
+        const dIdx = rawTrn.indexOf('DOSSIER:');
+        const jsonPart = rawTrn.substring(dIdx + 8).trim();
+        rawTrn = rawTrn.substring(0, dIdx).replace(/\|\s*$/, '').trim();
+        try {
+          parsedDossier = JSON.parse(jsonPart);
+        } catch {}
       }
+
+      // Parse NCJ license and TRN from remaining header string
+      let ncjLicense = parsedDossier.ncjLicense || 'NCJ-RN-PENDING';
+      let trnNum = parsedDossier.trnNumber || '';
+      if (!trnNum) {
+        if (rawTrn && rawTrn.includes('NCJ')) {
+          const parts = rawTrn.split(' | ');
+          ncjLicense = parts[0]?.trim() || ncjLicense;
+          if (parts[1]) trnNum = parts[1].replace('TRN: ', '').trim();
+        } else if (rawTrn) {
+          trnNum = rawTrn.split(' | ')[0].replace(/^TRN:\s*/i, '').trim();
+          ncjLicense = isApproved ? 'NCJ-RN-ACTIVE' : ncjLicense;
+        }
+      }
+
+      const realPhotoUrl = parsedDossier.photoUrl && !String(parsedDossier.photoUrl).includes('images.unsplash.com')
+        ? parsedDossier.photoUrl
+        : undefined;
 
       return {
         id: row.id,
         name: row.full_name || row.username || 'Licensed Nurse',
         email: row.email || `${row.id}@wecarejamaica.com`,
         qualificationTitle: status === 'pending_approval' ? 'Licensed Nurse Applicant (NCJ Vetting Required)' : 'Registered Nurse (RN - NCJ Verified)',
-        parish: row.address?.includes(',') ? row.address.split(',').pop()?.trim() || 'Kingston & St. Andrew' : 'Kingston & St. Andrew',
+        parish: parsedDossier.parish || (row.address?.includes(',') ? row.address.split(',').pop()?.trim() || 'Kingston & St. Andrew' : 'Kingston & St. Andrew'),
         rating: 5.0,
         reviewCount: isApproved ? 16 : 0,
-        hourlyRateJMD: 7500,
+        hourlyRateJMD: parsedDossier.hourlyRateJMD || 7500,
         totalEarningsJMD: 0,
         pendingPayoutJMD: 0,
         completedVisitsCount: 0,
         licenseVerified: isApproved,
         status: status,
-        photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
+        photoUrl: realPhotoUrl || (isApproved ? 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400' : ''),
         specialties: ['Elderly Care & Vitals', 'Wound Care', 'Post-Op Monitoring'],
         zones: ['Kingston', 'St. Andrew', 'Portmore'],
-        yearsExperience: 4,
+        yearsExperience: parsedDossier.yearsExperience || 4,
         phone: row.phone || '(876) 555-0199',
         phoneNumber: row.phone || '(876) 555-0199',
         address: row.address || 'Kingston, Jamaica',
         nursingCouncilLicense: ncjLicense,
         trnNumber: trnNum,
-        trn: trnNum,
+        trn: row.trn || trnNum,
+        driversLicenseNumber: parsedDossier.driversLicenseNumber,
+        driversLicenseFrontUrl: parsedDossier.driversLicenseFrontUrl || row.drivers_license_front_url,
+        driversLicenseBackUrl: parsedDossier.driversLicenseBackUrl || row.drivers_license_back_url,
+        trnCertificateUrl: parsedDossier.trnCertificateUrl || row.trn_certificate_url,
+        licenseDocumentUrl: parsedDossier.licenseDocumentUrl || row.license_document_url,
+        governmentIdUrl: parsedDossier.governmentIdUrl,
+        policeRecordUrl: parsedDossier.policeRecordUrl,
+        bankLetterUrl: parsedDossier.bankLetterUrl,
+        proofOfAddressUrl: parsedDossier.proofOfAddressUrl,
         bio: `${row.full_name || 'Practitioner'} registered with WeCare Jamaica. Verification Status: ${status === 'pending_approval' ? 'Pending Admin & NCJ Verification' : 'Approved & Verified'}.`
       };
     });
@@ -1331,14 +1484,6 @@ export async function saveNurseProfileToSupabase(nurse: NurseProfile): Promise<b
   try {
     const role = nurse.status === 'approved' ? 'nurse' : 'nurse_pending';
     const docUrl = nurse.trnCertificateUrl || nurse.licenseDocumentUrl || nurse.governmentIdUrl || '';
-    let trnValue = nurse.nursingCouncilLicense 
-      ? `${nurse.nursingCouncilLicense} | TRN: ${nurse.trnNumber || nurse.trn || ''}` 
-      : (nurse.trnNumber || nurse.trn || '');
-
-    if (docUrl && !trnValue.includes('DOC:')) {
-      trnValue = trnValue ? `${trnValue} | DOC: ${docUrl}` : `DOC: ${docUrl}`;
-    }
-
     const cleanEmail = (nurse.email || '').trim().toLowerCase();
     const cleanName = (nurse.name || '').trim();
     const cleanUsername = cleanEmail ? cleanEmail.split('@')[0] : cleanName.toLowerCase().replace(/[^a-z0-9]/g, '.');
@@ -1346,17 +1491,94 @@ export async function saveNurseProfileToSupabase(nurse: NurseProfile): Promise<b
     // 1. Check if nurse.id is already a valid UUID
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     let targetId: string | null = uuidRegex.test(nurse.id) ? nurse.id : null;
+    let existingTrnString = '';
 
-    // 2. If targetId is not a valid UUID, search if profile exists by email
-    if (!targetId && cleanEmail) {
-      const { data: existing } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', cleanEmail)
-        .maybeSingle();
-      if (existing?.id) {
-        targetId = existing.id;
+    // 2. Search existing profile by id or email so we preserve existing DOSSIER metadata
+    if (targetId) {
+      try {
+        const { data: existingById } = await supabase
+          .from('profiles')
+          .select('id, trn')
+          .eq('id', targetId)
+          .maybeSingle();
+        if (existingById?.trn) existingTrnString = existingById.trn;
+      } catch {}
+    }
+
+    if ((!targetId || !existingTrnString) && cleanEmail) {
+      try {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id, trn')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+        if (existing?.id) {
+          if (!targetId) targetId = existing.id;
+          if (!existingTrnString && existing.trn) existingTrnString = existing.trn;
+        }
+      } catch {}
+    }
+
+    // Parse any existing DOSSIER JSON from existingTrnString so document URLs are never lost
+    let existingDossier: Record<string, any> = {};
+    if (existingTrnString && existingTrnString.includes('DOSSIER:')) {
+      try {
+        const idx = existingTrnString.indexOf('DOSSIER:');
+        existingDossier = JSON.parse(existingTrnString.substring(idx + 8).trim());
+      } catch {}
+    }
+
+    const cleanUrl = (u?: string | null) => {
+      if (!u || typeof u !== 'string') return undefined;
+      const t = u.trim();
+      if (!t || t.includes('images.unsplash.com')) return undefined;
+      return t;
+    };
+
+    const incomingDossier: Record<string, any> = {
+      id: targetId || nurse.id,
+      email: cleanEmail || existingDossier.email,
+      username: cleanUsername || existingDossier.username,
+      fullName: cleanName || existingDossier.fullName,
+      trnNumber: nurse.trnNumber || existingDossier.trnNumber,
+      ncjLicense: nurse.nursingCouncilLicense || existingDossier.ncjLicense,
+      driversLicenseNumber: nurse.driversLicenseNumber || existingDossier.driversLicenseNumber,
+      parish: nurse.parish || existingDossier.parish,
+      hourlyRateJMD: nurse.hourlyRateJMD || existingDossier.hourlyRateJMD,
+      yearsExperience: nurse.yearsExperience || existingDossier.yearsExperience,
+      photoUrl: cleanUrl(nurse.photoUrl) || cleanUrl(existingDossier.photoUrl),
+      driversLicenseFrontUrl: cleanUrl(nurse.driversLicenseFrontUrl) || cleanUrl(existingDossier.driversLicenseFrontUrl),
+      driversLicenseBackUrl: cleanUrl(nurse.driversLicenseBackUrl) || cleanUrl(existingDossier.driversLicenseBackUrl),
+      trnCertificateUrl: cleanUrl(nurse.trnCertificateUrl) || cleanUrl(existingDossier.trnCertificateUrl),
+      licenseDocumentUrl: cleanUrl(nurse.licenseDocumentUrl) || cleanUrl(existingDossier.licenseDocumentUrl),
+      governmentIdUrl: cleanUrl(nurse.governmentIdUrl) || cleanUrl(existingDossier.governmentIdUrl),
+      governmentIdBackUrl: cleanUrl(nurse.governmentIdBackUrl) || cleanUrl(existingDossier.governmentIdBackUrl),
+      policeRecordUrl: cleanUrl(nurse.policeRecordUrl) || cleanUrl(existingDossier.policeRecordUrl),
+      bankLetterUrl: cleanUrl(nurse.bankLetterUrl) || cleanUrl(existingDossier.bankLetterUrl),
+      proofOfAddressUrl: cleanUrl(nurse.proofOfAddressUrl) || cleanUrl(existingDossier.proofOfAddressUrl),
+      biometricVerification: (nurse as any).biometricVerification || existingDossier.biometricVerification
+    };
+
+    // Remove undefined keys for compact JSON
+    const compactDossier: Record<string, any> = {};
+    for (const [k, v] of Object.entries(incomingDossier)) {
+      if (v !== undefined && v !== null && v !== '') {
+        compactDossier[k] = v;
       }
+    }
+
+    const baseTrnNum = nurse.trnNumber || (nurse.trn && !nurse.trn.includes('DOSSIER:') ? nurse.trn : existingDossier.trnNumber || '');
+    let trnValue = nurse.nursingCouncilLicense
+      ? `${nurse.nursingCouncilLicense} | TRN: ${baseTrnNum}`
+      : baseTrnNum;
+
+    if (docUrl && !trnValue.includes('DOC:')) {
+      trnValue = trnValue ? `${trnValue} | DOC: ${docUrl}` : `DOC: ${docUrl}`;
+    }
+    if (Object.keys(compactDossier).length > 0) {
+      trnValue = trnValue
+        ? `${trnValue} | DOSSIER:${JSON.stringify(compactDossier)}`
+        : `DOSSIER:${JSON.stringify(compactDossier)}`;
     }
 
     // 3. If still no valid UUID targetId, create user in Supabase auth to get a real foreign key UUID

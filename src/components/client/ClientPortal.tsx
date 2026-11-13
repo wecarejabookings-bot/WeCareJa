@@ -271,6 +271,38 @@ export const ClientPortal: React.FC<ClientPortalProps> = ({
   const [hasDismissedDraftBanner, setHasDismissedDraftBanner] = useState<boolean>(false);
   const [draftLastSavedTime, setDraftLastSavedTime] = useState<string | null>(null);
 
+  // Sync client/emergency fields when currentUser changes and clear previous user's state on sign-out/switch
+  useEffect(() => {
+    setSelectedZone(currentUser?.zone || '');
+    setClientAddress(currentUser?.address || currentUser?.patientBioData?.residentialAddress || '');
+    setClientName(currentUser?.name || currentUser?.full_name || '');
+    setClientPhone(currentUser?.phone || currentUser?.whatsAppPhone || '');
+    setEmergencyName(currentUser?.emergencyContact?.name || currentUser?.patientBioData?.trustedFamilyMember?.name || '');
+    setEmergencyPhone(currentUser?.emergencyContact?.phone || currentUser?.patientBioData?.trustedFamilyMember?.phone || '');
+    setEmergencyRelation(currentUser?.emergencyContact?.relation || currentUser?.patientBioData?.trustedFamilyMember?.relation || '');
+    setCurrentStep('browse');
+    setSelectedService(null);
+    setSelectedNurse(null);
+    setNotes('');
+    setActiveTab('dashboard');
+    setRestorableDraft(null);
+  }, [
+    currentUser?.id,
+    currentUser?.zone,
+    currentUser?.address,
+    currentUser?.name,
+    currentUser?.full_name,
+    currentUser?.phone,
+    currentUser?.whatsAppPhone,
+    currentUser?.emergencyContact?.name,
+    currentUser?.emergencyContact?.phone,
+    currentUser?.emergencyContact?.relation,
+    currentUser?.patientBioData?.residentialAddress,
+    currentUser?.patientBioData?.trustedFamilyMember?.name,
+    currentUser?.patientBioData?.trustedFamilyMember?.phone,
+    currentUser?.patientBioData?.trustedFamilyMember?.relation
+  ]);
+
   // Check on mount if an unsaved booking draft exists in localStorage
   useEffect(() => {
     const draft = getBookingFormDraft();

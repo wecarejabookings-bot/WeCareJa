@@ -46,9 +46,9 @@ import {
 } from '../../types';
 import { soundFX } from '../../utils/soundEffects';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
-import { MandatoryBiometricFaceScanner } from './MandatoryBiometricFaceScanner';
+import { MandatoryBiometricFaceScanner, BiometricVerificationMetadata } from './MandatoryBiometricFaceScanner';
 import { compressImageFile } from '../../utils/imageCompression';
-import { supabase, saveNurseProfileToSupabase, saveUsernameToCache } from '../../lib/supabase';
+import { supabase, saveNurseProfileToSupabase, saveUsernameToCache, clearAllSupabaseAuthTokens } from '../../lib/supabase';
 import { uploadDocument, saveApplicantDossier } from '../../utils/dossierStore';
 import confetti from 'canvas-confetti';
 import { AgreementSignatureBox, SignatureData } from '../common/AgreementSignatureBox';
@@ -458,6 +458,13 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const address = formData.address || '';
   const setAddress = (v: string) => handleInputChange('address', v);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
+  const [biometricVerification, setBiometricVerification] = useState<BiometricVerificationMetadata | null>(null);
+
+  const hasValidBiometricScan = Boolean(
+    profilePhotoUrl &&
+      (profilePhotoUrl.startsWith('data:image/') ||
+        (profilePhotoUrl.startsWith('/uploads/') && biometricVerification?.livenessVerified))
+  );
 
   // Camera modal state
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -564,6 +571,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const ncjInputRef = useRef<HTMLInputElement | null>(null);
   const policeInputRef = useRef<HTMLInputElement | null>(null);
   const bankInputRef = useRef<HTMLInputElement | null>(null);
+  const proofAddressInputRef = useRef<HTMLInputElement | null>(null);
+  const adminGovIdInputRef = useRef<HTMLInputElement | null>(null);
+  const adminDlFrontInputRef = useRef<HTMLInputElement | null>(null);
+  const adminDlBackInputRef = useRef<HTMLInputElement | null>(null);
+  const adminTrnInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingDocCategory, setUploadingDocCategory] = useState<string | null>(null);
 
   // ADMIN SPECIFIC: Role, department & clearance - blank by default for real administrators
   const adminTitle = formData.adminTitle || '';
@@ -589,38 +602,44 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const [mfaEnrollStatus, setMfaEnrollStatus] = useState<string | null>(null);
   const [pendingCompletedAccount, setPendingCompletedAccount] = useState<UserAccount | null>(null);
 
-  // Document uploads: Limit to 5MB, whitelist image/jpeg, image/png, application/pdf
+  // Document uploads: supports JPEG/PNG/WebP/PDF, compresses oversized camera photos, stores in central SQLite vault
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: (url: string) => void,
     fileNameSetter?: (name: string) => void,
-    bucket: 'nurse-documents' | 'admin-documents' = 'nurse-documents'
+    category: string = 'document'
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 1. File size check (5MB limit)
-    const MAX_SIZE = 5 * 1024 * 1024;
-    if (file.size > MAX_SIZE) {
-      setErrorMsg(`Document exceeds 5MB limit (${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller document.`);
+    const lowerName = (file.name || '').toLowerCase();
+    const isPdfByExt = lowerName.endsWith('.pdf');
+    const isImgByExt = /\.(jpe?g|png|webp)$/i.test(lowerName);
+    const ALLOWED_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    const isAllowed = (file.type && ALLOWED_MIME.includes(file.type.toLowerCase())) || (!file.type && (isImgByExt || isPdfByExt));
+
+    if (!isAllowed) {
+      setErrorMsg(`Invalid file type (${file.type || file.name}). Allowed formats: JPEG, PNG, WebP, or PDF.`);
       soundFX.playWarningSound();
       return;
     }
 
-    // 2. MIME whitelist check
-    const ALLOWED_MIME = ['image/jpeg', 'image/png', 'application/pdf'];
-    if (!ALLOWED_MIME.includes(file.type)) {
-      setErrorMsg(`Invalid file type (${file.type || 'unknown'}). Allowed formats: JPEG, PNG, or PDF.`);
+    const isPdf = file.type === 'application/pdf' || isPdfByExt;
+    const MAX_SIZE = isPdf ? 8 * 1024 * 1024 : 15 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setErrorMsg(`Document exceeds limit (${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller file.`);
       soundFX.playWarningSound();
       return;
     }
 
     setErrorMsg(null);
+    setUploadingDocCategory(category);
     if (fileNameSetter) fileNameSetter(file.name);
 
-    // 3. Upload directly to permanent server database storage
+    const applicantEmail = (formData.email || '').trim().toLowerCase() || undefined;
+
     try {
-      const uploadRes = await uploadDocument(file, file.name, bucket);
+      const uploadRes = await uploadDocument(file, file.name, category, undefined, applicantEmail);
       if (uploadRes && uploadRes.url) {
         setter(uploadRes.url);
         soundFX.playSuccessPing();
@@ -628,10 +647,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       }
     } catch (uploadErr) {
       console.warn('[SignupPortal] Server upload error, falling back:', uploadErr);
+    } finally {
+      setUploadingDocCategory(null);
     }
 
-    // 4. Safe fallback for preview in local wizard
-    if (file.type === 'application/pdf') {
+    // Fallback preview
+    if (isPdf) {
       const reader = new FileReader();
       reader.onload = () => {
         setter(reader.result as string);
@@ -640,7 +661,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       reader.readAsDataURL(file);
     } else {
       try {
-        const compressed = await compressImageFile(file, 800, 0.82);
+        const compressed = await compressImageFile(file, 1200, 0.85);
         setter(compressed);
         soundFX.playSuccessPing();
       } catch {
@@ -764,7 +785,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
   const handleNurseNext = () => {
     setErrorMsg(null);
     if (nurseStep === 1) {
-      if (!profilePhotoUrl || !profilePhotoUrl.startsWith('data:image/')) {
+      if (!hasValidBiometricScan) {
         setErrorMsg('Live biometric face scan is mandatory for all healthcare practitioners. Please scan your face using the live camera before proceeding.');
         soundFX.playWarningSound();
         return;
@@ -826,7 +847,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     setErrorMsg(null);
 
     // Profile Photo validation - Live camera face scan strictly required for nurse and admin
-    if ((role === 'nurse' || role === 'admin') && (!profilePhotoUrl || !profilePhotoUrl.startsWith('data:image/'))) {
+    if ((role === 'nurse' || role === 'admin') && !hasValidBiometricScan) {
       setErrorMsg(`Live biometric face scan is strictly required for ${role === 'admin' ? 'administrators' : 'healthcare practitioners'}. Photo file uploads are disabled. Please scan your face using the live camera.`);
       soundFX.playWarningSound();
       return;
@@ -884,6 +905,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     }
 
     setIsSubmitting(true);
+    if (typeof window !== 'undefined') {
+      (window as any).__wecareSignupInProgress = true;
+    }
     const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = username.trim().toLowerCase() || cleanEmail.split('@')[0] || `user_${Date.now()}`;
     const cleanFullName = fullName.trim();
@@ -894,142 +918,21 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
     const resolvedIllness = selectedIllness === 'Other (Please specify in text box below)' ? (customIllness.trim() || 'Specialized Condition') : selectedIllness;
 
     try {
+      // Clear any previous signed-in user session BEFORE registering the new account
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+      clearAllSupabaseAuthTokens();
+      try {
+        sessionStorage.removeItem('wecare_session_user_id');
+        localStorage.removeItem('wecare_current_user_id');
+      } catch {}
+
       let userId = `user-${role}-${Date.now()}`;
       const isMasterAdminEmail = cleanEmail === 'wecareja.bookings@gmail.com';
-      const dbRole = role === 'nurse' 
-        ? 'nurse_pending' 
+      const dbRole = role === 'nurse'
+        ? 'nurse_pending'
         : (role === 'admin' && !isMasterAdminEmail ? 'admin_pending' : role);
-
-      // Construct comprehensive dossier payload with all uploaded data & signatures
-      const dossierPayload = role === 'nurse' ? {
-        type: 'nurse',
-        fullName: cleanFullName,
-        email: cleanEmail,
-        phone: cleanPhone,
-        address: cleanAddress,
-        parish: parish,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        emergencyContact: {
-          name: nurseEmergencyContact,
-          phone: cleanPhone,
-          relation: 'Next of Kin'
-        },
-        trnNumber: nurseTrn.trim(),
-        ncjLicense: nurseNcjLicense.trim(),
-        driversLicenseNumber: driversLicenseNumber.trim(),
-        yearsExperience: 4,
-        hourlyRateJMD: 7500,
-        institutionAttended: 'Accredited Jamaican Nursing Institution',
-        photoUrl: profilePhotoUrl || undefined,
-        profilePhotoUrl: profilePhotoUrl || undefined,
-        governmentIdUrl: govIdUrl || undefined,
-        driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
-        driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
-        trnCertificateUrl: trnCertUrl || undefined,
-        licenseDocumentUrl: licenseDocUrl || undefined,
-        policeRecordUrl: policeRecordUrl || undefined,
-        bankLetterUrl: bankLetterUrl || undefined,
-        proofOfAddressUrl: proofOfAddressUrl || undefined,
-        documents: {
-          profilePhotoUrl: profilePhotoUrl || undefined,
-          governmentIdUrl: govIdUrl || undefined,
-          trnCertificateUrl: trnCertUrl || undefined,
-          driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
-          driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
-          licenseDocumentUrl: licenseDocUrl || undefined,
-          policeRecordUrl: policeRecordUrl || undefined,
-          bankLetterUrl: bankLetterUrl || undefined,
-          proofOfAddressUrl: proofOfAddressUrl || undefined
-        },
-        bankDetails: {
-          bankName: bankName,
-          accountNumber: accountNumber,
-          accountType: 'Savings',
-          lynkWallet: lynkWallet
-        },
-        signature: nurseSignature,
-        submittedAt: new Date().toISOString()
-      } : (role === 'admin' ? {
-        type: 'admin',
-        fullName: cleanFullName,
-        email: cleanEmail,
-        phone: cleanPhone,
-        address: cleanAddress,
-        parish: parish,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        staffId: adminStaffId,
-        department: adminDepartment,
-        title: adminTitle,
-        signature: adminSignature,
-        photoUrl: profilePhotoUrl || undefined,
-        profilePhotoUrl: profilePhotoUrl || undefined,
-        governmentIdUrl: govIdUrl || undefined,
-        driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
-        driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
-        trnCertificateUrl: trnCertUrl || undefined,
-        policeRecordUrl: policeRecordUrl || undefined,
-        bankLetterUrl: bankLetterUrl || undefined,
-        proofOfAddressUrl: proofOfAddressUrl || undefined,
-        documents: {
-          profilePhotoUrl: profilePhotoUrl || undefined,
-          governmentIdUrl: govIdUrl || undefined,
-          trnCertificateUrl: trnCertUrl || undefined,
-          driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
-          driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
-          policeRecordUrl: policeRecordUrl || undefined,
-          bankLetterUrl: bankLetterUrl || undefined,
-          proofOfAddressUrl: proofOfAddressUrl || undefined
-        },
-        submittedAt: new Date().toISOString()
-      } : {
-        type: 'client',
-        role: 'client',
-        fullName: cleanFullName,
-        email: cleanEmail,
-        phone: cleanPhone,
-        address: cleanAddress,
-        parish: parish,
-        dateOfBirth: dateOfBirth,
-        gender: gender,
-        photoUrl: profilePhotoUrl || undefined,
-        profilePhotoUrl: profilePhotoUrl || undefined,
-        governmentIdUrl: govIdUrl || undefined,
-        driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
-        driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
-        trnCertificateUrl: trnCertUrl || undefined,
-        proofOfAddressUrl: proofOfAddressUrl || undefined,
-        driversLicenseNumber: driversLicenseNumber.trim() || undefined,
-        emergencyContact: {
-          name: repName.trim() || cleanFullName,
-          phone: repPhone.trim() || cleanPhone,
-          relation: repRelation.trim() || 'Trusted Family'
-        },
-        documents: {
-          profilePhotoUrl: profilePhotoUrl || undefined,
-          governmentIdUrl: govIdUrl || undefined,
-          driversLicenseFrontUrl: dlFrontUrl || driversLicenseFrontUrl || undefined,
-          driversLicenseBackUrl: dlBackUrl || driversLicenseBackUrl || undefined,
-          trnCertificateUrl: trnCertUrl || undefined,
-          proofOfAddressUrl: proofOfAddressUrl || undefined
-        },
-        submittedAt: new Date().toISOString()
-      });
-
-      const dossierJson = dossierPayload ? JSON.stringify(dossierPayload) : '';
-      const trnValue = role === 'nurse'
-        ? `${nurseTrn.trim()}${trnCertUrl ? ` | DOC: ${trnCertUrl}` : ''}${nurseSignature?.signed ? ' | SIGNED: YES' : ''} | DOSSIER:${dossierJson}`
-        : (role === 'admin' ? `ADMIN-STAFF-${adminStaffId} | DEPT:${adminDepartment} | DOSSIER:${dossierJson}` : '');
-
-      if (dossierPayload) {
-        // Save to central server database and local cache
-        saveApplicantDossier({
-          ...dossierPayload,
-          id: userId,
-          role: dbRole
-        }).catch(() => {});
-      }
 
       // If Admin, verify clearance key and provision via server Edge Function
       if (role === 'admin') {
@@ -1058,7 +961,6 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             userId = edgeData.user_id;
           }
         } catch (edgeInvocationErr: any) {
-          // If edge function returned an error, halt and alert
           if (edgeInvocationErr?.message && !edgeInvocationErr.message.includes('Failed to send a request')) {
             throw edgeInvocationErr;
           }
@@ -1091,23 +993,94 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         }
       }
 
-      // 1. Supabase Auth registration attempt
+      // Upload biometric face scan / profile photo to permanent SQLite database if still a base64 dataUrl
+      let finalProfilePhotoUrl = profilePhotoUrl;
+      if (finalProfilePhotoUrl && finalProfilePhotoUrl.startsWith('data:image/')) {
+        try {
+          const uploadedScan = await uploadDocument(
+            finalProfilePhotoUrl,
+            `biometric_face_scan_${cleanUsername}.jpg`,
+            'biometric_face_scan',
+            userId,
+            cleanEmail
+          );
+          if (uploadedScan?.url) {
+            finalProfilePhotoUrl = uploadedScan.url;
+          }
+        } catch {}
+      }
+
+      // Flush any statutory document still stored as a client dataUrl into the SQLite document database
+      const ensureServerUrl = async (currentUrl: string | null | undefined, category: string, defaultName: string) => {
+        const raw = (currentUrl || '').trim();
+        if (!raw) return undefined;
+        if (raw.startsWith('/uploads/') || raw.startsWith('/api/documents/file/') || (raw.startsWith('http') && !raw.includes('images.unsplash.com'))) {
+          return raw;
+        }
+        if (raw.startsWith('data:')) {
+          try {
+            const res = await uploadDocument(raw, `${category}_${cleanUsername || 'doc'}_${defaultName}`, category, userId, cleanEmail);
+            if (res?.url) return res.url;
+          } catch {}
+        }
+        return raw;
+      };
+
+      const [
+        finalDlFrontUrl,
+        finalDlBackUrl,
+        finalTrnCertUrl,
+        finalLicenseDocUrl,
+        finalGovIdUrl,
+        finalPoliceRecordUrl,
+        finalBankLetterUrl,
+        finalProofOfAddressUrl
+      ] = await Promise.all([
+        ensureServerUrl(dlFrontUrl || driversLicenseFrontUrl, 'drivers_license_front', 'dl_front.jpg'),
+        ensureServerUrl(dlBackUrl || driversLicenseBackUrl, 'drivers_license_back', 'dl_back.jpg'),
+        ensureServerUrl(trnCertUrl, 'trn_certificate', 'trn.jpg'),
+        ensureServerUrl(licenseDocUrl, 'ncj_license', 'ncj.jpg'),
+        ensureServerUrl(govIdUrl, 'government_id', 'gov_id.jpg'),
+        ensureServerUrl(policeRecordUrl, 'police_record', 'police.jpg'),
+        ensureServerUrl(bankLetterUrl, 'bank_letter', 'bank.jpg'),
+        ensureServerUrl(proofOfAddressUrl, 'proof_of_address', 'address.jpg')
+      ]);
+
+      const finalBiometricRecord =
+        biometricVerification ||
+        (finalProfilePhotoUrl
+          ? {
+              status: 'verified',
+              verificationId: `BIO-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+              capturedAt: new Date().toISOString(),
+              captureMethod: 'manual',
+              livenessVerified: role === 'nurse' || role === 'admin',
+              photoUrl: finalProfilePhotoUrl
+            }
+          : undefined);
+      if (finalBiometricRecord && finalProfilePhotoUrl) {
+        finalBiometricRecord.photoUrl = finalProfilePhotoUrl;
+      }
+
+      // 1. Supabase Auth registration attempt (resolved BEFORE saving dossier & profile so userId is canonical)
+      let hasSupabaseSession = false;
       try {
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: cleanEmail,
           password: password.trim(),
           options: {
             data: {
+              username: cleanUsername,
               full_name: cleanFullName,
               role: dbRole,
               phone: cleanPhone,
-              address: cleanAddress,
-              trn: trnValue
+              address: cleanAddress
             }
           }
         });
         if (!authError && authData?.user) {
           userId = authData.user.id;
+          hasSupabaseSession = Boolean(authData.session);
         } else if (authError) {
           console.warn('Supabase auth notice:', authError.message);
           if (authError.message?.toLowerCase().includes('already registered')) {
@@ -1118,6 +1091,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
               });
               if (signInData?.user?.id) {
                 userId = signInData.user.id;
+                hasSupabaseSession = Boolean(signInData.session);
               }
             } catch {}
           }
@@ -1132,12 +1106,17 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id')
-            .eq('email', cleanEmail)
+            .ilike('email', cleanEmail)
             .maybeSingle();
           if (existingProfile?.id) {
             userId = existingProfile.id;
           }
         } catch {}
+      }
+
+      // If Supabase signup didn't establish a live JWT session, ensure no stale tokens remain
+      if (!hasSupabaseSession) {
+        clearAllSupabaseAuthTokens();
       }
 
       // Auto confirm edge function if available
@@ -1146,6 +1125,160 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           await supabase.functions.invoke('confirm-user', { body: { user_id: userId } });
         } catch {}
       }
+
+      // Construct comprehensive dossier payload with FINAL canonical userId & verified document URLs
+      const dossierPayload = role === 'nurse' ? {
+        type: 'nurse',
+        username: cleanUsername,
+        fullName: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish: parish,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        emergencyContact: {
+          name: nurseEmergencyContact,
+          phone: cleanPhone,
+          relation: 'Next of Kin'
+        },
+        trnNumber: nurseTrn.trim(),
+        ncjLicense: nurseNcjLicense.trim(),
+        driversLicenseNumber: driversLicenseNumber.trim(),
+        yearsExperience: Number(yearsExperience) || 4,
+        hourlyRateJMD: Number(hourlyRate) || 7500,
+        institutionAttended: institutionAttended || 'Accredited Jamaican Nursing Institution',
+        photoUrl: finalProfilePhotoUrl || undefined,
+        profilePhotoUrl: finalProfilePhotoUrl || undefined,
+        biometricVerification: finalBiometricRecord,
+        governmentIdUrl: finalGovIdUrl,
+        driversLicenseFrontUrl: finalDlFrontUrl,
+        driversLicenseBackUrl: finalDlBackUrl,
+        trnCertificateUrl: finalTrnCertUrl,
+        licenseDocumentUrl: finalLicenseDocUrl,
+        policeRecordUrl: finalPoliceRecordUrl,
+        bankLetterUrl: finalBankLetterUrl,
+        proofOfAddressUrl: finalProofOfAddressUrl,
+        documents: {
+          profilePhotoUrl: finalProfilePhotoUrl || undefined,
+          governmentIdUrl: finalGovIdUrl,
+          trnCertificateUrl: finalTrnCertUrl,
+          driversLicenseFrontUrl: finalDlFrontUrl,
+          driversLicenseBackUrl: finalDlBackUrl,
+          licenseDocumentUrl: finalLicenseDocUrl,
+          policeRecordUrl: finalPoliceRecordUrl,
+          bankLetterUrl: finalBankLetterUrl,
+          proofOfAddressUrl: finalProofOfAddressUrl
+        },
+        bankDetails: {
+          bankName: bankName,
+          accountNumber: accountNumber,
+          accountType: 'Savings',
+          lynkWallet: lynkWallet
+        },
+        signature: nurseSignature,
+        submittedAt: new Date().toISOString()
+      } : (role === 'admin' ? {
+        type: 'admin',
+        username: cleanUsername,
+        fullName: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish: parish,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        staffId: adminStaffId,
+        department: adminDepartment,
+        title: adminTitle,
+        signature: adminSignature,
+        photoUrl: finalProfilePhotoUrl || undefined,
+        profilePhotoUrl: finalProfilePhotoUrl || undefined,
+        biometricVerification: finalBiometricRecord,
+        governmentIdUrl: finalGovIdUrl,
+        driversLicenseFrontUrl: finalDlFrontUrl,
+        driversLicenseBackUrl: finalDlBackUrl,
+        trnCertificateUrl: finalTrnCertUrl,
+        policeRecordUrl: finalPoliceRecordUrl,
+        bankLetterUrl: finalBankLetterUrl,
+        proofOfAddressUrl: finalProofOfAddressUrl,
+        documents: {
+          profilePhotoUrl: finalProfilePhotoUrl || undefined,
+          governmentIdUrl: finalGovIdUrl,
+          trnCertificateUrl: finalTrnCertUrl,
+          driversLicenseFrontUrl: finalDlFrontUrl,
+          driversLicenseBackUrl: finalDlBackUrl,
+          policeRecordUrl: finalPoliceRecordUrl,
+          bankLetterUrl: finalBankLetterUrl,
+          proofOfAddressUrl: finalProofOfAddressUrl
+        },
+        submittedAt: new Date().toISOString()
+      } : {
+        type: 'client',
+        role: 'client',
+        username: cleanUsername,
+        fullName: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        address: cleanAddress,
+        parish: parish,
+        dateOfBirth: dateOfBirth,
+        gender: gender,
+        photoUrl: finalProfilePhotoUrl || undefined,
+        profilePhotoUrl: finalProfilePhotoUrl || undefined,
+        biometricVerification: finalBiometricRecord,
+        governmentIdUrl: finalGovIdUrl,
+        driversLicenseFrontUrl: finalDlFrontUrl,
+        driversLicenseBackUrl: finalDlBackUrl,
+        trnCertificateUrl: finalTrnCertUrl,
+        proofOfAddressUrl: finalProofOfAddressUrl,
+        driversLicenseNumber: driversLicenseNumber.trim() || undefined,
+        emergencyContact: {
+          name: repName.trim() || cleanFullName,
+          phone: repPhone.trim() || cleanPhone,
+          relation: repRelation.trim() || 'Trusted Family'
+        },
+        documents: {
+          profilePhotoUrl: finalProfilePhotoUrl || undefined,
+          governmentIdUrl: finalGovIdUrl,
+          driversLicenseFrontUrl: finalDlFrontUrl,
+          driversLicenseBackUrl: finalDlBackUrl,
+          trnCertificateUrl: finalTrnCertUrl,
+          proofOfAddressUrl: finalProofOfAddressUrl
+        },
+        submittedAt: new Date().toISOString()
+      });
+
+      const compactForTrn = {
+        id: userId,
+        email: cleanEmail,
+        username: cleanUsername,
+        photoUrl: finalProfilePhotoUrl || undefined,
+        biometricVerification: finalBiometricRecord,
+        driversLicenseFrontUrl: finalDlFrontUrl,
+        driversLicenseBackUrl: finalDlBackUrl,
+        trnCertificateUrl: finalTrnCertUrl,
+        licenseDocumentUrl: finalLicenseDocUrl,
+        governmentIdUrl: finalGovIdUrl,
+        policeRecordUrl: finalPoliceRecordUrl,
+        bankLetterUrl: finalBankLetterUrl,
+        proofOfAddressUrl: finalProofOfAddressUrl,
+        driversLicenseNumber: driversLicenseNumber.trim() || undefined
+      };
+
+      const trnValue = role === 'nurse'
+        ? `${nurseTrn.trim()}${finalTrnCertUrl ? ` | DOC: ${finalTrnCertUrl}` : ''}${nurseSignature?.signed ? ' | SIGNED: YES' : ''} | DOSSIER:${JSON.stringify(compactForTrn)}`
+        : (role === 'admin'
+            ? `ADMIN-STAFF-${adminStaffId} | DEPT:${adminDepartment} | DOSSIER:${JSON.stringify(compactForTrn)}`
+            : (finalProfilePhotoUrl || finalDlFrontUrl || finalGovIdUrl ? `DOSSIER:${JSON.stringify(compactForTrn)}` : ''));
+
+      // Persist full dossier (including uploaded document URLs & face scan) in central SQLite DB
+      await saveApplicantDossier({
+        ...dossierPayload,
+        id: userId,
+        userId,
+        role: dbRole
+      }).catch(() => {});
 
       // 2. Upsert profile table
       if (userId && !userId.startsWith('user-')) {
@@ -1218,8 +1351,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           full_name: cleanFullName,
           email: cleanEmail,
           phone: cleanPhone,
-          avatarUrl: defaultPatientPhoto,
-          avatar: defaultPatientPhoto,
+          avatarUrl: finalProfilePhotoUrl || defaultPatientPhoto,
+          avatar: finalProfilePhotoUrl || defaultPatientPhoto,
           zone: parish,
           address: cleanAddress,
           dateOfBirth: dateOfBirth,
@@ -1251,7 +1384,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           email: cleanEmail,
           parish: parish,
           address: cleanAddress,
-          photoUrl: profilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
+          photoUrl: finalProfilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
           institutionAttended: institutionAttended,
           nursingCouncilLicense: nurseNcjLicense.trim() || 'NCJ-RN-PENDING',
           trnNumber: nurseTrn.trim() || '',
@@ -1266,15 +1399,15 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           hourlyRateJMD: Number(hourlyRate) || 7500,
           bio: nurseBio.trim(),
           governmentIdType: "Passport & National ID",
-          governmentIdUrl: govIdUrl,
+          governmentIdUrl: finalGovIdUrl,
           driversLicenseNumber: driversLicenseNumber.trim(),
-          driversLicenseFrontUrl: dlFrontUrl,
-          driversLicenseBackUrl: dlBackUrl,
-          trnCertificateUrl: trnCertUrl,
-          licenseDocumentUrl: licenseDocUrl,
-          policeRecordUrl: policeRecordUrl,
-          bankLetterUrl: bankLetterUrl,
-          proofOfAddressUrl: proofOfAddressUrl,
+          driversLicenseFrontUrl: finalDlFrontUrl,
+          driversLicenseBackUrl: finalDlBackUrl,
+          trnCertificateUrl: finalTrnCertUrl,
+          licenseDocumentUrl: finalLicenseDocUrl,
+          policeRecordUrl: finalPoliceRecordUrl,
+          bankLetterUrl: finalBankLetterUrl,
+          proofOfAddressUrl: finalProofOfAddressUrl,
           bankDetails: {
             bankName: bankName,
             accountNumber: accountNumber,
@@ -1303,12 +1436,12 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
         try {
           const rawNurses = localStorage.getItem('wecare_nurses');
           const currentList = rawNurses ? JSON.parse(rawNurses) : [];
-          const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email !== cleanEmail)];
+          const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email?.toLowerCase() !== cleanEmail)];
           localStorage.setItem('wecare_nurses', JSON.stringify(updatedList));
         } catch {}
 
-        // Persist to Supabase public.profiles safely without chaining .catch
-        saveNurseProfileToSupabase(newNurseProfile).then(() => {}, () => {});
+        // Persist to Supabase public.profiles safely while preserving DOSSIER & biometric scan
+        saveNurseProfileToSupabase({ ...newNurseProfile, biometricVerification: finalBiometricRecord } as any).then(() => {}, () => {});
 
         newAccount = {
           id: userId,
@@ -1328,8 +1461,8 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           nursingCouncilLicense: nurseNcjLicense.trim(),
           driversLicenseNumber: driversLicenseNumber.trim(),
           title: nurseSpecialty,
-          avatarUrl: profilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
-          avatar: profilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
+          avatarUrl: finalProfilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
+          avatar: finalProfilePhotoUrl || SAMPLE_PHOTO_PRESETS[0].url,
           createdAt: new Date().toISOString()
         };
       } else {
@@ -1350,10 +1483,20 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
           title: adminTitle,
           department: adminDepartment,
           staffId: adminStaffId,
-          avatarUrl: profilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
-          avatar: profilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+          avatarUrl: finalProfilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
+          avatar: finalProfilePhotoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400',
           createdAt: new Date().toISOString()
         };
+
+        // Save password/account BEFORE MFA pause so credentials & profile persist either way
+        try {
+          const rawCreds = localStorage.getItem('wecare_auth_passwords') || '{}';
+          const creds = JSON.parse(rawCreds);
+          creds[cleanEmail] = password.trim();
+          creds[cleanUsername] = password.trim();
+          localStorage.setItem('wecare_auth_passwords', JSON.stringify(creds));
+          saveUsernameToCache(cleanUsername, cleanEmail);
+        } catch {}
 
         // Enforce MFA for Admin: enroll in TOTP
         try {
@@ -1380,12 +1523,16 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       } catch {}
       saveUsernameToCache(cleanUsername, cleanEmail);
 
-      // Save user account in localStorage
+      // Save active user session + accounts cleanly in BOTH sessionStorage and localStorage
       try {
+        sessionStorage.setItem('wecare_session_user_id', userId);
         localStorage.setItem('wecare_current_user_id', userId);
         const rawAccounts = localStorage.getItem('wecare_user_accounts');
         const list = rawAccounts ? JSON.parse(rawAccounts) : [];
-        localStorage.setItem('wecare_user_accounts', JSON.stringify([newAccount, ...list.filter((u: any) => u.id !== userId && u.username !== cleanUsername)]));
+        const deduped = Array.isArray(list)
+          ? list.filter((u: any) => u.id !== userId && u.email?.toLowerCase() !== cleanEmail)
+          : [];
+        localStorage.setItem('wecare_user_accounts', JSON.stringify([newAccount, ...deduped]));
       } catch {}
 
       soundFX.playBookingConfirmed();
@@ -1396,6 +1543,9 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
       setErrorMsg(err?.message || 'Registration failed. Please check your credentials and try again.');
       soundFX.playWarningSound();
     } finally {
+      if (typeof window !== 'undefined') {
+        (window as any).__wecareSignupInProgress = false;
+      }
       setIsSubmitting(false);
     }
   };
@@ -1454,7 +1604,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             type="button"
             onClick={() => {
               setRole('nurse');
-              if (profilePhotoUrl && !profilePhotoUrl.startsWith('data:image/')) {
+              if (profilePhotoUrl && !hasValidBiometricScan) {
                 setProfilePhotoUrl('');
               }
               soundFX.playToggleClick();
@@ -1479,7 +1629,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             type="button"
             onClick={() => {
               setRole('admin');
-              if (profilePhotoUrl && !profilePhotoUrl.startsWith('data:image/')) {
+              if (profilePhotoUrl && !hasValidBiometricScan) {
                 setProfilePhotoUrl('');
               }
               soundFX.playToggleClick();
@@ -2241,6 +2391,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                 role="nurse"
                 value={profilePhotoUrl}
                 onChange={(scannedDataUrl) => setProfilePhotoUrl(scannedDataUrl)}
+                onBiometricVerified={setBiometricVerification}
                 label="Mandatory Nurse Biometric Face Scan"
                 required={true}
               />
@@ -2470,13 +2621,15 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     >
                       <Upload className="w-3.5 h-3.5" /> Upload Front
                     </button>
-                    <span className="text-[11px] text-slate-300 truncate">{dlFrontFileName}</span>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'drivers_license_front' ? 'Uploading...' : (dlFrontFileName || (dlFrontUrl ? 'Uploaded' : ''))}
+                    </span>
                     <input
                       ref={dlFrontInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,application/pdf"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
                       className="hidden"
-                      onChange={(e) => handleFileUpload(e, (url) => { setDlFrontUrl(url); setDriversLicenseFrontUrl(url); }, setDlFrontFileName, 'nurse-documents')}
+                      onChange={(e) => handleFileUpload(e, (url) => { setDlFrontUrl(url); setDriversLicenseFrontUrl(url); }, setDlFrontFileName, 'drivers_license_front')}
                     />
                   </div>
                 </div>
@@ -2492,13 +2645,15 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     >
                       <Upload className="w-3.5 h-3.5" /> Upload Back
                     </button>
-                    <span className="text-[11px] text-slate-300 truncate">{dlBackFileName}</span>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'drivers_license_back' ? 'Uploading...' : (dlBackFileName || (dlBackUrl ? 'Uploaded' : ''))}
+                    </span>
                     <input
                       ref={dlBackInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,application/pdf"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
                       className="hidden"
-                      onChange={(e) => handleFileUpload(e, (url) => { setDlBackUrl(url); setDriversLicenseBackUrl(url); }, setDlBackFileName, 'nurse-documents')}
+                      onChange={(e) => handleFileUpload(e, (url) => { setDlBackUrl(url); setDriversLicenseBackUrl(url); }, setDlBackFileName, 'drivers_license_back')}
                     />
                   </div>
                 </div>
@@ -2514,13 +2669,15 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     >
                       <Upload className="w-3.5 h-3.5" /> Upload TRN
                     </button>
-                    <span className="text-[11px] text-slate-300 truncate">{trnCertFileName}</span>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'trn_certificate' ? 'Uploading...' : (trnCertFileName || (trnCertUrl ? 'Uploaded' : ''))}
+                    </span>
                     <input
                       ref={trnInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,application/pdf"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
                       className="hidden"
-                      onChange={(e) => handleFileUpload(e, setTrnCertUrl, setTrnCertFileName, 'nurse-documents')}
+                      onChange={(e) => handleFileUpload(e, setTrnCertUrl, setTrnCertFileName, 'trn_certificate')}
                     />
                   </div>
                 </div>
@@ -2536,13 +2693,111 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                     >
                       <Upload className="w-3.5 h-3.5" /> Upload NCJ Cert
                     </button>
-                    <span className="text-[11px] text-slate-300 truncate">{licenseDocFileName}</span>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'ncj_license' ? 'Uploading...' : (licenseDocFileName || (licenseDocUrl ? 'Uploaded' : ''))}
+                    </span>
                     <input
                       ref={ncjInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,application/pdf"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
                       className="hidden"
-                      onChange={(e) => handleFileUpload(e, setLicenseDocUrl, setLicenseDocFileName, 'nurse-documents')}
+                      onChange={(e) => handleFileUpload(e, setLicenseDocUrl, setLicenseDocFileName, 'ncj_license')}
+                    />
+                  </div>
+                </div>
+
+                {/* 5. Passport / National ID */}
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+                  <span className="font-bold text-slate-300 block text-xs">Passport / National ID (Optional)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => govIdInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Upload ID
+                    </button>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'government_id' ? 'Uploading...' : (govIdFileName || (govIdUrl ? 'Uploaded' : ''))}
+                    </span>
+                    <input
+                      ref={govIdInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, setGovIdUrl, setGovIdFileName, 'government_id')}
+                    />
+                  </div>
+                </div>
+
+                {/* 6. Police Criminal Clearance */}
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+                  <span className="font-bold text-slate-300 block text-xs">Police Record Clearance (Optional)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => policeInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Upload Police Record
+                    </button>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'police_record' ? 'Uploading...' : (policeRecordFileName || (policeRecordUrl ? 'Uploaded' : ''))}
+                    </span>
+                    <input
+                      ref={policeInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, setPoliceRecordUrl, setPoliceRecordFileName, 'police_record')}
+                    />
+                  </div>
+                </div>
+
+                {/* 7. Bank Verification Letter */}
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+                  <span className="font-bold text-slate-300 block text-xs">Bank Verification Letter (Optional)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => bankInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Upload Bank Letter
+                    </button>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'bank_letter' ? 'Uploading...' : (bankLetterFileName || (bankLetterUrl ? 'Uploaded' : ''))}
+                    </span>
+                    <input
+                      ref={bankInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, setBankLetterUrl, setBankLetterFileName, 'bank_letter')}
+                    />
+                  </div>
+                </div>
+
+                {/* 8. Proof of Address */}
+                <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+                  <span className="font-bold text-slate-300 block text-xs">Proof of Address / Utility Bill (Optional)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => proofAddressInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Upload Address Proof
+                    </button>
+                    <span className="text-[11px] text-emerald-300 truncate">
+                      {uploadingDocCategory === 'proof_of_address' ? 'Uploading...' : (proofOfAddressFileName || (proofOfAddressUrl ? 'Uploaded' : ''))}
+                    </span>
+                    <input
+                      ref={proofAddressInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, setProofOfAddressUrl, setProofOfAddressFileName, 'proof_of_address')}
                     />
                   </div>
                 </div>
@@ -2824,6 +3079,7 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             role="admin"
             value={profilePhotoUrl}
             onChange={(scannedDataUrl) => setProfilePhotoUrl(scannedDataUrl)}
+            onBiometricVerified={setBiometricVerification}
             label="Mandatory Administrator Biometric Face Scan"
             required={true}
           />
@@ -2995,6 +3251,107 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
             </div>
           </div>
 
+          {/* Administrator Identity Document Uploads */}
+          <div className="p-4 rounded-2xl bg-black/40 border border-amber-500/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-300">Administrator Statutory Verification Scans</span>
+              <span className="text-[10px] text-slate-400">Stored in Credential Vault for Audit</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-1.5">
+                <span className="font-bold text-slate-300 block text-xs">Driver's License (Front)</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adminDlFrontInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload DL Front
+                  </button>
+                  <span className="text-[11px] text-emerald-300 truncate">
+                    {uploadingDocCategory === 'drivers_license_front' ? 'Uploading...' : (dlFrontFileName || (dlFrontUrl ? 'Uploaded' : ''))}
+                  </span>
+                  <input
+                    ref={adminDlFrontInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, (url) => { setDlFrontUrl(url); setDriversLicenseFrontUrl(url); }, setDlFrontFileName, 'drivers_license_front')}
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-1.5">
+                <span className="font-bold text-slate-300 block text-xs">Driver's License (Back)</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adminDlBackInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-bold border border-amber-500/40 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload DL Back
+                  </button>
+                  <span className="text-[11px] text-emerald-300 truncate">
+                    {uploadingDocCategory === 'drivers_license_back' ? 'Uploading...' : (dlBackFileName || (dlBackUrl ? 'Uploaded' : ''))}
+                  </span>
+                  <input
+                    ref={adminDlBackInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, (url) => { setDlBackUrl(url); setDriversLicenseBackUrl(url); }, setDlBackFileName, 'drivers_license_back')}
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-1.5">
+                <span className="font-bold text-slate-300 block text-xs">TRN Official Card</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adminTrnInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload TRN
+                  </button>
+                  <span className="text-[11px] text-emerald-300 truncate">
+                    {uploadingDocCategory === 'trn_certificate' ? 'Uploading...' : (trnCertFileName || (trnCertUrl ? 'Uploaded' : ''))}
+                  </span>
+                  <input
+                    ref={adminTrnInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, setTrnCertUrl, setTrnCertFileName, 'trn_certificate')}
+                  />
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-black/50 border border-white/10 space-y-1.5">
+                <span className="font-bold text-slate-300 block text-xs">Passport / National ID</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => adminGovIdInputRef.current?.click()}
+                    className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-slate-200 text-xs font-bold border border-white/15 transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload Gov ID
+                  </button>
+                  <span className="text-[11px] text-emerald-300 truncate">
+                    {uploadingDocCategory === 'government_id' ? 'Uploading...' : (govIdFileName || (govIdUrl ? 'Uploaded' : ''))}
+                  </span>
+                  <input
+                    ref={adminGovIdInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(e, setGovIdUrl, setGovIdFileName, 'government_id')}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Mandatory Agreement Information & Digital Signature Box */}
           <AgreementSignatureBox
             roleType="admin"
@@ -3136,6 +3493,17 @@ export const UnifiedSignupPortal: React.FC<UnifiedSignupPortalProps> = ({
                   }
                   setShowMfaModal(false);
                   if (pendingCompletedAccount) {
+                    try {
+                      sessionStorage.setItem('wecare_session_user_id', pendingCompletedAccount.id);
+                      localStorage.setItem('wecare_current_user_id', pendingCompletedAccount.id);
+                      const rawAccounts = localStorage.getItem('wecare_user_accounts');
+                      const list = rawAccounts ? JSON.parse(rawAccounts) : [];
+                      const cleanAccEmail = (pendingCompletedAccount.email || '').toLowerCase();
+                      const deduped = Array.isArray(list)
+                        ? list.filter((u: any) => u.id !== pendingCompletedAccount.id && (!cleanAccEmail || u.email?.toLowerCase() !== cleanAccEmail))
+                        : [];
+                      localStorage.setItem('wecare_user_accounts', JSON.stringify([pendingCompletedAccount, ...deduped]));
+                    } catch {}
                     onComplete(pendingCompletedAccount);
                   }
                 }}

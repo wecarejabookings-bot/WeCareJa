@@ -38,7 +38,13 @@ import {
 } from 'lucide-react';
 import { soundFX } from '../../utils/soundEffects';
 import { supabase } from '../../lib/supabase';
-import { fetchApplicantDossier, updateApplicantStatusInDb } from '../../utils/dossierStore';
+import {
+  fetchApplicantDossier,
+  updateApplicantStatusInDb,
+  deepMergeDossiers,
+  pickValidDocUrl,
+  categoryToFieldName
+} from '../../utils/dossierStore';
 
 export interface AdminApplicantInspectionModalProps {
   applicant: any;
@@ -57,19 +63,6 @@ export interface InspectedDocument {
   isPdf: boolean;
   originalPath?: string;
 }
-
-// Sample fallback scans for dev/demo applicants if none uploaded
-const SAMPLE_DOC_FALLBACKS = {
-  dlFront: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-  dlBack: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80&w=800',
-  trn: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=800',
-  ncj: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=800',
-  govId: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&q=80&w=800',
-  bank: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=800',
-  police: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&q=80&w=800',
-  address: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?auto=format&fit=crop&q=80&w=800',
-  photo: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&q=80&w=800'
-};
 
 // Helper to detect image files
 export const isImageUrl = (url: string): boolean => {
@@ -110,30 +103,60 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
   const [lightboxZoom, setLightboxZoom] = useState<number>(1);
   const [lightboxRotation, setLightboxRotation] = useState<number>(0);
   
-  // Storage paths signed URL cache
+  // Storage paths signed URL cache & image load fallback state
   const [resolvedUrls, setResolvedUrls] = useState<Record<string, string>>({});
+  const [failedImageUrls, setFailedImageUrls] = useState<Record<string, boolean>>({});
 
   // Remote server dossier state for full documents
   const [remoteDossier, setRemoteDossier] = useState<any | null>(null);
+  const [isLoadingDossier, setIsLoadingDossier] = useState<boolean>(false);
+
+  const syncDossierFromServer = async () => {
+    if (!applicant) return;
+    setIsLoadingDossier(true);
+    try {
+      const d = await fetchApplicantDossier({
+        id: applicant.id,
+        userId: applicant.userId,
+        nurseProfileId: applicant.nurseProfileId,
+        email: applicant.email,
+        username: applicant.username
+      });
+      if (d) {
+        setRemoteDossier(d);
+      }
+    } catch (e) {
+      console.warn('[AdminInspection] Failed to fetch remote dossier:', e);
+    } finally {
+      setIsLoadingDossier(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
     const fetchRemote = async () => {
-      const identifier = applicant?.id || applicant?.email;
-      if (identifier) {
-        try {
-          const d = await fetchApplicantDossier(identifier);
-          if (d && isMounted) {
-            setRemoteDossier(d);
-          }
-        } catch (e) {
-          console.warn('[AdminInspection] Failed to fetch remote dossier:', e);
+      if (!applicant) return;
+      if (isMounted) setIsLoadingDossier(true);
+      try {
+        const d = await fetchApplicantDossier({
+          id: applicant.id,
+          userId: applicant.userId,
+          nurseProfileId: applicant.nurseProfileId,
+          email: applicant.email,
+          username: applicant.username
+        });
+        if (d && isMounted) {
+          setRemoteDossier(d);
         }
+      } catch (e) {
+        console.warn('[AdminInspection] Failed to fetch remote dossier:', e);
+      } finally {
+        if (isMounted) setIsLoadingDossier(false);
       }
     };
     fetchRemote();
     return () => { isMounted = false; };
-  }, [applicant?.id, applicant?.email]);
+  }, [applicant?.id, applicant?.userId, applicant?.nurseProfileId, applicant?.email, applicant?.username]);
 
   // Rejection Step 2 Workflow State
   const [modalStep, setModalStep] = useState<'inspect' | 'reject'>('inspect');
@@ -151,60 +174,90 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
 
   if (!applicant) return null;
 
-  // Extract dossier from remote database, local storage, embedded JSON in trn, or direct properties
+  // Deep-merge dossier across ALL available sources so no uploaded document URL is ever shadowed
   const dossier = useMemo(() => {
-    let parsed: any = remoteDossier || null;
+    let merged: any = {};
 
-    // 1. Try localStorage with email
-    if (applicant.email) {
-      try {
-        const raw = localStorage.getItem(`wecare_dossier_${applicant.email.trim().toLowerCase()}`);
-        if (raw) parsed = { ...JSON.parse(raw), ...parsed };
-      } catch {}
+    // Source 1: applicant.bioData / applicant.dossier
+    if (applicant.bioData && typeof applicant.bioData === 'object') {
+      merged = deepMergeDossiers(merged, applicant.bioData);
+    }
+    if (applicant.dossier && typeof applicant.dossier === 'object') {
+      merged = deepMergeDossiers(merged, applicant.dossier);
     }
 
-    // 2. Try localStorage with ID
-    if (!parsed && applicant.id) {
-      try {
-        const raw = localStorage.getItem(`wecare_dossier_${applicant.id}`);
-        if (raw) parsed = JSON.parse(raw);
-      } catch {}
+    // Source 2: attachedDocuments inside signedContract (from NurseRegistrationModal)
+    if (applicant.signedContract?.attachedDocuments) {
+      const att = applicant.signedContract.attachedDocuments;
+      merged = deepMergeDossiers(merged, {
+        governmentIdUrl: att.governmentIdDocument?.fileUrl,
+        licenseDocumentUrl: att.ncjCertificateDocument?.fileUrl,
+        trnCertificateUrl: att.trnDocument?.fileUrl,
+        proofOfAddressUrl: att.proofOfAddressDocument?.fileUrl,
+        bankLetterUrl: att.bankLetterDocument?.fileUrl,
+        diplomaDocumentUrl: att.diplomaDocument?.fileUrl
+      });
     }
 
-    // 3. Try parsing from applicant.trn string if contains DOSSIER:
-    if (!parsed && applicant.trn && typeof applicant.trn === 'string' && applicant.trn.includes('DOSSIER:')) {
-      try {
-        const jsonStart = applicant.trn.indexOf('DOSSIER:');
-        const jsonStr = applicant.trn.substring(jsonStart + 8).trim();
-        parsed = JSON.parse(jsonStr);
-      } catch {}
-    }
-
-    // 4. Try localStorage nurses roster
-    if (!parsed && applicant.email) {
+    // Source 3: localStorage nurses roster
+    if (applicant.email || applicant.id) {
       try {
         const rawNurses = localStorage.getItem('wecare_nurses');
         if (rawNurses) {
           const list = JSON.parse(rawNurses);
-          const found = list.find((n: any) => 
-            (n.email && n.email.toLowerCase() === applicant.email.toLowerCase().trim()) || 
-            n.id === applicant.id
+          const cleanEmail = (applicant.email || '').toLowerCase().trim();
+          const found = list.find((n: any) =>
+            (n.email && cleanEmail && n.email.toLowerCase() === cleanEmail) ||
+            (applicant.id && n.id === applicant.id)
           );
-          if (found) parsed = found;
+          if (found) merged = deepMergeDossiers(merged, found);
         }
       } catch {}
     }
 
-    // 5. Try applicant.dossier or applicant.bioData
-    if (!parsed && applicant.dossier && typeof applicant.dossier === 'object') {
-      parsed = applicant.dossier;
-    }
-    if (!parsed && applicant.bioData && typeof applicant.bioData === 'object') {
-      parsed = applicant.bioData;
+    // Source 4: embedded DOSSIER: JSON inside applicant.trn
+    if (applicant.trn && typeof applicant.trn === 'string' && applicant.trn.includes('DOSSIER:')) {
+      try {
+        const jsonStart = applicant.trn.indexOf('DOSSIER:');
+        const jsonStr = applicant.trn.substring(jsonStart + 8).trim();
+        merged = deepMergeDossiers(merged, JSON.parse(jsonStr));
+      } catch {}
     }
 
-    return parsed;
-  }, [applicant]);
+    // Source 5: localStorage wecare_dossier_* & wecare_uploaded_docs_*
+    const lookupKeys = [
+      applicant.email ? applicant.email.trim().toLowerCase() : '',
+      applicant.id || '',
+      applicant.userId || '',
+      applicant.nurseProfileId || ''
+    ].filter(Boolean);
+
+    for (const k of lookupKeys) {
+      try {
+        const rawD = localStorage.getItem(`wecare_dossier_${k}`);
+        if (rawD) merged = deepMergeDossiers(merged, JSON.parse(rawD));
+      } catch {}
+      try {
+        const rawU = localStorage.getItem(`wecare_uploaded_docs_${k}`);
+        if (rawU) merged = deepMergeDossiers(merged, JSON.parse(rawU));
+      } catch {}
+    }
+
+    // Source 6: direct applicant object fields (only non-stock URLs survive inside deepMergeDossiers)
+    merged = deepMergeDossiers(merged, applicant);
+
+    // Source 7: remote server SQLite database dossier (authoritative)
+    if (remoteDossier) {
+      merged = deepMergeDossiers(merged, remoteDossier);
+    }
+
+    return Object.keys(merged).length > 0 ? merged : null;
+  }, [applicant, remoteDossier]);
+
+  // Extract biometric face scan verification metadata
+  const biometricInfo = useMemo(() => {
+    return dossier?.biometricVerification || applicant?.biometricVerification || null;
+  }, [dossier, applicant]);
 
   // Extract digital signature information
   const signatureInfo = useMemo(() => {
@@ -236,34 +289,37 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     // TRN
     let trnNumber = dossier?.trnNumber || applicant.trnNumber || '';
     if (!trnNumber && applicant.trn && typeof applicant.trn === 'string') {
-      trnNumber = applicant.trn.split('|')[0].replace(/^TRN:\s*/i, '').trim();
+      const firstSegment = applicant.trn.split('|')[0].replace(/^TRN:\s*/i, '').trim();
+      if (firstSegment && !firstSegment.startsWith('DOC:') && !firstSegment.startsWith('DOSSIER:')) {
+        trnNumber = firstSegment;
+      }
     }
-    if (!trnNumber) trnNumber = '109-842-315';
+    if (!trnNumber) trnNumber = 'Not provided';
 
     // Driver's License #
-    const dlNumber = dossier?.driversLicenseNumber || applicant.driversLicenseNumber || applicant.dlNumber || 'DL-882194';
+    const dlNumber = dossier?.driversLicenseNumber || applicant.driversLicenseNumber || applicant.dlNumber || 'Not provided';
 
     // NCJ License #
-    const ncjLicense = dossier?.ncjLicense || applicant.ncjLicense || applicant.nursingCouncilLicense || applicant.ncj_license || (isNurse ? 'NCJ-RN-2026-784' : '—');
+    const ncjLicense = dossier?.ncjLicense || applicant.ncjLicense || applicant.nursingCouncilLicense || applicant.ncj_license || (isNurse ? 'Pending NCJ' : '—');
 
     // Admin Staff ID / Department
-    const staffId = dossier?.staffId || applicant.staffId || 'ADM-OFFICER-01';
+    const staffId = dossier?.staffId || applicant.staffId || 'Not provided';
     const department = dossier?.department || applicant.department || 'Clinical Operations & Credentialing';
     const adminTitle = dossier?.title || applicant.title || 'System Administrator';
 
     // Date of Birth & Gender
-    const dateOfBirth = dossier?.dateOfBirth || applicant.dateOfBirth || '1992-06-15';
-    const gender = dossier?.gender || applicant.gender || 'Female';
+    const dateOfBirth = dossier?.dateOfBirth || applicant.dateOfBirth || 'Not provided';
+    const gender = dossier?.gender || applicant.gender || 'Not specified';
 
     // Banking
-    const bankName = dossier?.bankDetails?.bankName || applicant.bankName || 'National Commercial Bank (NCB)';
-    const accountNumber = dossier?.bankDetails?.accountNumber || applicant.accountNumber || '•••• •••• 4821';
-    const lynkWallet = dossier?.bankDetails?.lynkWallet || applicant.lynkWallet || 'N/A';
+    const bankName = dossier?.bankDetails?.bankName || applicant.bankName || 'Not provided';
+    const accountNumber = dossier?.bankDetails?.accountNumber || applicant.accountNumber || 'Not provided';
+    const lynkWallet = dossier?.bankDetails?.lynkWallet || applicant.lynkWallet || 'Not provided';
 
     // Emergency Contact
-    const emergencyName = dossier?.emergencyContact?.name || applicant.emergencyContactName || 'Mary Campbell';
+    const emergencyName = dossier?.emergencyContact?.name || applicant.emergencyContactName || 'Not provided';
     const emergencyRelation = dossier?.emergencyContact?.relation || applicant.emergencyContactRelation || 'Next of Kin';
-    const emergencyPhone = dossier?.emergencyContact?.phone || applicant.emergencyContactPhone || '(876) 555-0188';
+    const emergencyPhone = dossier?.emergencyContact?.phone || applicant.emergencyContactPhone || 'Not provided';
 
     return {
       fullName,
@@ -288,106 +344,114 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     };
   }, [applicant, dossier, isNurse]);
 
-  // Extract Profile Photo - only real photos uploaded by the applicant
+  // Extract Profile Photo - only real photos uploaded/scanned by the applicant
   const profilePhoto = useMemo(() => {
-    return (
-      applicant.photoUrl ||
-      applicant.profilePhotoUrl ||
-      applicant.avatar_url ||
-      applicant.avatarUrl ||
-      applicant.avatar ||
-      dossier?.photoUrl ||
-      dossier?.profilePhotoUrl ||
-      dossier?.documents?.profilePhotoUrl ||
-      null
-    );
-  }, [applicant, dossier]);
+    return pickValidDocUrl(
+      biometricInfo?.photoUrl,
+      dossier?.photoUrl,
+      dossier?.profilePhotoUrl,
+      dossier?.documents?.profilePhotoUrl,
+      applicant.photoUrl,
+      applicant.profilePhotoUrl,
+      applicant.avatar_url,
+      applicant.avatarUrl,
+      applicant.avatar
+    ) || null;
+  }, [applicant, dossier, biometricInfo]);
 
   // Extract explicit document URLs - only real files uploaded by applicant
   const dlFrontUrl = useMemo(() => {
-    return (
-      dossier?.documents?.driversLicenseFrontUrl ||
-      dossier?.driversLicenseFrontUrl ||
-      applicant.driversLicenseFrontUrl ||
-      applicant.dlFrontUrl ||
-      applicant.dl_front_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.driversLicenseFrontUrl,
+      dossier?.driversLicenseFrontUrl,
+      applicant.driversLicenseFrontUrl,
+      applicant.dlFrontUrl,
+      applicant.dl_front_url
+    ) || null;
   }, [applicant, dossier]);
 
   const dlBackUrl = useMemo(() => {
-    return (
-      dossier?.documents?.driversLicenseBackUrl ||
-      dossier?.driversLicenseBackUrl ||
-      applicant.driversLicenseBackUrl ||
-      applicant.dlBackUrl ||
-      applicant.dl_back_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.driversLicenseBackUrl,
+      dossier?.driversLicenseBackUrl,
+      applicant.driversLicenseBackUrl,
+      applicant.dlBackUrl,
+      applicant.dl_back_url
+    ) || null;
   }, [applicant, dossier]);
 
   const trnUrl = useMemo(() => {
-    return (
-      dossier?.documents?.trnCertificateUrl ||
-      dossier?.trnCertificateUrl ||
-      applicant.trnCertificateUrl ||
-      applicant.trnCertUrl ||
-      applicant.trn_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.trnCertificateUrl,
+      dossier?.trnCertificateUrl,
+      applicant.trnCertificateUrl,
+      applicant.trnCertUrl,
+      applicant.trn_url
+    ) || null;
   }, [applicant, dossier]);
 
   const ncjUrl = useMemo(() => {
-    return (
-      dossier?.documents?.licenseDocumentUrl ||
-      dossier?.licenseDocumentUrl ||
-      applicant.licenseDocumentUrl ||
-      applicant.licenseDocUrl ||
-      applicant.ncjLicenseUrl ||
-      applicant.ncj_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.licenseDocumentUrl,
+      dossier?.licenseDocumentUrl,
+      applicant.licenseDocumentUrl,
+      applicant.licenseDocUrl,
+      applicant.ncjLicenseUrl,
+      applicant.ncj_url
+    ) || null;
   }, [applicant, dossier]);
 
   const govIdUrl = useMemo(() => {
-    return (
-      dossier?.documents?.governmentIdUrl ||
-      dossier?.governmentIdUrl ||
-      applicant.governmentIdUrl ||
-      applicant.govIdUrl ||
-      applicant.gov_id_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.governmentIdUrl,
+      dossier?.governmentIdUrl,
+      applicant.governmentIdUrl,
+      applicant.govIdUrl,
+      applicant.gov_id_url
+    ) || null;
+  }, [applicant, dossier]);
+
+  const govIdBackUrl = useMemo(() => {
+    return pickValidDocUrl(
+      dossier?.documents?.governmentIdBackUrl,
+      dossier?.governmentIdBackUrl,
+      applicant.governmentIdBackUrl
+    ) || null;
   }, [applicant, dossier]);
 
   const policeRecordUrl = useMemo(() => {
-    return (
-      dossier?.documents?.policeRecordUrl ||
-      dossier?.policeRecordUrl ||
-      applicant.policeRecordUrl ||
-      applicant.police_record_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.policeRecordUrl,
+      dossier?.policeRecordUrl,
+      applicant.policeRecordUrl,
+      applicant.police_record_url
+    ) || null;
   }, [applicant, dossier]);
 
   const bankLetterUrl = useMemo(() => {
-    return (
-      dossier?.documents?.bankLetterUrl ||
-      dossier?.bankLetterUrl ||
-      applicant.bankLetterUrl ||
-      applicant.bank_letter_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.bankLetterUrl,
+      dossier?.bankLetterUrl,
+      applicant.bankLetterUrl,
+      applicant.bank_letter_url
+    ) || null;
   }, [applicant, dossier]);
 
   const proofOfAddressUrl = useMemo(() => {
-    return (
-      dossier?.documents?.proofOfAddressUrl ||
-      dossier?.proofOfAddressUrl ||
-      applicant.proofOfAddressUrl ||
-      applicant.proof_of_address_url ||
-      null
-    );
+    return pickValidDocUrl(
+      dossier?.documents?.proofOfAddressUrl,
+      dossier?.proofOfAddressUrl,
+      applicant.proofOfAddressUrl,
+      applicant.proof_of_address_url
+    ) || null;
+  }, [applicant, dossier]);
+
+  const diplomaUrl = useMemo(() => {
+    return pickValidDocUrl(
+      dossier?.documents?.diplomaDocumentUrl,
+      dossier?.diplomaDocumentUrl,
+      applicant.diplomaDocumentUrl
+    ) || null;
   }, [applicant, dossier]);
 
   // Construct comprehensive documents list with full categorization
@@ -396,17 +460,15 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     const addedUrls = new Set<string>();
 
     const addDoc = (id: string, title: string, url?: string | null, category: string = 'Credentials') => {
-      if (url && typeof url === 'string' && url.trim().length > 0) {
-        const trimmed = url.trim();
-        if (!addedUrls.has(trimmed)) {
-          addedUrls.add(trimmed);
-          list.push({ id, title, url: trimmed, category });
-        }
+      const valid = pickValidDocUrl(url);
+      if (valid && !addedUrls.has(valid)) {
+        addedUrls.add(valid);
+        list.push({ id, title, url: valid, category });
       }
     };
 
-    // 1. Profile Picture / Headshot
-    addDoc('profile-photo', 'Applicant Profile Photo & Headshot', profilePhoto, 'Profile Photo & Headshot');
+    // 1. Profile Picture / Live Biometric Face Scan
+    addDoc('profile-photo', 'Applicant Profile Photo & Biometric Scan', profilePhoto, 'Profile Photo & Headshot');
 
     // 2. Driver's License Front
     addDoc('dl-front', "Driver's License (Front Side)", dlFrontUrl, 'Government Photo ID');
@@ -417,23 +479,40 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
     // 4. TRN Official Card / Certificate
     addDoc('trn-cert', 'Tax Registration (TRN) Official Card', trnUrl, 'Statutory Identity');
 
-    // 5. NCJ Practicing Certificate (if nurse) or Gov ID (if admin)
+    // 5. NCJ Practicing Certificate & Nursing Diploma
     if (isNurse) {
       addDoc('ncj-cert', 'Nursing Council of Jamaica (NCJ) Practicing Certificate', ncjUrl, 'Professional Credential');
+    } else if (ncjUrl) {
+      addDoc('ncj-cert', 'Practicing / Professional License', ncjUrl, 'Professional Credential');
     }
-    addDoc('gov-id', 'Jamaican Passport / National ID Bio-Page', govIdUrl, 'Government Photo ID');
+    addDoc('diploma-cert', 'Nursing School Diploma / Degree Certificate', diplomaUrl, 'Professional Credential');
 
-    // 6. Police Criminal Record Clearance
+    // 6. Passport / National ID (Front & Back)
+    addDoc('gov-id', 'Jamaican Passport / National ID Bio-Page', govIdUrl, 'Government Photo ID');
+    addDoc('gov-id-back', 'Government ID (Back Side)', govIdBackUrl, 'Government Photo ID');
+
+    // 7. Police Criminal Record Clearance
     addDoc('police-clearance', 'Police Criminal Record Clearance Certificate', policeRecordUrl, 'Background Security');
 
-    // 7. Bank Verification Letter
+    // 8. Bank Verification Letter
     addDoc('bank-letter', 'Commercial Bank Verification Letter / Statement', bankLetterUrl, 'Financial Verification');
 
-    // 8. Proof of Residential Address
+    // 9. Proof of Residential Address
     addDoc('proof-address', 'Proof of Residential Address (Utility Bill)', proofOfAddressUrl, 'Residential Verification');
 
+    // 10. Include any additional uploadedFiles stored in SQLite for this applicant
+    if (Array.isArray(dossier?.uploadedFiles)) {
+      dossier.uploadedFiles.forEach((f: any, idx: number) => {
+        if (f?.url) {
+          const mappedField = categoryToFieldName(f.category);
+          const niceTitle = f.fileName || f.category || `Uploaded Document #${idx + 1}`;
+          addDoc(f.fileId || `db-file-${idx}`, niceTitle, f.url, mappedField ? 'Database Document' : (f.category || 'Attachment'));
+        }
+      });
+    }
+
     return list;
-  }, [profilePhoto, dlFrontUrl, dlBackUrl, trnUrl, ncjUrl, govIdUrl, policeRecordUrl, bankLetterUrl, proofOfAddressUrl, isNurse]);
+  }, [profilePhoto, dlFrontUrl, dlBackUrl, trnUrl, ncjUrl, diplomaUrl, govIdUrl, govIdBackUrl, policeRecordUrl, bankLetterUrl, proofOfAddressUrl, isNurse, dossier?.uploadedFiles]);
 
   // Resolve private storage paths (nurse-documents/admin-documents) to signed URLs asynchronously
   useEffect(() => {
@@ -1054,13 +1133,116 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
                 <div className="flex items-center gap-2 text-blue-200">
                   <CheckCheck className="w-4 h-4 text-[#F59E0B] shrink-0" />
                   <span className="font-semibold">
-                    Compare submitted text against uploaded front &amp; back of Driver's License, official TRN card, and NCJ license scan before approval.
+                    Compare submitted text against live biometric face scan, front &amp; back of Driver's License, official TRN card, and NCJ license scan before approval.
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-[11px] font-mono text-[#F59E0B] bg-[#F59E0B]/10 px-2.5 py-1 rounded-lg border border-[#F59E0B]/30 font-bold">
                     Interactive Lightbox Active
                   </span>
+                </div>
+              </div>
+
+              {/* SECTION 0: BIOMETRIC LIVE FACE SCAN VERIFICATION */}
+              <div className="p-4 rounded-3xl bg-[#121539]/90 border border-cyan-500/40 space-y-3 shadow-md">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                      <Camera className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h4 className="text-sm font-black text-white flex items-center gap-2">
+                        <span>Live Biometric Face Scan &amp; Liveness Verification</span>
+                      </h4>
+                      <p className="text-[11px] text-slate-300">
+                        Auto-positioned live camera face capture stored in registry database (Gallery file upload strictly disabled).
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border ${
+                    biometricInfo?.livenessVerified || docPhoto
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {biometricInfo?.livenessVerified ? 'LIVENESS VERIFIED' : docPhoto ? 'LIVE PHOTO CAPTURED' : 'SCAN PENDING'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                  <div className="md:col-span-4">
+                    <div
+                      onClick={() => docPhoto && handleOpenLightbox(docPhoto)}
+                      className={`relative h-44 rounded-2xl bg-black/80 border overflow-hidden group transition ${
+                        docPhoto ? 'border-cyan-400/40 cursor-pointer hover:border-cyan-300' : 'border-dashed border-white/20'
+                      }`}
+                    >
+                      {docPhoto?.url ? (
+                        <>
+                          <img
+                            src={docPhoto.url}
+                            alt="Applicant Biometric Face Scan"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-xs text-white font-bold backdrop-blur-xs">
+                            <ZoomIn className="w-4 h-4 text-cyan-300" />
+                            <span>Inspect Face Scan</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 p-3 text-center text-xs space-y-1">
+                          <AlertCircle className="w-5 h-5 text-amber-400" />
+                          <span className="font-bold text-slate-300">No Face Scan Stored</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-8 bg-black/40 p-4 rounded-2xl border border-white/10 space-y-2.5 text-xs">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-mono">Compliance Token ID</span>
+                        <span className="font-mono font-black text-cyan-300 text-sm">
+                          {biometricInfo?.verificationId || (docPhoto ? 'BIO-CAMERA-SESSION' : '—')}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-mono">Capture Method</span>
+                        <span className="font-bold text-white">
+                          {biometricInfo?.captureMethod === 'auto_positioned'
+                            ? 'Automatic Face Positioning Scan'
+                            : biometricInfo?.captureMethod === 'manual'
+                            ? 'Live Camera Manual Trigger'
+                            : 'Live Camera Session'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-mono">Scan Timestamp</span>
+                        <span className="font-mono text-slate-200">
+                          {biometricInfo?.capturedAt ? new Date(biometricInfo.capturedAt).toLocaleString() : signedDate}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-mono">Anti-Fraud Check</span>
+                        <span className="text-emerald-300 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Live Sensor Only (No Upload)</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {docPhoto && (
+                      <div className="pt-2 border-t border-white/10 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLightbox(docPhoto)}
+                          className="px-3.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 text-cyan-200 border border-cyan-400/40 text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Open High-Res Face Scan</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1440,51 +1622,88 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="bg-black/40 p-3 rounded-2xl border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-mono block">Remittance Bank</span>
-                    <span className="text-xs font-bold text-white block">{submittedInfo.bankName}</span>
-                    <span className="text-xs font-mono text-emerald-400 font-bold block">{submittedInfo.accountNumber}</span>
-                    <span className="text-[10px] text-slate-400 block">Lynk: {submittedInfo.lynkWallet}</span>
+                  <div className="bg-black/40 p-3 rounded-2xl border border-white/10 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Remittance Bank</span>
+                      <span className="text-xs font-bold text-white block">{submittedInfo.bankName}</span>
+                      <span className="text-xs font-mono text-emerald-400 font-bold block">{submittedInfo.accountNumber}</span>
+                      <span className="text-[10px] text-slate-400 block">Lynk: {submittedInfo.lynkWallet}</span>
+                    </div>
                     {docBank && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenLightbox(docBank)}
-                        className="text-[10px] text-cyan-300 hover:underline pt-1 flex items-center gap-1"
-                      >
-                        <Eye className="w-3 h-3" /> View Bank Letter
-                      </button>
+                      <div className="space-y-1.5 pt-1">
+                        {docBank.isImage && !failedImageUrls[docBank.url] && (
+                          <div
+                            onClick={() => handleOpenLightbox(docBank)}
+                            className="h-20 rounded-xl overflow-hidden border border-white/10 cursor-pointer hover:border-cyan-400 transition"
+                          >
+                            <img src={docBank.url} alt="Bank Letter" className="w-full h-full object-cover" onError={() => setFailedImageUrls(prev => ({ ...prev, [docBank.url]: true }))} />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLightbox(docBank)}
+                          className="text-[10px] text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> View Bank Letter
+                        </button>
+                      </div>
                     )}
                   </div>
 
-                  <div className="bg-black/40 p-3 rounded-2xl border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-mono block">Residential Address</span>
-                    <span className="text-xs font-bold text-white block">{submittedInfo.address}</span>
-                    <span className="text-[11px] text-slate-300 block">{submittedInfo.parish}, Jamaica</span>
+                  <div className="bg-black/40 p-3 rounded-2xl border border-white/10 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Residential Address</span>
+                      <span className="text-xs font-bold text-white block">{submittedInfo.address}</span>
+                      <span className="text-[11px] text-slate-300 block">{submittedInfo.parish}, Jamaica</span>
+                    </div>
                     {docAddress && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenLightbox(docAddress)}
-                        className="text-[10px] text-cyan-300 hover:underline pt-1 flex items-center gap-1"
-                      >
-                        <Eye className="w-3 h-3" /> View Address Proof
-                      </button>
+                      <div className="space-y-1.5 pt-1">
+                        {docAddress.isImage && !failedImageUrls[docAddress.url] && (
+                          <div
+                            onClick={() => handleOpenLightbox(docAddress)}
+                            className="h-20 rounded-xl overflow-hidden border border-white/10 cursor-pointer hover:border-cyan-400 transition"
+                          >
+                            <img src={docAddress.url} alt="Address Proof" className="w-full h-full object-cover" onError={() => setFailedImageUrls(prev => ({ ...prev, [docAddress.url]: true }))} />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLightbox(docAddress)}
+                          className="text-[10px] text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> View Address Proof
+                        </button>
+                      </div>
                     )}
                   </div>
 
-                  <div className="bg-black/40 p-3 rounded-2xl border border-white/10 space-y-1">
-                    <span className="text-[10px] text-slate-400 uppercase font-mono block">Police Background Record</span>
-                    <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Criminal Clearance Valid
-                    </span>
-                    <span className="text-[10px] text-slate-400 block">Ministry of National Security</span>
+                  <div className="bg-black/40 p-3 rounded-2xl border border-white/10 space-y-2 flex flex-col justify-between">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-slate-400 uppercase font-mono block">Police Background Record</span>
+                      <span className={`text-xs font-bold flex items-center gap-1 ${docPolice ? 'text-emerald-400' : 'text-slate-300'}`}>
+                        {docPolice ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5 text-amber-400" />}
+                        {docPolice ? 'Clearance Scan Attached' : 'Pending Verification / Optional'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">Ministry of National Security</span>
+                    </div>
                     {docPolice && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenLightbox(docPolice)}
-                        className="text-[10px] text-cyan-300 hover:underline pt-1 flex items-center gap-1"
-                      >
-                        <Eye className="w-3 h-3" /> View Police Clearance
-                      </button>
+                      <div className="space-y-1.5 pt-1">
+                        {docPolice.isImage && !failedImageUrls[docPolice.url] && (
+                          <div
+                            onClick={() => handleOpenLightbox(docPolice)}
+                            className="h-20 rounded-xl overflow-hidden border border-white/10 cursor-pointer hover:border-cyan-400 transition"
+                          >
+                            <img src={docPolice.url} alt="Police Clearance" className="w-full h-full object-cover" onError={() => setFailedImageUrls(prev => ({ ...prev, [docPolice.url]: true }))} />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLightbox(docPolice)}
+                          className="text-[10px] text-cyan-300 hover:underline flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3 h-3" /> View Police Clearance
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1702,96 +1921,164 @@ export const AdminApplicantInspectionModal: React.FC<AdminApplicantInspectionMod
                   </p>
                 </div>
 
-                <span className="text-[10px] font-mono text-blue-300 bg-blue-500/10 px-2.5 py-1 rounded-xl border border-blue-500/30 self-start sm:self-auto">
-                  Storage: {isNurse ? 'nurse-documents' : 'admin-documents'} (Encrypted)
-                </span>
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={syncDossierFromServer}
+                    disabled={isLoadingDossier}
+                    className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 text-[10px] font-bold text-slate-200 border border-white/15 flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isLoadingDossier ? 'animate-spin' : ''}`} />
+                    <span>{isLoadingDossier ? 'Syncing DB...' : 'Sync DB'}</span>
+                  </button>
+                  <span className="text-[10px] font-mono text-blue-300 bg-blue-500/10 px-2.5 py-1 rounded-xl border border-blue-500/30">
+                    SQLite Document Vault
+                  </span>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                {documentsList.map((doc) => {
-                  return (
-                    <div 
-                      key={doc.id} 
-                      className="p-3.5 rounded-2xl bg-black/50 border border-white/10 hover:border-amber-400/50 transition flex flex-col justify-between gap-3 group"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 truncate">
-                            {doc.category}
-                          </span>
+              {documentsList.length === 0 ? (
+                <div className="p-8 rounded-3xl bg-black/40 border border-dashed border-amber-500/40 text-center space-y-3">
+                  <AlertCircle className="w-10 h-10 text-amber-400 mx-auto" />
+                  <h5 className="text-sm font-black text-white">No Uploaded Documents Found for This Applicant</h5>
+                  <p className="text-xs text-slate-300 max-w-md mx-auto">
+                    {isLoadingDossier
+                      ? 'Checking central document database...'
+                      : 'This applicant has not uploaded any statutory scans yet, or their files were stored under a different account identifier.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={syncDossierFromServer}
+                    disabled={isLoadingDossier}
+                    className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingDossier ? 'animate-spin' : ''}`} />
+                    <span>Sync from Document Database</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {documentsList.map((doc) => {
+                    const imgFailed = Boolean(failedImageUrls[doc.url]);
+                    return (
+                      <div 
+                        key={doc.id} 
+                        className="p-3.5 rounded-2xl bg-black/50 border border-white/10 hover:border-amber-400/50 transition flex flex-col justify-between gap-3 group"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30 truncate">
+                              {doc.category}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenLightbox(doc)}
+                              className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition cursor-pointer"
+                              title="Inspect full screen"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <h5 className="font-bold text-white text-xs truncate" title={doc.title}>
+                            {doc.title}
+                          </h5>
+                        </div>
+
+                        {doc.isImage && !imgFailed ? (
+                          <div 
+                            onClick={() => handleOpenLightbox(doc)}
+                            className="relative h-36 rounded-xl bg-black/80 border border-white/10 overflow-hidden cursor-pointer group-hover:border-amber-400 transition"
+                          >
+                            <img 
+                              src={doc.url} 
+                              alt={doc.title} 
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
+                              onError={() => {
+                                setFailedImageUrls(prev => ({ ...prev, [doc.url]: true }));
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-xs text-white font-bold backdrop-blur-xs">
+                              <Eye className="w-4 h-4 text-amber-400" />
+                              <span>Inspect Scan</span>
+                            </div>
+                          </div>
+                        ) : doc.isImage && imgFailed ? (
+                          <div 
+                            onClick={() => handleOpenLightbox(doc)}
+                            className="h-36 rounded-xl bg-slate-900/90 border border-amber-500/30 flex flex-col items-center justify-center gap-1.5 text-slate-300 hover:border-amber-400 transition cursor-pointer p-3 text-center"
+                          >
+                            <ImageIcon className="w-8 h-8 text-amber-400" />
+                            <span className="text-[11px] font-bold text-white">Document Stored in Vault</span>
+                            <span className="text-[9px] text-amber-300 font-mono">Click to Open / Download</span>
+                          </div>
+                        ) : (
+                          <div 
+                            onClick={() => handleOpenLightbox(doc)}
+                            className="h-36 rounded-xl bg-gradient-to-br from-blue-950/40 via-black/80 to-[#1A1E4E]/30 border border-blue-500/30 flex flex-col items-center justify-center gap-1.5 text-slate-300 hover:border-amber-400 transition cursor-pointer p-3 text-center"
+                          >
+                            <FileText className="w-10 h-10 text-amber-400" />
+                            <span className="text-[11px] font-bold text-white">PDF Credential Attached</span>
+                            <span className="text-[9px] text-amber-300 font-mono">Click to Preview</span>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 pt-1 border-t border-white/5">
                           <button
                             type="button"
                             onClick={() => handleOpenLightbox(doc)}
-                            className="p-1 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition cursor-pointer"
-                            title="Inspect full screen"
+                            className="flex-1 py-1.5 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-center text-[11px] font-bold text-amber-300 hover:text-white flex items-center justify-center gap-1 transition cursor-pointer border border-amber-500/30"
                           >
-                            <Maximize2 className="w-3.5 h-3.5" />
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Inspect Full View</span>
                           </button>
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition"
+                            title="Open in new window / tab"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
                         </div>
-                        <h5 className="font-bold text-white text-xs truncate" title={doc.title}>
-                          {doc.title}
-                        </h5>
                       </div>
-
-                      {doc.isImage ? (
-                        <div 
-                          onClick={() => handleOpenLightbox(doc)}
-                          className="relative h-36 rounded-xl bg-black/80 border border-white/10 overflow-hidden cursor-pointer group-hover:border-amber-400 transition"
-                        >
-                          <img 
-                            src={doc.url} 
-                            alt={doc.title} 
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
-                            onError={(e) => {
-                              const target = e.target as HTMLElement;
-                              target.style.display = 'none';
-                            }}
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-xs text-white font-bold backdrop-blur-xs">
-                            <Eye className="w-4 h-4 text-amber-400" />
-                            <span>Inspect Scan</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div 
-                          onClick={() => handleOpenLightbox(doc)}
-                          className="h-36 rounded-xl bg-gradient-to-br from-blue-950/40 via-black/80 to-[#1A1E4E]/30 border border-blue-500/30 flex flex-col items-center justify-center gap-1.5 text-slate-300 hover:border-amber-400 transition cursor-pointer p-3 text-center"
-                        >
-                          <FileText className="w-10 h-10 text-amber-400" />
-                          <span className="text-[11px] font-bold text-white">PDF Credential Attached</span>
-                          <span className="text-[9px] text-amber-300 font-mono">Click to Preview</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2 pt-1 border-t border-white/5">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenLightbox(doc)}
-                          className="flex-1 py-1.5 px-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-center text-[11px] font-bold text-amber-300 hover:text-white flex items-center justify-center gap-1 transition cursor-pointer border border-amber-500/30"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Inspect Full View</span>
-                        </button>
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition"
-                          title="Open in new window / tab"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {/* TAB 4: COMPLETE SIGN-UP DOSSIER */}
           {activeTab === 'dossier' && (
             <div className="space-y-4 animate-fadeIn">
+              {/* Biometric Face Scan Summary inside Dossier */}
+              {(docPhoto || biometricInfo) && (
+                <div className="p-4 rounded-2xl bg-cyan-950/30 border border-cyan-500/30 flex flex-col sm:flex-row items-center gap-4">
+                  {docPhoto?.url && (
+                    <img
+                      src={docPhoto.url}
+                      alt="Biometric Face Scan"
+                      onClick={() => handleOpenLightbox(docPhoto)}
+                      className="w-20 h-20 rounded-2xl object-cover border-2 border-cyan-400 cursor-pointer shrink-0"
+                    />
+                  )}
+                  <div className="space-y-1 text-center sm:text-left">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-300 font-bold block">
+                      Biometric Face Scan Database Record
+                    </span>
+                    <div className="text-xs font-bold text-white">
+                      {biometricInfo?.captureMethod === 'auto_positioned'
+                        ? 'Auto-Positioned Live Biometric Scan Verified'
+                        : 'Live Biometric Camera Scan Verified'}
+                    </div>
+                    <div className="text-[11px] font-mono text-slate-300">
+                      ID: <span className="text-cyan-300">{biometricInfo?.verificationId || 'BIO-CAMERA-SESSION'}</span> • {biometricInfo?.capturedAt ? new Date(biometricInfo.capturedAt).toLocaleString() : signedDate}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
                   <span className="text-[10px] text-slate-400 uppercase font-mono tracking-wider block">Legal Full Name</span>

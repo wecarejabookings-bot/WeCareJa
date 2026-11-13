@@ -52,8 +52,11 @@ import {
   signUpClientUser, 
   updateProfileData, 
   softDeleteAccount,
-  saveNurseProfileToSupabase
+  saveNurseProfileToSupabase,
+  clearAllSupabaseAuthTokens,
+  saveUsernameToCache
 } from '../../lib/supabase';
+import { saveApplicantDossier } from '../../utils/dossierStore';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -162,23 +165,56 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
 
-  // Sync state if currentUser changes
+  // Sync or reset profile & login state whenever currentUser or auth state changes
   React.useEffect(() => {
-    if (currentUser) {
-      setEditName(currentUser.full_name || currentUser.name);
-      setEditEmail(currentUser.email);
-      setEditPhone(currentUser.phone);
-      setEditUsername(currentUser.username);
-      setEditPassword(currentUser.password || 'password123');
+    if (isAuthenticated && currentUser) {
+      setEditName(currentUser.full_name || currentUser.name || '');
+      setEditEmail(currentUser.email || '');
+      setEditPhone(currentUser.phone || '');
+      setEditUsername(currentUser.username || '');
+      setEditPassword(currentUser.password || '');
       setEditZone(currentUser.zone || 'New Kingston');
       setEditAddress(currentUser.address || '');
       setEditMedicalInfo(currentUser.medical_info || '');
-      setEditAvatarUrl(currentUser.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400');
+      setEditAvatarUrl(currentUser.avatarUrl || '');
       setEditEmergencyName(currentUser.emergencyContact?.name || '');
       setEditEmergencyPhone(currentUser.emergencyContact?.phone || '');
       setEditEmergencyRelation(currentUser.emergencyContact?.relation || '');
+    } else {
+      setEditName('');
+      setEditEmail('');
+      setEditPhone('');
+      setEditUsername('');
+      setEditPassword('');
+      setEditZone('New Kingston');
+      setEditAddress('');
+      setEditMedicalInfo('');
+      setEditAvatarUrl('');
+      setEditEmergencyName('');
+      setEditEmergencyPhone('');
+      setEditEmergencyRelation('');
+      setLoginUsername('');
+      setLoginPassword('');
+      setLoginError('');
+      setRegError('');
+      setProfileSuccessMsg(false);
+      setUserBiometricRecord(null);
+      setActiveTab((prev) => (prev === 'profile' ? 'signin' : prev));
     }
-  }, [currentUser]);
+  }, [
+    isAuthenticated,
+    currentUser?.id,
+    currentUser?.name,
+    currentUser?.full_name,
+    currentUser?.email,
+    currentUser?.phone,
+    currentUser?.username,
+    currentUser?.address,
+    currentUser?.zone,
+    currentUser?.medical_info,
+    currentUser?.avatarUrl,
+    currentUser?.emergencyContact
+  ]);
 
   // Biometric passkey state
   const [userBiometricRecord, setUserBiometricRecord] = useState<BiometricCredentialRecord | null>(() => {
@@ -537,7 +573,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const fullAddress = regAddress.trim() ? `${regAddress.trim()}, ${regParish}` : (regZone.trim() || regParish);
 
     setIsSubmittingAuth(true);
+    if (typeof window !== 'undefined') {
+      (window as any).__wecareSignupInProgress = true;
+    }
     try {
+      // Isolate new signup from any previous user's active Supabase/local session
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+      clearAllSupabaseAuthTokens();
+      try {
+        sessionStorage.removeItem('wecare_session_user_id');
+        localStorage.removeItem('wecare_current_user_id');
+      } catch {}
+
       let userId = `user-${Date.now()}`;
       try {
         const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -545,6 +594,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           password: regPassword.trim(),
           options: {
             data: {
+              username: cleanUsername,
               full_name: cleanFullName,
               role: regRole, // NEVER DEFAULT TO CLIENT! PRESERVE EXACT SELECTED ROLE
               phone: cleanPhone,
@@ -595,6 +645,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         console.warn('profiles upsert note:', upErr);
       }
 
+      saveUsernameToCache(cleanUsername, cleanEmail);
+
       // Backup credentials locally so user can always sign back in even if Supabase confirms or rate limits
       try {
         const rawCreds = localStorage.getItem('wecare_auth_passwords') || '{}';
@@ -635,7 +687,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         try {
           const rawNurses = localStorage.getItem('wecare_nurses');
           const currentList = rawNurses ? JSON.parse(rawNurses) : [];
-          const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email !== cleanEmail)];
+          const updatedList = [newNurseProfile, ...currentList.filter((n: any) => n.id !== userId && n.email?.toLowerCase() !== cleanEmail)];
           localStorage.setItem('wecare_nurses', JSON.stringify(updatedList));
         } catch {}
       }
@@ -654,19 +706,39 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         title: regRole === 'admin' ? 'Administrator' : regRole === 'nurse' ? 'Registered Healthcare Practitioner' : 'Family Client',
         zone: regParish,
         address: fullAddress,
+        trn: regTrn.trim() || undefined,
+        nursingCouncilLicense: regNcjLicense.trim() || undefined,
         createdAt: new Date().toISOString()
       };
 
-      // Save to localStorage accounts
+      // Persist applicant dossier to backend store
+      saveApplicantDossier({
+        id: userId,
+        userId,
+        username: cleanUsername,
+        email: cleanEmail,
+        fullName: cleanFullName,
+        name: cleanFullName,
+        role: targetRole,
+        phone: cleanPhone,
+        address: fullAddress,
+        parish: regParish,
+        trnNumber: regTrn.trim() || undefined,
+        ncjLicense: regNcjLicense.trim() || undefined,
+        status: regRole === 'nurse' ? 'pending_approval' : 'approved',
+        submittedAt: new Date().toISOString()
+      }).catch(() => {});
+
+      // Save to localStorage accounts (deduped by id and email) & sync session IDs
       try {
+        sessionStorage.setItem('wecare_session_user_id', userId);
+        localStorage.setItem('wecare_current_user_id', userId);
         const rawAccounts = localStorage.getItem('wecare_user_accounts');
         const existing = rawAccounts ? JSON.parse(rawAccounts) : [];
-        if (Array.isArray(existing)) {
-          const idx = existing.findIndex((a: any) => a.id === userId || a.username === cleanUsername);
-          if (idx >= 0) existing[idx] = newAccount;
-          else existing.push(newAccount);
-          localStorage.setItem('wecare_user_accounts', JSON.stringify(existing));
-        }
+        const deduped = Array.isArray(existing)
+          ? existing.filter((a: any) => a.id !== userId && a.email?.toLowerCase() !== cleanEmail)
+          : [];
+        localStorage.setItem('wecare_user_accounts', JSON.stringify([newAccount, ...deduped]));
       } catch {}
 
       soundFX.playSuccessPing();
@@ -678,6 +750,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       setRegError(err?.message || 'Registration failed. Please check your information and try again.');
       soundFX.playWarningSound();
     } finally {
+      if (typeof window !== 'undefined') {
+        (window as any).__wecareSignupInProgress = false;
+      }
       setIsSubmittingAuth(false);
     }
   };

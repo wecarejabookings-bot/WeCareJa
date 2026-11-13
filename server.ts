@@ -6,6 +6,7 @@ import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
+import { DatabaseSync } from "node:sqlite";
 
 dotenv.config();
 
@@ -154,7 +155,69 @@ async function startServer() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+
+  // Persistent SQLite Database for Uploaded Documents & Applicant Dossiers
+  const DB_PATH = path.join(DATA_DIR, "wecare.db");
+  const db = new DatabaseSync(DB_PATH);
+  db.exec(`
+    PRAGMA journal_mode = WAL;
+    CREATE TABLE IF NOT EXISTS uploaded_documents (
+      file_id TEXT PRIMARY KEY,
+      disk_file_name TEXT NOT NULL,
+      public_url TEXT NOT NULL,
+      user_id TEXT,
+      email TEXT,
+      category TEXT,
+      original_name TEXT,
+      mime_type TEXT NOT NULL,
+      size_bytes INTEGER NOT NULL,
+      data_base64 TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_uploaded_docs_user ON uploaded_documents(user_id);
+    CREATE INDEX IF NOT EXISTS idx_uploaded_docs_email ON uploaded_documents(email);
+    CREATE INDEX IF NOT EXISTS idx_uploaded_docs_filename ON uploaded_documents(disk_file_name);
+
+    CREATE TABLE IF NOT EXISTS applicant_dossiers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      email TEXT,
+      username TEXT,
+      role TEXT,
+      full_name TEXT,
+      status TEXT,
+      dossier_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      submitted_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_dossiers_email ON applicant_dossiers(email);
+    CREATE INDEX IF NOT EXISTS idx_dossiers_user_id ON applicant_dossiers(user_id);
+    CREATE INDEX IF NOT EXISTS idx_dossiers_username ON applicant_dossiers(username);
+  `);
+
   app.use("/uploads", express.static(UPLOADS_DIR));
+
+  // Database fallback for /uploads/:filename if disk file is missing
+  app.get("/uploads/:filename", (req, res, next) => {
+    try {
+      const requested = path.basename(req.params.filename || "");
+      if (!requested) return next();
+      const row = db
+        .prepare("SELECT mime_type, data_base64, disk_file_name FROM uploaded_documents WHERE disk_file_name = ? OR file_id = ? LIMIT 1")
+        .get(requested, requested) as { mime_type: string; data_base64: string; disk_file_name: string } | undefined;
+      if (!row || !row.data_base64) return next();
+
+      const buffer = Buffer.from(row.data_base64, "base64");
+      try {
+        fs.writeFileSync(path.join(UPLOADS_DIR, row.disk_file_name), buffer);
+      } catch {}
+      res.setHeader("Content-Type", row.mime_type || "application/octet-stream");
+      res.setHeader("Cache-Control", "public, max-age=31536000");
+      return res.send(buffer);
+    } catch {
+      return next();
+    }
+  });
 
   // Public CORS and iOS Safari cookie/security headers
   app.use((req, res, next) => {
@@ -576,8 +639,9 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
   // SUPABASE AUTH & RLS SERVER PROXY ENDPOINTS
   // ==========================================
   function sanitizeSupabaseUrl(raw?: string): string {
-    const fallback = "https://qyhbyoojbmaguujzmdwz.supabase.co";
+    const fallback = "https://yflgdfvjigbcnagcuism.supabase.co";
     if (!raw) return fallback;
+    if (raw.includes("qyhbyoojbmaguujzmdwz") || raw.includes("your-project")) return fallback;
     const match = raw.match(/https?:\/\/[^\s'"\)]+/i);
     return match ? match[0].replace(/\/+$/, '') : fallback;
   }
@@ -637,7 +701,30 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
       return res.json({ success: true, email: inMemoryUsernameCache[digitsOnly], identifierType: "phone" });
     }
 
-    // 3. Check if numeric = telephone
+    // 3. Check local dossiers database (username, fullName, phone)
+    try {
+      const dossiers = loadDossiers();
+      const dossierValues = Object.values(dossiers) as any[];
+      const dossierMatch = dossierValues.find((d: any) => {
+        if (d.username && String(d.username).toLowerCase() === cleanLower) return true;
+        if ((d.fullName || d.name) && String(d.fullName || d.name).toLowerCase() === cleanLower) return true;
+        if (digitsOnly.length >= 7 && d.phone) {
+          const dDigits = String(d.phone).replace(/\D/g, '');
+          if (dDigits && (dDigits.endsWith(digitsOnly) || digitsOnly.endsWith(dDigits))) return true;
+        }
+        return false;
+      });
+      if (dossierMatch?.email) {
+        inMemoryUsernameCache[cleanLower] = dossierMatch.email.toLowerCase();
+        return res.json({
+          success: true,
+          email: dossierMatch.email.toLowerCase(),
+          identifierType: digitsOnly.length >= 7 ? "phone" : "username"
+        });
+      }
+    } catch {}
+
+    // 4. Check if numeric = telephone
     const isTelephone = /^[0-9+()-\s]+$/.test(rawInput) && digitsOnly.length >= 7;
 
     if (serverSupabase) {
@@ -715,60 +802,293 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
   });
 
   // ==========================================
-  // APPLICANT DOSSIER & DOCUMENT DATABASE
+  // APPLICANT DOSSIER & DOCUMENT DATABASE (SQLite + JSON + Supabase Mirror)
   // ==========================================
   const DOSSIERS_FILE = path.join(DATA_DIR, "dossiers.json");
 
+  const DOC_URL_FIELDS = [
+    "photoUrl",
+    "profilePhotoUrl",
+    "driversLicenseFrontUrl",
+    "driversLicenseBackUrl",
+    "trnCertificateUrl",
+    "licenseDocumentUrl",
+    "governmentIdUrl",
+    "governmentIdBackUrl",
+    "policeRecordUrl",
+    "bankLetterUrl",
+    "proofOfAddressUrl",
+  ] as const;
+
+  function mapCategoryToField(category?: string | null): string | null {
+    const c = (category || "").toLowerCase().trim();
+    if (!c) return null;
+    if (c.includes("drivers_license_front") || c.includes("dl_front")) return "driversLicenseFrontUrl";
+    if (c.includes("drivers_license_back") || c.includes("dl_back")) return "driversLicenseBackUrl";
+    if (c.includes("trn")) return "trnCertificateUrl";
+    if (c.includes("ncj") || c.includes("license_document")) return "licenseDocumentUrl";
+    if (c.includes("government_id_back") || c.includes("gov_id_back")) return "governmentIdBackUrl";
+    if (c.includes("government_id") || c.includes("gov_id") || c.includes("passport")) return "governmentIdUrl";
+    if (c.includes("police")) return "policeRecordUrl";
+    if (c.includes("bank")) return "bankLetterUrl";
+    if (c.includes("proof_of_address") || c.includes("address")) return "proofOfAddressUrl";
+    if (c.includes("biometric") || c.includes("profile_photo") || c === "photo") return "photoUrl";
+    return null;
+  }
+
+  function isMeaningfulUrl(val: unknown): val is string {
+    return typeof val === "string" && val.trim().length > 0 && val.trim() !== "undefined" && val.trim() !== "null";
+  }
+
+  function mergeDossierRecords(base: any = {}, incoming: any = {}): any {
+    const merged: any = { ...base };
+    for (const [k, v] of Object.entries(incoming || {})) {
+      if (v === undefined || v === null) continue;
+      if (typeof v === "string" && v.trim() === "" && isMeaningfulUrl(base?.[k])) continue;
+      if (k === "documents" && typeof v === "object" && !Array.isArray(v)) {
+        const mergedDocs: Record<string, any> = { ...(base?.documents || {}) };
+        for (const [dk, dv] of Object.entries(v as Record<string, any>)) {
+          if (isMeaningfulUrl(dv)) mergedDocs[dk] = dv;
+        }
+        merged.documents = mergedDocs;
+      } else {
+        merged[k] = v;
+      }
+    }
+
+    // Synchronize top-level document URLs and nested documents.* map in both directions
+    const docsMap: Record<string, any> = {
+      ...(typeof base?.documents === "object" && !Array.isArray(base.documents) ? base.documents : {}),
+      ...(typeof merged.documents === "object" && !Array.isArray(merged.documents) ? merged.documents : {}),
+    };
+    for (const field of DOC_URL_FIELDS) {
+      const top = merged[field];
+      const nested = docsMap[field];
+      const winner = isMeaningfulUrl(top) ? top : isMeaningfulUrl(nested) ? nested : undefined;
+      if (winner) {
+        merged[field] = winner;
+        docsMap[field] = winner;
+      }
+    }
+    if (isMeaningfulUrl(merged.photoUrl) && !isMeaningfulUrl(merged.profilePhotoUrl)) {
+      merged.profilePhotoUrl = merged.photoUrl;
+      docsMap.profilePhotoUrl = merged.photoUrl;
+    } else if (isMeaningfulUrl(merged.profilePhotoUrl) && !isMeaningfulUrl(merged.photoUrl)) {
+      merged.photoUrl = merged.profilePhotoUrl;
+    }
+    merged.documents = docsMap;
+    return merged;
+  }
+
+  function attachDbUploadedDocs(dossier: any): any {
+    if (!dossier) return dossier;
+    const candidates = [dossier.id, dossier.userId, dossier.nurseProfileId, dossier.email]
+      .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+      .map((v) => v.trim().toLowerCase());
+    if (candidates.length === 0) return dossier;
+
+    const placeholders = candidates.map(() => "?").join(", ");
+    try {
+      const rows = db
+        .prepare(
+          `SELECT public_url, category, file_id, original_name, mime_type, created_at
+           FROM uploaded_documents
+           WHERE lower(coalesce(user_id, '')) IN (${placeholders})
+              OR lower(coalesce(email, '')) IN (${placeholders})
+           ORDER BY created_at ASC`
+        )
+        .all(...candidates, ...candidates) as Array<{
+          public_url: string;
+          category: string | null;
+          file_id: string;
+          original_name: string | null;
+          mime_type: string;
+          created_at: string;
+        }>;
+
+      if (!rows || rows.length === 0) return dossier;
+
+      const updated = mergeDossierRecords(dossier, {});
+      const docsMap: Record<string, any> = { ...(updated.documents || {}) };
+      for (const r of rows) {
+        const mappedField = mapCategoryToField(r.category);
+        if (mappedField && !isMeaningfulUrl(updated[mappedField])) {
+          updated[mappedField] = r.public_url;
+          docsMap[mappedField] = r.public_url;
+        }
+        if (mappedField === "photoUrl" && !isMeaningfulUrl(updated.profilePhotoUrl)) {
+          updated.profilePhotoUrl = r.public_url;
+          docsMap.profilePhotoUrl = r.public_url;
+        }
+      }
+      updated.documents = docsMap;
+      updated.uploadedDocuments = rows.map((r) => ({
+        fileId: r.file_id,
+        url: r.public_url,
+        category: r.category,
+        fileName: r.original_name,
+        mimeType: r.mime_type,
+        uploadedAt: r.created_at,
+      }));
+      return updated;
+    } catch {
+      return dossier;
+    }
+  }
+
+  function saveDossierToDb(dossier: any) {
+    const id = String(dossier.id || dossier.userId || `applicant-${Date.now()}`);
+    const email = (dossier.email || "").toLowerCase().trim();
+    const username = (dossier.username || "").toLowerCase().trim();
+    const userId = String(dossier.userId || id);
+    const role = String(dossier.role || "nurse_pending");
+    const fullName = String(dossier.fullName || dossier.name || dossier.full_name || "Applicant");
+    const status = String(dossier.status || "pending_approval");
+    const updatedAt = dossier.updatedAt || new Date().toISOString();
+    const submittedAt = dossier.submittedAt || updatedAt;
+
+    db.prepare(
+      `INSERT INTO applicant_dossiers (id, user_id, email, username, role, full_name, status, dossier_json, updated_at, submitted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         user_id = excluded.user_id,
+         email = CASE WHEN excluded.email != '' THEN excluded.email ELSE applicant_dossiers.email END,
+         username = CASE WHEN excluded.username != '' THEN excluded.username ELSE applicant_dossiers.username END,
+         role = excluded.role,
+         full_name = excluded.full_name,
+         status = excluded.status,
+         dossier_json = excluded.dossier_json,
+         updated_at = excluded.updated_at`
+    ).run(id, userId, email, username, role, fullName, status, JSON.stringify(dossier), updatedAt, submittedAt);
+  }
+
   function loadDossiers(): Record<string, any> {
+    const map: Record<string, any> = {};
     try {
       if (fs.existsSync(DOSSIERS_FILE)) {
         const raw = fs.readFileSync(DOSSIERS_FILE, "utf-8");
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          Object.assign(map, parsed);
+        }
       }
     } catch (e) {
       console.warn("[ServerDossier] Failed to read dossiers.json:", e);
     }
-    return {};
+
+    try {
+      const rows = db.prepare("SELECT id, email, username, dossier_json FROM applicant_dossiers").all() as Array<{
+        id: string;
+        email: string;
+        username: string;
+        dossier_json: string;
+      }>;
+      for (const r of rows) {
+        try {
+          const parsed = JSON.parse(r.dossier_json);
+          const existingById = map[r.id];
+          const merged = existingById ? mergeDossierRecords(existingById, parsed) : parsed;
+          map[r.id] = merged;
+          if (r.email) map[r.email.toLowerCase()] = merged;
+          if (r.username) map[r.username.toLowerCase()] = merged;
+        } catch {}
+      }
+    } catch (e) {
+      console.warn("[ServerDossier] Failed to read SQLite dossiers:", e);
+    }
+    return map;
+  }
+
+  // One-time startup migration of dossiers.json -> SQLite
+  try {
+    if (fs.existsSync(DOSSIERS_FILE)) {
+      const initialJson = JSON.parse(fs.readFileSync(DOSSIERS_FILE, "utf-8"));
+      const seen = new Set<string>();
+      for (const val of Object.values(initialJson || {}) as any[]) {
+        if (val?.id && !seen.has(val.id)) {
+          seen.add(val.id);
+          const existingRow = db.prepare("SELECT id FROM applicant_dossiers WHERE id = ?").get(val.id);
+          if (!existingRow) {
+            saveDossierToDb(val);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[ServerDossier] Initial migration notice:", e);
   }
 
   function saveDossiers(dossiers: Record<string, any>) {
     try {
+      const seenIds = new Set<string>();
+      for (const val of Object.values(dossiers)) {
+        if (val?.id && !seenIds.has(val.id)) {
+          seenIds.add(val.id);
+          saveDossierToDb(val);
+        }
+      }
+    } catch (e) {
+      console.error("[ServerDossier] Failed to write SQLite dossiers:", e);
+    }
+    try {
       fs.writeFileSync(DOSSIERS_FILE, JSON.stringify(dossiers, null, 2), "utf-8");
     } catch (e) {
-      console.error("[ServerDossier] Failed to write dossiers.json:", e);
+      console.warn("[ServerDossier] Failed to sync dossiers.json:", e);
     }
   }
 
-  // 1. Upload Document (Image or PDF) to permanent server disk storage
+  // 1. Upload Document (Image or PDF) to SQLite database AND disk storage
   app.post("/api/documents/upload", async (req, res) => {
     try {
-      const { dataUrl, fileName, category, userId } = req.body || {};
+      const { dataUrl, fileName, category, userId, email } = req.body || {};
       if (!dataUrl || typeof dataUrl !== "string") {
         return res.status(400).json({ success: false, message: "dataUrl is required" });
       }
 
-      const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      const matches = dataUrl.match(/^data:([A-Za-z0-9-+\/.]+);base64,(.+)$/);
       let mimeType = "image/jpeg";
-      let buffer: Buffer;
+      let base64Body: string;
       let extension = "jpg";
 
       if (matches && matches.length === 3) {
         mimeType = matches[1];
-        buffer = Buffer.from(matches[2], "base64");
+        base64Body = matches[2];
         if (mimeType.includes("png")) extension = "png";
         else if (mimeType.includes("webp")) extension = "webp";
+        else if (mimeType.includes("gif")) extension = "gif";
         else if (mimeType.includes("pdf")) extension = "pdf";
       } else {
-        buffer = Buffer.from(dataUrl, "base64");
+        base64Body = dataUrl.replace(/^data:[^,]+,/, "");
       }
 
-      const cleanBase = (fileName || "doc").replace(/[^a-zA-Z0-9_-]/g, "_").replace(/\.[^/.]+$/, "");
+      const buffer = Buffer.from(base64Body, "base64");
+      const cleanBase = (fileName || "doc").replace(/[^a-zA-Z0-9_-]/g, "_").replace(/\.[^/.]+$/, "") || "doc";
       const fileId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       const diskFileName = `${fileId}_${cleanBase}.${extension}`;
       const filePath = path.join(UPLOADS_DIR, diskFileName);
-
-      fs.writeFileSync(filePath, buffer);
+      const createdAt = new Date().toISOString();
+      const cleanEmail = email ? String(email).toLowerCase().trim() : null;
+      const cleanUserId = userId ? String(userId).trim() : null;
       const publicUrl = `/uploads/${diskFileName}`;
+
+      // Save to disk AND persistent SQLite table
+      fs.writeFileSync(filePath, buffer);
+      db.prepare(
+        `INSERT INTO uploaded_documents (file_id, disk_file_name, public_url, user_id, email, category, original_name, mime_type, size_bytes, data_base64, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(
+        fileId,
+        diskFileName,
+        publicUrl,
+        cleanUserId,
+        cleanEmail,
+        category || null,
+        fileName || diskFileName,
+        mimeType,
+        buffer.length,
+        base64Body,
+        createdAt
+      );
 
       return res.json({
         success: true,
@@ -776,7 +1096,8 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
         fileId,
         fileName: diskFileName,
         size: buffer.length,
-        mimeType
+        mimeType,
+        storedInDatabase: true
       });
     } catch (err: any) {
       console.error("[DocumentUpload] Error:", err);
@@ -784,11 +1105,51 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     }
   });
 
-  // 2. Save or update applicant dossier in persistent database
+  // 1b. Serve stored file by fileId directly from SQLite database
+  app.get("/api/documents/file/:fileId", (req, res) => {
+    try {
+      const fileId = req.params.fileId;
+      const row = db
+        .prepare("SELECT mime_type, data_base64, original_name FROM uploaded_documents WHERE file_id = ? OR disk_file_name = ? LIMIT 1")
+        .get(fileId, fileId) as { mime_type: string; data_base64: string; original_name: string } | undefined;
+      if (!row) {
+        return res.status(404).json({ success: false, message: "Document not found" });
+      }
+      const buffer = Buffer.from(row.data_base64, "base64");
+      res.setHeader("Content-Type", row.mime_type || "application/octet-stream");
+      res.setHeader("Cache-Control", "public, max-age=31536000");
+      return res.send(buffer);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err?.message || "Failed to read document" });
+    }
+  });
+
+  // 1c. List uploaded documents for a given userId or email from SQLite database
+  app.get("/api/documents/by-user/:identifier", (req, res) => {
+    try {
+      const ident = decodeURIComponent(req.params.identifier || "").toLowerCase().trim();
+      if (!ident) {
+        return res.status(400).json({ success: false, message: "Identifier required" });
+      }
+      const rows = db
+        .prepare(
+          `SELECT file_id, disk_file_name, public_url, user_id, email, category, original_name, mime_type, size_bytes, created_at
+           FROM uploaded_documents
+           WHERE lower(coalesce(user_id, '')) = ? OR lower(coalesce(email, '')) = ?
+           ORDER BY created_at DESC`
+        )
+        .all(ident, ident);
+      return res.json({ success: true, documents: rows });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: "Failed to query documents" });
+    }
+  });
+
+  // 2. Save or update applicant dossier in persistent SQLite + JSON + Supabase mirror
   app.post("/api/applicants/dossier", async (req, res) => {
     try {
       const dossier = req.body || {};
-      const id = dossier.id || dossier.userId || `applicant-${Date.now()}`;
+      const id = String(dossier.id || dossier.userId || `applicant-${Date.now()}`);
       const email = (dossier.email || "").toLowerCase().trim();
 
       if (!email && !id) {
@@ -796,21 +1157,46 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
       }
 
       const dossiers = loadDossiers();
-      const existing = dossiers[id] || (email ? dossiers[email] : null) || {};
+      const existing =
+        dossiers[id] ||
+        (dossier.userId ? dossiers[String(dossier.userId)] : null) ||
+        (email ? dossiers[email] : null) ||
+        Object.values(dossiers).find((d: any) =>
+          (email && d?.email?.toLowerCase() === email) ||
+          (d?.userId && d.userId === id)
+        ) ||
+        {};
+      const cleanUsername = (dossier.username || existing.username || "").toLowerCase().trim();
 
-      const merged = {
-        ...existing,
+      let merged = mergeDossierRecords(existing, {
         ...dossier,
         id,
+        userId: dossier.userId || existing.userId || id,
         email: email || existing.email,
+        username: cleanUsername || existing.username,
         updatedAt: new Date().toISOString(),
         submittedAt: existing.submittedAt || dossier.submittedAt || new Date().toISOString(),
         status: dossier.status || existing.status || "pending_approval"
-      };
+      });
+
+      merged = attachDbUploadedDocs(merged);
 
       dossiers[id] = merged;
+      if (merged.userId && merged.userId !== id) {
+        dossiers[merged.userId] = merged;
+      }
       if (email) {
         dossiers[email] = merged;
+      }
+      if (cleanUsername && email) {
+        dossiers[cleanUsername] = merged;
+        inMemoryUsernameCache[cleanUsername] = email;
+      }
+      if (merged.phone && email) {
+        const phoneDigits = String(merged.phone).replace(/\D/g, "");
+        if (phoneDigits.length >= 7) {
+          inMemoryUsernameCache[phoneDigits] = email;
+        }
       }
 
       saveDossiers(dossiers);
@@ -822,12 +1208,15 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
           const compactDossier = {
             id,
             email,
+            username: cleanUsername || undefined,
             photoUrl: merged.photoUrl || merged.profilePhotoUrl,
+            biometricVerification: merged.biometricVerification || undefined,
             driversLicenseFrontUrl: merged.driversLicenseFrontUrl,
             driversLicenseBackUrl: merged.driversLicenseBackUrl,
             trnCertificateUrl: merged.trnCertificateUrl,
             licenseDocumentUrl: merged.licenseDocumentUrl,
             governmentIdUrl: merged.governmentIdUrl,
+            governmentIdBackUrl: merged.governmentIdBackUrl,
             policeRecordUrl: merged.policeRecordUrl,
             bankLetterUrl: merged.bankLetterUrl,
             proofOfAddressUrl: merged.proofOfAddressUrl,
@@ -837,6 +1226,7 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
           await serverSupabase.from("profiles").upsert({
             id,
             email,
+            username: cleanUsername || undefined,
             full_name: merged.fullName || merged.name,
             phone: merged.phone,
             address: merged.address,
@@ -860,46 +1250,62 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     try {
       const dossiers = loadDossiers();
       const uniqueList: any[] = [];
-      const seenIds = new Set<string>();
+      const seenKeys = new Set<string>();
 
       for (const val of Object.values(dossiers)) {
-        if (val?.id && !seenIds.has(val.id)) {
-          seenIds.add(val.id);
-          uniqueList.push(val);
+        if (!val) continue;
+        const key = val.id || (val.email ? val.email.toLowerCase() : null);
+        if (key && !seenKeys.has(key)) {
+          seenKeys.add(key);
+          if (val.email) seenKeys.add(val.email.toLowerCase());
+          uniqueList.push(attachDbUploadedDocs(val));
         }
       }
 
-      // Also merge any Supabase profiles that have DOSSIER in trn
+      // Also merge any Supabase profiles that have DOSSIER in trn or pending/applicant roles
       if (serverSupabase) {
         try {
           const { data: profiles } = await serverSupabase
             .from("profiles")
-            .select("*")
-            .in("role", ["nurse_pending", "admin_pending", "nurse", "caregiver"]);
+            .select("*");
 
           if (profiles && Array.isArray(profiles)) {
             for (const p of profiles) {
-              if (!seenIds.has(p.id)) {
-                let enriched: any = {
-                  id: p.id,
-                  email: p.email,
-                  fullName: p.full_name,
-                  phone: p.phone,
-                  address: p.address,
-                  role: p.role,
-                  status: p.role === "nurse" ? "approved" : "pending_approval"
-                };
+              const pEmail = (p.email || "").toLowerCase().trim();
+              let parsedFromTrn: any = {};
+              if (p.trn && typeof p.trn === "string" && p.trn.includes("DOSSIER:")) {
+                try {
+                  const jsonStart = p.trn.indexOf("DOSSIER:");
+                  parsedFromTrn = JSON.parse(p.trn.substring(jsonStart + 8).trim());
+                } catch {}
+              }
 
-                if (p.trn && p.trn.includes("DOSSIER:")) {
-                  try {
-                    const jsonStart = p.trn.indexOf("DOSSIER:");
-                    const parsed = JSON.parse(p.trn.substring(jsonStart + 8).trim());
-                    enriched = { ...parsed, ...enriched };
-                  } catch {}
-                }
+              const existingIdx = uniqueList.findIndex(
+                (d) => d.id === p.id || (pEmail && d.email?.toLowerCase() === pEmail)
+              );
 
-                seenIds.add(p.id);
-                uniqueList.push(enriched);
+              const baseProfile: any = {
+                id: p.id,
+                email: p.email,
+                username: p.username,
+                fullName: p.full_name,
+                phone: p.phone,
+                address: p.address,
+                role: p.role,
+                status: p.status || (p.role === "nurse" ? "approved" : "pending_approval")
+              };
+
+              if (existingIdx !== -1) {
+                uniqueList[existingIdx] = attachDbUploadedDocs(
+                  mergeDossierRecords(mergeDossierRecords(baseProfile, parsedFromTrn), uniqueList[existingIdx])
+                );
+              } else if (
+                ["nurse_pending", "admin_pending", "nurse", "caregiver", "nurse_rejected", "rejected"].includes(p.role) ||
+                Object.keys(parsedFromTrn).length > 0
+              ) {
+                seenKeys.add(p.id);
+                if (pEmail) seenKeys.add(pEmail);
+                uniqueList.push(attachDbUploadedDocs(mergeDossierRecords(baseProfile, parsedFromTrn)));
               }
             }
           }
@@ -913,47 +1319,117 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     }
   });
 
-  // 4. Get a specific dossier by id or email
+  // 4. Get a specific dossier by id, email, username, or query candidate identifiers
   app.get("/api/applicants/dossier/:identifier", async (req, res) => {
     try {
       const identifier = decodeURIComponent(req.params.identifier).toLowerCase().trim();
+      const extraCandidates = [
+        identifier,
+        String(req.query.id || ""),
+        String(req.query.userId || ""),
+        String(req.query.nurseProfileId || ""),
+        String(req.query.email || ""),
+        String(req.query.username || "")
+      ]
+        .map((c) => c.toLowerCase().trim())
+        .filter(Boolean);
+
       const dossiers = loadDossiers();
-      let match = dossiers[identifier] || Object.values(dossiers).find((d: any) => 
-        (d.id && d.id.toLowerCase() === identifier) || 
-        (d.email && d.email.toLowerCase() === identifier) ||
-        (d.username && d.username.toLowerCase() === identifier)
-      );
+      let match: any = null;
 
-      if (!match && serverSupabase) {
+      for (const cand of extraCandidates) {
+        if (dossiers[cand]) {
+          match = match ? mergeDossierRecords(match, dossiers[cand]) : dossiers[cand];
+        }
+      }
+
+      for (const d of Object.values(dossiers) as any[]) {
+        if (!d) continue;
+        const dId = String(d.id || "").toLowerCase();
+        const dUserId = String(d.userId || "").toLowerCase();
+        const dNurseId = String(d.nurseProfileId || "").toLowerCase();
+        const dEmail = String(d.email || "").toLowerCase();
+        const dUsername = String(d.username || "").toLowerCase();
+
+        if (
+          extraCandidates.includes(dId) ||
+          extraCandidates.includes(dUserId) ||
+          extraCandidates.includes(dNurseId) ||
+          extraCandidates.includes(dEmail) ||
+          extraCandidates.includes(dUsername)
+        ) {
+          match = match ? mergeDossierRecords(match, d) : d;
+        }
+      }
+
+      if (serverSupabase) {
         try {
-          const { data: p } = await serverSupabase
-            .from("profiles")
-            .select("*")
-            .or(`id.eq.${identifier},email.ilike.${identifier}`)
-            .maybeSingle();
+          const emailCand = extraCandidates.find((c) => c.includes("@"));
+          const idCand = extraCandidates.find((c) => !c.includes("@"));
+          const orFilters: string[] = [];
+          if (idCand) orFilters.push(`id.eq.${idCand}`);
+          if (emailCand) orFilters.push(`email.ilike.${emailCand}`);
+          if (!idCand && !emailCand) orFilters.push(`username.ilike.${identifier}`);
 
-          if (p) {
-            match = {
-              id: p.id,
-              email: p.email,
-              fullName: p.full_name,
-              phone: p.phone,
-              address: p.address,
-              role: p.role,
-              status: p.role === "nurse" ? "approved" : "pending_approval"
-            };
-            if (p.trn && p.trn.includes("DOSSIER:")) {
-              try {
-                const jsonStart = p.trn.indexOf("DOSSIER:");
-                const parsed = JSON.parse(p.trn.substring(jsonStart + 8).trim());
-                match = { ...parsed, ...match };
-              } catch {}
+          if (orFilters.length > 0) {
+            const { data: p } = await serverSupabase
+              .from("profiles")
+              .select("*")
+              .or(orFilters.join(","))
+              .maybeSingle();
+
+            if (p) {
+              let parsedTrn: any = {};
+              if (p.trn && typeof p.trn === "string" && p.trn.includes("DOSSIER:")) {
+                try {
+                  const jsonStart = p.trn.indexOf("DOSSIER:");
+                  parsedTrn = JSON.parse(p.trn.substring(jsonStart + 8).trim());
+                } catch {}
+              }
+              const sbObj = mergeDossierRecords(parsedTrn, {
+                id: p.id,
+                email: p.email,
+                username: p.username,
+                fullName: p.full_name,
+                phone: p.phone,
+                address: p.address,
+                role: p.role,
+                status: p.status || (p.role === "nurse" ? "approved" : "pending_approval")
+              });
+              match = match ? mergeDossierRecords(sbObj, match) : sbObj;
             }
           }
         } catch {}
       }
 
+      if (!match) {
+        // Check if uploaded_documents has orphaned documents for any candidate identifier
+        const placeholders = extraCandidates.map(() => "?").join(", ");
+        const docRows = db
+          .prepare(
+            `SELECT public_url, category, user_id, email
+             FROM uploaded_documents
+             WHERE lower(coalesce(user_id, '')) IN (${placeholders})
+                OR lower(coalesce(email, '')) IN (${placeholders})`
+          )
+          .all(...extraCandidates, ...extraCandidates) as Array<{
+            public_url: string;
+            category: string | null;
+            user_id: string | null;
+            email: string | null;
+          }>;
+
+        if (docRows && docRows.length > 0) {
+          match = {
+            id: docRows[0].user_id || identifier,
+            email: docRows[0].email || extraCandidates.find((c) => c.includes("@")) || "",
+            status: "pending_approval"
+          };
+        }
+      }
+
       if (match) {
+        match = attachDbUploadedDocs(match);
         return res.json({ success: true, dossier: match });
       }
 
@@ -963,15 +1439,16 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
     }
   });
 
-  // 5. Update applicant approval/rejection status
+  // 5. Update applicant approval/rejection status (without wiping DOSSIER JSON from profiles.trn!)
   app.put("/api/applicants/dossier/:identifier/status", async (req, res) => {
     try {
       const identifier = decodeURIComponent(req.params.identifier).toLowerCase().trim();
       const { status, reason, rejectedDocuments } = req.body || {};
       const dossiers = loadDossiers();
 
-      let match = dossiers[identifier] || Object.values(dossiers).find((d: any) => 
-        (d.id && d.id.toLowerCase() === identifier) || 
+      let match = dossiers[identifier] || Object.values(dossiers).find((d: any) =>
+        (d.id && d.id.toLowerCase() === identifier) ||
+        (d.userId && d.userId.toLowerCase() === identifier) ||
         (d.email && d.email.toLowerCase() === identifier)
       );
 
@@ -996,16 +1473,25 @@ Be accurate, respectful of Jamaican healthcare terminology (SERHA, MOHW, NHF, KS
       if (match.email) dossiers[match.email.toLowerCase()] = match;
       saveDossiers(dossiers);
 
-      // Sync with Supabase
+      // Sync with Supabase WITHOUT overwriting DOSSIER:{...} in profiles.trn
       if (serverSupabase) {
         try {
-          const newRole = status === "approved" 
+          const newRole = status === "approved"
             ? (match.role?.includes("admin") ? "admin" : "nurse")
-            : "rejected";
-          await serverSupabase.from("profiles").update({
+            : status === "rejected"
+            ? (match.role?.includes("admin") ? "admin_pending" : "nurse_pending")
+            : (match.role || "nurse_pending");
+
+          const updateFields: Record<string, any> = {
             role: newRole,
-            trn: status === "rejected" ? `[REJECTED: ${reason || ''}]` : match.trn
-          }).eq("id", match.id);
+            status: status,
+          };
+          if (status === "rejected") {
+            updateFields.rejection_reason = reason || "Documentation requirements not met";
+            updateFields.rejected_documents = rejectedDocuments || [];
+            updateFields.rejection_date = match.rejection_date;
+          }
+          await serverSupabase.from("profiles").update(updateFields).eq("id", match.id);
         } catch {}
       }
 

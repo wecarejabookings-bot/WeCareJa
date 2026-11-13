@@ -83,7 +83,13 @@ import { supabase, updateBookingPriceInSupabase, saveNurseProfileToSupabase } fr
 import { getDisplayName } from '../../utils/privacy';
 import { AdminApplicantInspectionModal } from './AdminApplicantInspectionModal';
 import { AdminRejectApplicantModal } from './AdminRejectApplicantModal';
-import { fetchAllApplicantDossiers, fetchApplicantDossier, updateApplicantStatusInDb } from '../../utils/dossierStore';
+import {
+  fetchAllApplicantDossiers,
+  fetchApplicantDossier,
+  updateApplicantStatusInDb,
+  deepMergeDossiers,
+  pickValidDocUrl
+} from '../../utils/dossierStore';
 
 export interface PendingNurseProfile {
   id: string;
@@ -391,16 +397,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               rejection_date: list[matchIdx].rejection_date || ln.rejection_date,
               rejection_reason: list[matchIdx].rejection_reason || ln.rejection_reason,
               rejected_documents: list[matchIdx].rejected_documents || ln.rejected_documents,
-              photoUrl: list[matchIdx].photoUrl || ln.photoUrl,
-              profilePhotoUrl: list[matchIdx].profilePhotoUrl || ln.photoUrl,
-              licenseDocumentUrl: list[matchIdx].licenseDocumentUrl || ln.licenseDocumentUrl,
-              governmentIdUrl: list[matchIdx].governmentIdUrl || ln.governmentIdUrl,
-              trnCertificateUrl: list[matchIdx].trnCertificateUrl || ln.trnCertificateUrl,
-              driversLicenseFrontUrl: list[matchIdx].driversLicenseFrontUrl || ln.driversLicenseFrontUrl,
-              driversLicenseBackUrl: list[matchIdx].driversLicenseBackUrl || ln.driversLicenseBackUrl,
-              policeRecordUrl: list[matchIdx].policeRecordUrl || ln.policeRecordUrl,
-              bankLetterUrl: list[matchIdx].bankLetterUrl || ln.bankLetterUrl,
-              proofOfAddressUrl: list[matchIdx].proofOfAddressUrl || ln.proofOfAddressUrl,
+              photoUrl: pickValidDocUrl(list[matchIdx].photoUrl, ln.photoUrl),
+              profilePhotoUrl: pickValidDocUrl(list[matchIdx].profilePhotoUrl, list[matchIdx].photoUrl, ln.photoUrl),
+              licenseDocumentUrl: pickValidDocUrl(list[matchIdx].licenseDocumentUrl, ln.licenseDocumentUrl),
+              governmentIdUrl: pickValidDocUrl(list[matchIdx].governmentIdUrl, ln.governmentIdUrl),
+              trnCertificateUrl: pickValidDocUrl(list[matchIdx].trnCertificateUrl, ln.trnCertificateUrl),
+              driversLicenseFrontUrl: pickValidDocUrl(list[matchIdx].driversLicenseFrontUrl, ln.driversLicenseFrontUrl),
+              driversLicenseBackUrl: pickValidDocUrl(list[matchIdx].driversLicenseBackUrl, ln.driversLicenseBackUrl),
+              policeRecordUrl: pickValidDocUrl(list[matchIdx].policeRecordUrl, ln.policeRecordUrl),
+              bankLetterUrl: pickValidDocUrl(list[matchIdx].bankLetterUrl, ln.bankLetterUrl),
+              proofOfAddressUrl: pickValidDocUrl(list[matchIdx].proofOfAddressUrl, ln.proofOfAddressUrl),
             };
           } else {
             // Persist to Supabase public.profiles
@@ -419,26 +425,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               rejection_date: ln.rejection_date || null,
               rejection_reason: ln.rejection_reason || null,
               rejected_documents: ln.rejected_documents || null,
-              photoUrl: ln.photoUrl,
-              profilePhotoUrl: ln.photoUrl,
-              licenseDocumentUrl: ln.licenseDocumentUrl,
-              governmentIdUrl: ln.governmentIdUrl,
-              trnCertificateUrl: ln.trnCertificateUrl,
-              driversLicenseFrontUrl: ln.driversLicenseFrontUrl,
-              driversLicenseBackUrl: ln.driversLicenseBackUrl,
-              policeRecordUrl: ln.policeRecordUrl,
-              bankLetterUrl: ln.bankLetterUrl,
-              proofOfAddressUrl: ln.proofOfAddressUrl,
+              photoUrl: pickValidDocUrl(ln.photoUrl),
+              profilePhotoUrl: pickValidDocUrl(ln.photoUrl),
+              licenseDocumentUrl: pickValidDocUrl(ln.licenseDocumentUrl),
+              governmentIdUrl: pickValidDocUrl(ln.governmentIdUrl),
+              trnCertificateUrl: pickValidDocUrl(ln.trnCertificateUrl),
+              driversLicenseFrontUrl: pickValidDocUrl(ln.driversLicenseFrontUrl),
+              driversLicenseBackUrl: pickValidDocUrl(ln.driversLicenseBackUrl),
+              policeRecordUrl: pickValidDocUrl(ln.policeRecordUrl),
+              bankLetterUrl: pickValidDocUrl(ln.bankLetterUrl),
+              proofOfAddressUrl: pickValidDocUrl(ln.proofOfAddressUrl),
               documents: [
-                ln.photoUrl,
-                ln.licenseDocumentUrl,
-                ln.governmentIdUrl,
-                ln.trnCertificateUrl,
-                ln.driversLicenseFrontUrl,
-                ln.driversLicenseBackUrl,
-                ln.policeRecordUrl,
-                ln.bankLetterUrl,
-                ln.proofOfAddressUrl
+                pickValidDocUrl(ln.photoUrl),
+                pickValidDocUrl(ln.licenseDocumentUrl),
+                pickValidDocUrl(ln.governmentIdUrl),
+                pickValidDocUrl(ln.trnCertificateUrl),
+                pickValidDocUrl(ln.driversLicenseFrontUrl),
+                pickValidDocUrl(ln.driversLicenseBackUrl),
+                pickValidDocUrl(ln.policeRecordUrl),
+                pickValidDocUrl(ln.bankLetterUrl),
+                pickValidDocUrl(ln.proofOfAddressUrl)
               ].filter(Boolean)
             });
           }
@@ -458,50 +464,53 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   continue;
                 }
                 if (dEmail && dEmail !== 'wecareja.bookings@gmail.com' && dEmail !== 'sydney@wecareja.com') {
-                  const matchIdx = list.findIndex(p => (p.email && p.email.toLowerCase() === dEmail) || (p.id && p.id === d.userId));
+                  const matchIdx = list.findIndex(p =>
+                    (p.email && p.email.toLowerCase() === dEmail) ||
+                    (p.id && (p.id === d.id || p.id === d.userId || p.id === d.nurseProfileId))
+                  );
                   if (matchIdx !== -1) {
                     list[matchIdx] = {
                       ...list[matchIdx],
                       rejection_date: list[matchIdx].rejection_date || d.rejection_date,
                       rejection_reason: list[matchIdx].rejection_reason || d.rejection_reason,
                       rejected_documents: list[matchIdx].rejected_documents || d.rejected_documents,
-                      dossier: d,
-                      photoUrl: list[matchIdx].photoUrl || d.photoUrl || d.profilePhotoUrl || d.documents?.profilePhotoUrl,
-                      profilePhotoUrl: list[matchIdx].profilePhotoUrl || d.profilePhotoUrl || d.photoUrl || d.documents?.profilePhotoUrl,
-                      trnCertificateUrl: list[matchIdx].trnCertificateUrl || d.trnCertificateUrl || d.documents?.trnCertificateUrl,
-                      driversLicenseFrontUrl: list[matchIdx].driversLicenseFrontUrl || d.driversLicenseFrontUrl || d.documents?.driversLicenseFrontUrl,
-                      driversLicenseBackUrl: list[matchIdx].driversLicenseBackUrl || d.driversLicenseBackUrl || d.documents?.driversLicenseBackUrl,
-                      governmentIdUrl: list[matchIdx].governmentIdUrl || d.governmentIdUrl || d.documents?.governmentIdUrl,
-                      licenseDocumentUrl: list[matchIdx].licenseDocumentUrl || d.licenseDocumentUrl || d.documents?.licenseDocumentUrl,
-                      policeRecordUrl: list[matchIdx].policeRecordUrl || d.policeRecordUrl || d.documents?.policeRecordUrl,
-                      bankLetterUrl: list[matchIdx].bankLetterUrl || d.bankLetterUrl || d.documents?.bankLetterUrl,
-                      proofOfAddressUrl: list[matchIdx].proofOfAddressUrl || d.proofOfAddressUrl || d.documents?.proofOfAddressUrl,
+                      dossier: deepMergeDossiers(list[matchIdx].dossier, d),
+                      photoUrl: pickValidDocUrl(list[matchIdx].photoUrl, d.photoUrl, d.profilePhotoUrl, d.documents?.profilePhotoUrl),
+                      profilePhotoUrl: pickValidDocUrl(list[matchIdx].profilePhotoUrl, d.profilePhotoUrl, d.photoUrl, d.documents?.profilePhotoUrl),
+                      trnCertificateUrl: pickValidDocUrl(list[matchIdx].trnCertificateUrl, d.trnCertificateUrl, d.documents?.trnCertificateUrl),
+                      driversLicenseFrontUrl: pickValidDocUrl(list[matchIdx].driversLicenseFrontUrl, d.driversLicenseFrontUrl, d.documents?.driversLicenseFrontUrl),
+                      driversLicenseBackUrl: pickValidDocUrl(list[matchIdx].driversLicenseBackUrl, d.driversLicenseBackUrl, d.documents?.driversLicenseBackUrl),
+                      governmentIdUrl: pickValidDocUrl(list[matchIdx].governmentIdUrl, d.governmentIdUrl, d.documents?.governmentIdUrl),
+                      licenseDocumentUrl: pickValidDocUrl(list[matchIdx].licenseDocumentUrl, d.licenseDocumentUrl, d.documents?.licenseDocumentUrl),
+                      policeRecordUrl: pickValidDocUrl(list[matchIdx].policeRecordUrl, d.policeRecordUrl, d.documents?.policeRecordUrl),
+                      bankLetterUrl: pickValidDocUrl(list[matchIdx].bankLetterUrl, d.bankLetterUrl, d.documents?.bankLetterUrl),
+                      proofOfAddressUrl: pickValidDocUrl(list[matchIdx].proofOfAddressUrl, d.proofOfAddressUrl, d.documents?.proofOfAddressUrl),
                     };
                   } else {
                     list.push({
-                      id: d.userId || `dossier-${dEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+                      id: d.userId || d.id || `dossier-${dEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
                       full_name: d.fullName || 'Applicant',
                       username: dEmail.split('@')[0],
                       email: dEmail,
-                      role: d.type === 'admin' ? 'admin_pending' : 'nurse_pending',
+                      role: d.type === 'admin' || (d.role && d.role.includes('admin')) ? 'admin_pending' : 'nurse_pending',
                       phone: d.phone || null,
                       address: d.address ? `${d.address}, ${d.parish || 'Kingston'}` : (d.parish || 'Kingston'),
                       trn: d.trnNumber ? `${d.trnNumber} | DOSSIER:${rawDossier}` : `DOSSIER:${rawDossier}`,
                       created_at: d.submittedAt || new Date().toISOString(),
-                      status: 'pending',
+                      status: d.status || 'pending',
                       rejection_date: d.rejection_date || null,
                       rejection_reason: d.rejection_reason || null,
                       rejected_documents: d.rejected_documents || null,
-                      photoUrl: d.photoUrl || d.profilePhotoUrl || d.documents?.profilePhotoUrl,
-                      profilePhotoUrl: d.profilePhotoUrl || d.photoUrl || d.documents?.profilePhotoUrl,
-                      trnCertificateUrl: d.trnCertificateUrl || d.documents?.trnCertificateUrl,
-                      driversLicenseFrontUrl: d.driversLicenseFrontUrl || d.documents?.driversLicenseFrontUrl,
-                      driversLicenseBackUrl: d.driversLicenseBackUrl || d.documents?.driversLicenseBackUrl,
-                      governmentIdUrl: d.governmentIdUrl || d.documents?.governmentIdUrl,
-                      licenseDocumentUrl: d.licenseDocumentUrl || d.documents?.licenseDocumentUrl,
-                      policeRecordUrl: d.policeRecordUrl || d.documents?.policeRecordUrl,
-                      bankLetterUrl: d.bankLetterUrl || d.documents?.bankLetterUrl,
-                      proofOfAddressUrl: d.proofOfAddressUrl || d.documents?.proofOfAddressUrl,
+                      photoUrl: pickValidDocUrl(d.photoUrl, d.profilePhotoUrl, d.documents?.profilePhotoUrl),
+                      profilePhotoUrl: pickValidDocUrl(d.profilePhotoUrl, d.photoUrl, d.documents?.profilePhotoUrl),
+                      trnCertificateUrl: pickValidDocUrl(d.trnCertificateUrl, d.documents?.trnCertificateUrl),
+                      driversLicenseFrontUrl: pickValidDocUrl(d.driversLicenseFrontUrl, d.documents?.driversLicenseFrontUrl),
+                      driversLicenseBackUrl: pickValidDocUrl(d.driversLicenseBackUrl, d.documents?.driversLicenseBackUrl),
+                      governmentIdUrl: pickValidDocUrl(d.governmentIdUrl, d.documents?.governmentIdUrl),
+                      licenseDocumentUrl: pickValidDocUrl(d.licenseDocumentUrl, d.documents?.licenseDocumentUrl),
+                      policeRecordUrl: pickValidDocUrl(d.policeRecordUrl, d.documents?.policeRecordUrl),
+                      bankLetterUrl: pickValidDocUrl(d.bankLetterUrl, d.documents?.bankLetterUrl),
+                      proofOfAddressUrl: pickValidDocUrl(d.proofOfAddressUrl, d.documents?.proofOfAddressUrl),
                       documents: d.documents ? (Object.values(d.documents).filter(Boolean) as string[]) : [],
                       dossier: d
                     });
@@ -515,7 +524,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         console.warn('[AdminPortal] Local pending nurses check notice:', lErr);
       }
 
-      // Merge central server dossiers from persistent database
+      // Merge central server dossiers from persistent SQLite database
       try {
         const serverDossiers = await fetchAllApplicantDossiers();
         for (const sd of serverDossiers) {
@@ -523,28 +532,31 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           if (sd.status === 'approved' || sd.approvalStatus === 'approved') continue;
           if (sdEmail === 'wecareja.bookings@gmail.com' || sdEmail === 'sydney@wecareja.com') continue;
 
-          const matchIdx = list.findIndex(p => (p.email && p.email.toLowerCase() === sdEmail) || (p.id && p.id === sd.id));
+          const matchIdx = list.findIndex(p =>
+            (p.email && sdEmail && p.email.toLowerCase() === sdEmail) ||
+            (p.id && (p.id === sd.id || p.id === sd.userId || p.id === sd.nurseProfileId))
+          );
           if (matchIdx !== -1) {
             list[matchIdx] = {
               ...list[matchIdx],
               rejection_date: list[matchIdx].rejection_date || sd.rejection_date,
               rejection_reason: list[matchIdx].rejection_reason || sd.rejection_reason,
               rejected_documents: list[matchIdx].rejected_documents || sd.rejected_documents,
-              dossier: sd,
-              photoUrl: list[matchIdx].photoUrl || sd.photoUrl || sd.profilePhotoUrl || sd.documents?.profilePhotoUrl,
-              profilePhotoUrl: list[matchIdx].profilePhotoUrl || sd.profilePhotoUrl || sd.photoUrl || sd.documents?.profilePhotoUrl,
-              trnCertificateUrl: list[matchIdx].trnCertificateUrl || sd.trnCertificateUrl || sd.documents?.trnCertificateUrl,
-              driversLicenseFrontUrl: list[matchIdx].driversLicenseFrontUrl || sd.driversLicenseFrontUrl || sd.documents?.driversLicenseFrontUrl,
-              driversLicenseBackUrl: list[matchIdx].driversLicenseBackUrl || sd.driversLicenseBackUrl || sd.documents?.driversLicenseBackUrl,
-              governmentIdUrl: list[matchIdx].governmentIdUrl || sd.governmentIdUrl || sd.documents?.governmentIdUrl,
-              licenseDocumentUrl: list[matchIdx].licenseDocumentUrl || sd.licenseDocumentUrl || sd.documents?.licenseDocumentUrl,
-              policeRecordUrl: list[matchIdx].policeRecordUrl || sd.policeRecordUrl || sd.documents?.policeRecordUrl,
-              bankLetterUrl: list[matchIdx].bankLetterUrl || sd.bankLetterUrl || sd.documents?.bankLetterUrl,
-              proofOfAddressUrl: list[matchIdx].proofOfAddressUrl || sd.proofOfAddressUrl || sd.documents?.proofOfAddressUrl,
+              dossier: deepMergeDossiers(list[matchIdx].dossier, sd),
+              photoUrl: pickValidDocUrl(sd.photoUrl, sd.profilePhotoUrl, sd.documents?.profilePhotoUrl, list[matchIdx].photoUrl),
+              profilePhotoUrl: pickValidDocUrl(sd.profilePhotoUrl, sd.photoUrl, sd.documents?.profilePhotoUrl, list[matchIdx].profilePhotoUrl),
+              trnCertificateUrl: pickValidDocUrl(sd.trnCertificateUrl, sd.documents?.trnCertificateUrl, list[matchIdx].trnCertificateUrl),
+              driversLicenseFrontUrl: pickValidDocUrl(sd.driversLicenseFrontUrl, sd.documents?.driversLicenseFrontUrl, list[matchIdx].driversLicenseFrontUrl),
+              driversLicenseBackUrl: pickValidDocUrl(sd.driversLicenseBackUrl, sd.documents?.driversLicenseBackUrl, list[matchIdx].driversLicenseBackUrl),
+              governmentIdUrl: pickValidDocUrl(sd.governmentIdUrl, sd.documents?.governmentIdUrl, list[matchIdx].governmentIdUrl),
+              licenseDocumentUrl: pickValidDocUrl(sd.licenseDocumentUrl, sd.documents?.licenseDocumentUrl, list[matchIdx].licenseDocumentUrl),
+              policeRecordUrl: pickValidDocUrl(sd.policeRecordUrl, sd.documents?.policeRecordUrl, list[matchIdx].policeRecordUrl),
+              bankLetterUrl: pickValidDocUrl(sd.bankLetterUrl, sd.documents?.bankLetterUrl, list[matchIdx].bankLetterUrl),
+              proofOfAddressUrl: pickValidDocUrl(sd.proofOfAddressUrl, sd.documents?.proofOfAddressUrl, list[matchIdx].proofOfAddressUrl),
             };
           } else {
             list.push({
-              id: sd.id || `dossier-${sdEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+              id: sd.id || sd.userId || `dossier-${sdEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
               full_name: sd.fullName || sd.name || 'Applicant',
               username: sdEmail ? sdEmail.split('@')[0] : 'applicant_pending',
               email: sdEmail || null,
@@ -557,16 +569,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               rejection_date: sd.rejection_date || null,
               rejection_reason: sd.rejection_reason || null,
               rejected_documents: sd.rejected_documents || null,
-              photoUrl: sd.photoUrl || sd.profilePhotoUrl || sd.documents?.profilePhotoUrl,
-              profilePhotoUrl: sd.profilePhotoUrl || sd.photoUrl || sd.documents?.profilePhotoUrl,
-              trnCertificateUrl: sd.trnCertificateUrl || sd.documents?.trnCertificateUrl,
-              driversLicenseFrontUrl: sd.driversLicenseFrontUrl || sd.documents?.driversLicenseFrontUrl,
-              driversLicenseBackUrl: sd.driversLicenseBackUrl || sd.documents?.driversLicenseBackUrl,
-              governmentIdUrl: sd.governmentIdUrl || sd.documents?.governmentIdUrl,
-              licenseDocumentUrl: sd.licenseDocumentUrl || sd.documents?.licenseDocumentUrl,
-              policeRecordUrl: sd.policeRecordUrl || sd.documents?.policeRecordUrl,
-              bankLetterUrl: sd.bankLetterUrl || sd.documents?.bankLetterUrl,
-              proofOfAddressUrl: sd.proofOfAddressUrl || sd.documents?.proofOfAddressUrl,
+              photoUrl: pickValidDocUrl(sd.photoUrl, sd.profilePhotoUrl, sd.documents?.profilePhotoUrl),
+              profilePhotoUrl: pickValidDocUrl(sd.profilePhotoUrl, sd.photoUrl, sd.documents?.profilePhotoUrl),
+              trnCertificateUrl: pickValidDocUrl(sd.trnCertificateUrl, sd.documents?.trnCertificateUrl),
+              driversLicenseFrontUrl: pickValidDocUrl(sd.driversLicenseFrontUrl, sd.documents?.driversLicenseFrontUrl),
+              driversLicenseBackUrl: pickValidDocUrl(sd.driversLicenseBackUrl, sd.documents?.driversLicenseBackUrl),
+              governmentIdUrl: pickValidDocUrl(sd.governmentIdUrl, sd.documents?.governmentIdUrl),
+              licenseDocumentUrl: pickValidDocUrl(sd.licenseDocumentUrl, sd.documents?.licenseDocumentUrl),
+              policeRecordUrl: pickValidDocUrl(sd.policeRecordUrl, sd.documents?.policeRecordUrl),
+              bankLetterUrl: pickValidDocUrl(sd.bankLetterUrl, sd.documents?.bankLetterUrl),
+              proofOfAddressUrl: pickValidDocUrl(sd.proofOfAddressUrl, sd.documents?.proofOfAddressUrl),
               documents: sd.documents ? (Object.values(sd.documents).filter(Boolean) as string[]) : [],
               dossier: sd
             });
@@ -609,82 +621,72 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const handleInspect = async (applicant: any) => {
     soundFX.playToggleClick();
-    
-    // Enrich applicant with central server database, local dossier, nurses roster, or userAccounts records
+
+    // Open immediately with available info while enriching cleanly from SQLite DB & local sources
     let enriched = { ...applicant };
     const email = (applicant.email || '').toLowerCase().trim();
     const id = applicant.id;
 
-    // Fetch from central server database first to guarantee full documents access
-    try {
-      const remote = await fetchApplicantDossier(id || email);
-      if (remote) {
-        enriched = {
-          ...remote,
-          ...enriched,
-          dossier: remote,
-          photoUrl: enriched.photoUrl || remote.photoUrl || remote.profilePhotoUrl || remote.documents?.profilePhotoUrl,
-          profilePhotoUrl: enriched.profilePhotoUrl || remote.profilePhotoUrl || remote.photoUrl || remote.documents?.profilePhotoUrl,
-          trnCertificateUrl: enriched.trnCertificateUrl || remote.trnCertificateUrl || remote.documents?.trnCertificateUrl,
-          driversLicenseFrontUrl: enriched.driversLicenseFrontUrl || remote.driversLicenseFrontUrl || remote.documents?.driversLicenseFrontUrl,
-          driversLicenseBackUrl: enriched.driversLicenseBackUrl || remote.driversLicenseBackUrl || remote.documents?.driversLicenseBackUrl,
-          governmentIdUrl: enriched.governmentIdUrl || remote.governmentIdUrl || remote.documents?.governmentIdUrl,
-          licenseDocumentUrl: enriched.licenseDocumentUrl || remote.licenseDocumentUrl || remote.documents?.licenseDocumentUrl,
-          policeRecordUrl: enriched.policeRecordUrl || remote.policeRecordUrl || remote.documents?.policeRecordUrl,
-          bankLetterUrl: enriched.bankLetterUrl || remote.bankLetterUrl || remote.documents?.bankLetterUrl,
-          proofOfAddressUrl: enriched.proofOfAddressUrl || remote.proofOfAddressUrl || remote.documents?.proofOfAddressUrl,
-          documents: remote.documents || enriched.documents
-        };
-      }
-    } catch (e) {
-      console.warn('[AdminPortal] Remote dossier fetch notice:', e);
-    }
+    // Gather local layers first, then apply authoritative SQLite DB dossier on top
+    let mergedDossier: any = applicant.dossier || {};
 
     if (applicant.trn && typeof applicant.trn === 'string' && applicant.trn.includes('DOSSIER:')) {
       try {
         const jsonStart = applicant.trn.indexOf('DOSSIER:');
         const jsonStr = applicant.trn.substring(jsonStart + 8).trim();
-        const dTrn = JSON.parse(jsonStr);
-        enriched = { ...dTrn, ...enriched, dossier: dTrn };
+        mergedDossier = deepMergeDossiers(mergedDossier, JSON.parse(jsonStr));
       } catch {}
     }
 
-    if (email) {
+    for (const k of [email, id, applicant.userId, applicant.nurseProfileId].filter(Boolean)) {
       try {
-        const raw = localStorage.getItem(`wecare_dossier_${email}`);
-        if (raw) {
-          const d = JSON.parse(raw);
-          enriched = { ...d, ...enriched, dossier: d };
-        }
-      } catch {}
-    }
-    if (id) {
-      try {
-        const raw = localStorage.getItem(`wecare_dossier_${id}`);
-        if (raw) {
-          const d = JSON.parse(raw);
-          enriched = { ...d, ...enriched, dossier: d };
-        }
+        const raw = localStorage.getItem(`wecare_dossier_${k}`);
+        if (raw) mergedDossier = deepMergeDossiers(mergedDossier, JSON.parse(raw));
       } catch {}
     }
 
     try {
       const rawNurses = localStorage.getItem('wecare_nurses');
       const nurseList = rawNurses ? JSON.parse(rawNurses) : nurses;
-      const matched = (nurseList || []).find((n: any) => n.id === id || (n.email && n.email.toLowerCase() === email));
+      const matched = (nurseList || []).find((n: any) => n.id === id || (n.email && email && n.email.toLowerCase() === email));
       if (matched) {
-        enriched = { ...matched, ...enriched };
+        mergedDossier = deepMergeDossiers(mergedDossier, matched);
       }
     } catch {}
 
     try {
       const rawAccounts = localStorage.getItem('wecare_user_accounts');
       const accList = rawAccounts ? JSON.parse(rawAccounts) : userAccounts;
-      const matchedAcc = (accList || []).find((a: any) => a.id === id || (a.email && a.email.toLowerCase() === email));
+      const matchedAcc = (accList || []).find((a: any) => a.id === id || (a.email && email && a.email.toLowerCase() === email));
       if (matchedAcc) {
-        enriched = { ...matchedAcc, ...enriched };
+        mergedDossier = deepMergeDossiers(mergedDossier, matchedAcc);
       }
     } catch {}
+
+    // Fetch authoritative record from central SQLite database using ALL candidate identifiers
+    try {
+      const remote = await fetchApplicantDossier({
+        id,
+        userId: applicant.userId,
+        nurseProfileId: applicant.nurseProfileId,
+        email,
+        username: applicant.username
+      });
+      if (remote) {
+        mergedDossier = deepMergeDossiers(mergedDossier, remote);
+      }
+    } catch (e) {
+      console.warn('[AdminPortal] Remote dossier fetch notice:', e);
+    }
+
+    enriched = {
+      ...enriched,
+      ...mergedDossier,
+      id: applicant.id,
+      full_name: applicant.full_name || mergedDossier.fullName || applicant.name,
+      role: applicant.role || mergedDossier.role,
+      dossier: mergedDossier
+    };
 
     setSelectedApplicant(enriched);
     setShowInspectModal(true);

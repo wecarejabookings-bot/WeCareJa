@@ -35,6 +35,12 @@ import { supabase } from '../../lib/supabase';
 import { AdminTopicsDirectoryManager } from './AdminTopicsDirectoryManager';
 import { AdminApplicantInspectionModal } from './AdminApplicantInspectionModal';
 import { getDisplayName } from '../../utils/privacy';
+import {
+  fetchAllApplicantDossiers,
+  fetchApplicantDossier,
+  deepMergeDossiers,
+  pickValidDocUrl
+} from '../../utils/dossierStore';
 import confetti from 'canvas-confetti';
 
 export interface AdminUserRecord {
@@ -146,103 +152,136 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
     status: 'approved' as AdminUserRecord['status']
   });
 
-  // Load all users ONLY from Supabase profiles table
+  // Load all users from Supabase profiles + Central SQLite Dossier Vault
   const fetchAllUsers = async () => {
     setLoading(true);
 
     try {
-      // Purge any stale mock accounts from localStorage
-      try {
-        localStorage.removeItem('wecare_user_accounts');
-      } catch {}
-
-      const { data: profiles, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [{ data: profiles, error }, serverDossiers] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false }),
+        fetchAllApplicantDossiers().catch(() => [])
+      ]);
 
       if (error) {
         console.warn('Error fetching profiles from Supabase:', error);
-        setToastMessage({ type: 'error', text: `Failed to load profiles: ${error.message}` });
-        setLoading(false);
-        return;
       }
+
+      const mappedUsers: AdminUserRecord[] = [];
 
       if (Array.isArray(profiles)) {
-        const mappedUsers: AdminUserRecord[] = profiles
-          .filter((p: any) => p && p.id && p.id !== 'admin-001' && p.id !== 'user-admin-01')
-          .map((p: any) => {
-            // Treat 'master_admin' as Admin so Sydney 2e9a3a25... shows as Admin not Client
-            const isMasterAdmin = 
-              p.role === 'master_admin' || 
-              p.username === 'sydney' || 
-              p.id === '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7';
+        for (const p of profiles) {
+          if (!p || !p.id || p.id === 'admin-001' || p.id === 'user-admin-01') continue;
 
-            const resolvedRole: UserRole = isMasterAdmin 
-              ? 'admin' 
-              : (p.role === 'admin' ? 'admin' : (p.role === 'nurse' ? 'nurse' : 'client'));
+          const isMasterAdmin =
+            p.role === 'master_admin' ||
+            p.username === 'sydney' ||
+            p.id === '2e9a3a25-3404-47ed-a8f4-b0a7ecab3ba7';
 
-            const displayName = 
-              p.full_name || 
-              p.username || 
-              (p.email ? p.email.split('@')[0] : '') || 
-              (isMasterAdmin ? 'Lead Administrator' : 'Registered User');
+          const rawRole = String(p.role || '').toLowerCase();
+          const resolvedRole: UserRole = isMasterAdmin
+            ? 'admin'
+            : rawRole.includes('admin')
+            ? 'admin'
+            : rawRole.includes('nurse') || rawRole.includes('caregiver')
+            ? 'nurse'
+            : 'client';
 
-            return {
-              id: p.id,
-              fullName: displayName,
-              username: p.username || (p.email ? p.email.split('@')[0] : (isMasterAdmin ? 'admin' : 'user')),
-              email: p.email || (isMasterAdmin ? 'wecareja.bookings@gmail.com' : ''),
-              phone: p.phone || (isMasterAdmin ? '+1876582-7613' : ''),
-              role: resolvedRole,
-              address: p.address || (isMasterAdmin ? 'Kingston, Jamaica' : 'Kingston, Jamaica'),
-              trn: p.trn || '',
-              department: isMasterAdmin ? 'Executive Clinical Leadership & Registry Audit' : (resolvedRole === 'admin' ? 'Administration' : undefined),
-              title: isMasterAdmin ? 'Lead Operations Director & Master Administrator' : (resolvedRole === 'admin' ? 'System Administrator' : (resolvedRole === 'nurse' ? 'Licensed Nurse Practitioner' : 'Registered Client')),
-              status: 'approved',
-              source: 'supabase',
-              createdAt: p.created_at || new Date().toISOString()
-            };
+          const isPending = rawRole.includes('pending') || p.status === 'pending' || p.status === 'pending_approval';
+          const resolvedStatus: AdminUserRecord['status'] = isPending ? 'pending' : 'approved';
+
+          const displayName =
+            p.full_name ||
+            p.username ||
+            (p.email ? p.email.split('@')[0] : '') ||
+            (isMasterAdmin ? 'Lead Administrator' : 'Registered User');
+
+          mappedUsers.push({
+            id: p.id,
+            fullName: displayName,
+            username: p.username || (p.email ? p.email.split('@')[0] : (isMasterAdmin ? 'admin' : 'user')),
+            email: p.email || (isMasterAdmin ? 'wecareja.bookings@gmail.com' : ''),
+            phone: p.phone || (isMasterAdmin ? '+1876582-7613' : ''),
+            role: resolvedRole,
+            address: p.address || 'Kingston, Jamaica',
+            trn: p.trn || '',
+            department: isMasterAdmin ? 'Executive Clinical Leadership & Registry Audit' : (resolvedRole === 'admin' ? 'Administration' : undefined),
+            title: isMasterAdmin
+              ? 'Lead Operations Director & Master Administrator'
+              : (resolvedRole === 'admin' ? 'System Administrator' : (resolvedRole === 'nurse' ? 'Licensed Nurse Practitioner' : 'Registered Client')),
+            status: resolvedStatus,
+            source: 'supabase',
+            createdAt: p.created_at || new Date().toISOString()
           });
-
-        // Merge any accounts from localStorage wecare_user_accounts
-        try {
-          const rawLocal = localStorage.getItem('wecare_user_accounts');
-          if (rawLocal) {
-            const parsed = JSON.parse(rawLocal);
-            if (Array.isArray(parsed)) {
-              for (const lu of parsed) {
-                if (!lu || !lu.id) continue;
-                const exists = mappedUsers.some(mu => mu.id === lu.id || (lu.email && mu.email.toLowerCase() === lu.email.toLowerCase()));
-                if (!exists) {
-                  mappedUsers.push({
-                    id: lu.id,
-                    fullName: lu.full_name || lu.name || 'User',
-                    username: lu.username || (lu.email ? lu.email.split('@')[0] : 'user'),
-                    email: lu.email || '',
-                    phone: lu.phone || '',
-                    role: lu.role || 'client',
-                    address: lu.address || lu.zone || 'Kingston, Jamaica',
-                    trn: lu.trn || '',
-                    department: lu.department,
-                    title: lu.title || (lu.role === 'admin' ? 'Administrator' : lu.role === 'nurse' ? 'Licensed Nurse' : 'Client'),
-                    status: 'approved',
-                    source: 'local',
-                    createdAt: lu.createdAt || new Date().toISOString()
-                  });
-                }
-              }
-            }
-          }
-        } catch {}
-
-        setUsers(mappedUsers);
-      } else {
-        setUsers([]);
+        }
       }
+
+      // Merge central server SQLite dossiers (ensuring uploaded documents and offline/pending signups appear)
+      if (Array.isArray(serverDossiers)) {
+        for (const sd of serverDossiers) {
+          const sdEmail = (sd.email || '').toLowerCase().trim();
+          const sdRoleStr = String(sd.role || '').toLowerCase();
+          const sdRole: UserRole = sdRoleStr.includes('admin')
+            ? 'admin'
+            : (sdRoleStr.includes('nurse') || sdRoleStr.includes('caregiver'))
+            ? 'nurse'
+            : 'client';
+          const sdStatus: AdminUserRecord['status'] =
+            sd.status === 'approved' || sd.approvalStatus === 'approved'
+              ? 'approved'
+              : 'pending';
+
+          const existingIdx = mappedUsers.findIndex(mu =>
+            (mu.id && (mu.id === sd.id || mu.id === sd.userId || mu.id === sd.nurseProfileId)) ||
+            (sdEmail && mu.email && mu.email.toLowerCase().trim() === sdEmail)
+          );
+
+          if (existingIdx >= 0) {
+            const existing = mappedUsers[existingIdx];
+            mappedUsers[existingIdx] = {
+              ...existing,
+              fullName: existing.fullName || sd.fullName || sd.name || 'Applicant',
+              phone: existing.phone || sd.phone || '',
+              address: existing.address || sd.address || sd.parish || 'Kingston, Jamaica',
+              trn: existing.trn || sd.trnNumber || sd.trn || '',
+              ncjLicense: existing.ncjLicense || sd.ncjLicense || sd.nursingCouncilLicense,
+              driversLicenseNumber: existing.driversLicenseNumber || sd.driversLicenseNumber,
+              photoUrl: pickValidDocUrl(existing.photoUrl, sd.photoUrl, sd.profilePhotoUrl, sd.documents?.profilePhotoUrl),
+              ...(sd as any),
+              id: existing.id,
+              role: existing.role,
+              status: existing.status,
+              source: existing.source,
+              createdAt: existing.createdAt
+            };
+          } else {
+            mappedUsers.push({
+              id: sd.id || sd.userId || `dossier-${sdEmail || Date.now()}`,
+              fullName: sd.fullName || sd.name || 'Registered Applicant',
+              username: sd.username || (sdEmail ? sdEmail.split('@')[0] : 'applicant'),
+              email: sdEmail,
+              phone: sd.phone || '',
+              role: sdRole,
+              address: sd.address || sd.parish || 'Kingston, Jamaica',
+              trn: sd.trnNumber || sd.trn || '',
+              ncjLicense: sd.ncjLicense || sd.nursingCouncilLicense,
+              driversLicenseNumber: sd.driversLicenseNumber,
+              photoUrl: pickValidDocUrl(sd.photoUrl, sd.profilePhotoUrl, sd.documents?.profilePhotoUrl),
+              title: sdRole === 'admin' ? 'Administrator' : (sdRole === 'nurse' ? 'Nurse Practitioner' : 'Registered Client'),
+              status: sdStatus,
+              source: 'synced',
+              createdAt: sd.submittedAt || new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      setUsers(mappedUsers);
     } catch (err: any) {
-      console.error('Unexpected error querying Supabase profiles:', err);
-      setToastMessage({ type: 'error', text: 'Error retrieving user records from Supabase' });
+      console.error('Unexpected error querying users/dossiers:', err);
+      setToastMessage({ type: 'error', text: 'Error retrieving user records' });
     } finally {
       setLoading(false);
     }
@@ -572,22 +611,22 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
   };
 
   // Inspect Applicant's Signed Agreement & Statutory Documents (DL, TRN, NCJ)
-  const openInspectApplicant = (u: AdminUserRecord) => {
+  const openInspectApplicant = async (u: AdminUserRecord) => {
     let dossier: any = {};
+    const cleanEmail = (u.email || '').toLowerCase().trim();
+
     try {
-      const cleanEmail = (u.email || '').toLowerCase().trim();
       const d1 = cleanEmail ? localStorage.getItem(`wecare_dossier_${cleanEmail}`) : null;
       const d2 = u.id ? localStorage.getItem(`wecare_dossier_${u.id}`) : null;
-      if (d1) dossier = { ...dossier, ...JSON.parse(d1) };
-      if (d2) dossier = { ...dossier, ...JSON.parse(d2) };
+      if (d1) dossier = deepMergeDossiers(dossier, JSON.parse(d1));
+      if (d2) dossier = deepMergeDossiers(dossier, JSON.parse(d2));
     } catch {}
 
     // Check if TRN encodes DOSSIER payload
     if (u.trn && typeof u.trn === 'string' && u.trn.includes('DOSSIER:')) {
       try {
         const jsonPart = u.trn.split('DOSSIER:')[1].trim();
-        const parsed = JSON.parse(jsonPart);
-        dossier = { ...dossier, ...parsed };
+        dossier = deepMergeDossiers(dossier, JSON.parse(jsonPart));
       } catch {}
     }
 
@@ -597,13 +636,33 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
       const rawNurses = localStorage.getItem('wecare_nurses');
       if (rawNurses) {
         const parsed = JSON.parse(rawNurses);
-        const found = parsed.find((n: any) => n.id === u.id || (n.email && u.email && n.email.toLowerCase() === u.email.toLowerCase()));
-        if (found) localNurse = found;
+        const found = parsed.find((n: any) => n.id === u.id || (n.email && cleanEmail && n.email.toLowerCase() === cleanEmail));
+        if (found) {
+          localNurse = found;
+          dossier = deepMergeDossiers(dossier, found);
+        }
       }
     } catch {}
 
+    // Fetch authoritative record + uploaded files from central SQLite database
+    try {
+      const remote = await fetchApplicantDossier({
+        id: u.id,
+        userId: (u as any).userId,
+        nurseProfileId: (u as any).nurseProfileId,
+        email: cleanEmail,
+        username: u.username
+      });
+      if (remote) {
+        dossier = deepMergeDossiers(dossier, remote);
+      }
+    } catch (e) {
+      console.warn('[AdminUserManagement] Failed to fetch remote dossier:', e);
+    }
+
     const merged = {
       id: u.id,
+      userId: dossier.userId || u.id,
       full_name: u.fullName,
       fullName: u.fullName,
       username: u.username,
@@ -615,24 +674,29 @@ export const AdminUserManagementPage: React.FC<AdminUserManagementPageProps> = (
       status: u.status,
       created_at: u.createdAt,
       dateOfBirth: u.dateOfBirth || dossier.dateOfBirth || localNurse.dateOfBirth,
-      parish: u.address || dossier.parish || localNurse.parish || 'Kingston',
+      parish: dossier.parish || u.address || localNurse.parish || 'Kingston',
       driversLicenseNumber: u.driversLicenseNumber || dossier.driversLicenseNumber || localNurse.driversLicenseNumber,
       ncjLicense: u.ncjLicense || dossier.ncjLicense || localNurse.ncjLicense,
-      emergencyContactName: u.emergencyContactName || dossier.emergencyContactName,
-      emergencyContactPhone: u.emergencyContactPhone || dossier.emergencyContactPhone,
-      emergencyContactRelation: u.emergencyContactRelation || dossier.emergencyContactRelation,
-      bankName: dossier.bankName || (u as any).bankName,
-      accountNumber: dossier.accountNumber || (u as any).accountNumber,
-      accountType: dossier.accountType || (u as any).accountType,
+      emergencyContactName: u.emergencyContactName || dossier.emergencyContactName || dossier.emergencyContact?.name,
+      emergencyContactPhone: u.emergencyContactPhone || dossier.emergencyContactPhone || dossier.emergencyContact?.phone,
+      emergencyContactRelation: u.emergencyContactRelation || dossier.emergencyContactRelation || dossier.emergencyContact?.relation,
+      bankName: dossier.bankName || dossier.bankDetails?.bankName || (u as any).bankName,
+      accountNumber: dossier.accountNumber || dossier.bankDetails?.accountNumber || (u as any).accountNumber,
+      accountType: dossier.accountType || dossier.bankDetails?.accountType || (u as any).accountType,
       bankBranch: dossier.bankBranch || (u as any).bankBranch,
-      photoUrl: u.photoUrl || dossier.photoUrl || localNurse.photoUrl,
-      driversLicenseFrontUrl: dossier.driversLicenseFrontUrl || localNurse.driversLicenseFrontUrl || (u as any).driversLicenseFrontUrl,
-      driversLicenseBackUrl: dossier.driversLicenseBackUrl || localNurse.driversLicenseBackUrl || (u as any).driversLicenseBackUrl,
-      trnCertificateUrl: dossier.trnCertificateUrl || localNurse.trnCertificateUrl || (u as any).trnCertificateUrl,
-      licenseDocumentUrl: dossier.licenseDocumentUrl || localNurse.licenseDocumentUrl || localNurse.governmentIdUrl || (u as any).licenseDocumentUrl,
-      policeRecordUrl: dossier.policeRecordUrl || localNurse.policeRecordUrl || (u as any).policeRecordUrl,
-      bankLetterUrl: dossier.bankLetterUrl || localNurse.bankLetterUrl || (u as any).bankLetterUrl,
-      proofOfAddressUrl: dossier.proofOfAddressUrl || localNurse.proofOfAddressUrl || (u as any).proofOfAddressUrl,
+      photoUrl: pickValidDocUrl(dossier.photoUrl, dossier.profilePhotoUrl, dossier.documents?.profilePhotoUrl, u.photoUrl, localNurse.photoUrl),
+      driversLicenseFrontUrl: pickValidDocUrl(dossier.driversLicenseFrontUrl, dossier.documents?.driversLicenseFrontUrl, localNurse.driversLicenseFrontUrl, (u as any).driversLicenseFrontUrl),
+      driversLicenseBackUrl: pickValidDocUrl(dossier.driversLicenseBackUrl, dossier.documents?.driversLicenseBackUrl, localNurse.driversLicenseBackUrl, (u as any).driversLicenseBackUrl),
+      trnCertificateUrl: pickValidDocUrl(dossier.trnCertificateUrl, dossier.documents?.trnCertificateUrl, localNurse.trnCertificateUrl, (u as any).trnCertificateUrl),
+      licenseDocumentUrl: pickValidDocUrl(dossier.licenseDocumentUrl, dossier.documents?.licenseDocumentUrl, localNurse.licenseDocumentUrl, (u as any).licenseDocumentUrl),
+      governmentIdUrl: pickValidDocUrl(dossier.governmentIdUrl, dossier.documents?.governmentIdUrl, localNurse.governmentIdUrl, (u as any).governmentIdUrl),
+      policeRecordUrl: pickValidDocUrl(dossier.policeRecordUrl, dossier.documents?.policeRecordUrl, localNurse.policeRecordUrl, (u as any).policeRecordUrl),
+      bankLetterUrl: pickValidDocUrl(dossier.bankLetterUrl, dossier.documents?.bankLetterUrl, localNurse.bankLetterUrl, (u as any).bankLetterUrl),
+      proofOfAddressUrl: pickValidDocUrl(dossier.proofOfAddressUrl, dossier.documents?.proofOfAddressUrl, localNurse.proofOfAddressUrl, (u as any).proofOfAddressUrl),
+      uploadedFiles: dossier.uploadedFiles,
+      biometricVerification: dossier.biometricVerification,
+      documents: dossier.documents,
+      dossier,
       contractAccepted: dossier.contractAccepted !== undefined ? dossier.contractAccepted : true,
       agreementAccepted: dossier.agreementAccepted !== undefined ? dossier.agreementAccepted : true,
       signatureName: dossier.signatureName || u.fullName,

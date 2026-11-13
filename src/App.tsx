@@ -89,6 +89,7 @@ import {
   rejectNurseInSupabase,
   saveNurseProfileToSupabase,
   updateProfileData,
+  clearAllSupabaseAuthTokens,
   supabase 
 } from './lib/supabase';
 import { Logo } from './components/common/Logo';
@@ -542,11 +543,15 @@ export default function App() {
   }, [notifications]);
 
   useEffect(() => {
-    if (currentUserId) {
-      localStorage.setItem('wecare_current_user_id', currentUserId);
-    } else {
-      localStorage.removeItem('wecare_current_user_id');
-    }
+    try {
+      if (currentUserId) {
+        sessionStorage.setItem('wecare_session_user_id', currentUserId);
+        localStorage.setItem('wecare_current_user_id', currentUserId);
+      } else {
+        sessionStorage.removeItem('wecare_session_user_id');
+        localStorage.removeItem('wecare_current_user_id');
+      }
+    } catch {}
   }, [currentUserId]);
 
   useEffect(() => {
@@ -584,11 +589,18 @@ export default function App() {
       const timer = setTimeout(() => {
         if (isCancelled) return;
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (typeof window !== 'undefined' && (window as any).__wecareSignupInProgress) return;
           if (session?.user) {
             try {
+              const explicitSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('wecare_session_user_id') : null;
+              if (event === 'INITIAL_SESSION' && explicitSessionId && explicitSessionId !== session.user.id) return;
               const profile = await fetchCurrentProfile(session.user.id, session.user);
               if (profile && !profile.is_deleted) {
-                setUserAccounts(prev => [profile, ...prev.filter(u => u.id !== profile.id)]);
+                const profEmail = (profile.email || '').toLowerCase();
+                setUserAccounts(prev => [
+                  profile,
+                  ...prev.filter(u => u.id !== profile.id && (!profEmail || u.email?.toLowerCase() !== profEmail))
+                ]);
                 setCurrentUserId(profile.id);
                 setCurrentRole(profile.role);
                 try {
@@ -598,7 +610,11 @@ export default function App() {
               }
             } catch {
               const fallbackUser = buildUserAccountFromSession(session.user);
-              setUserAccounts(prev => [fallbackUser, ...prev.filter(u => u.id !== fallbackUser.id)]);
+              const fbEmail = (fallbackUser.email || '').toLowerCase();
+              setUserAccounts(prev => [
+                fallbackUser,
+                ...prev.filter(u => u.id !== fallbackUser.id && (!fbEmail || u.email?.toLowerCase() !== fbEmail))
+              ]);
               setCurrentUserId(fallbackUser.id);
               setCurrentRole(fallbackUser.role);
             }
@@ -664,12 +680,15 @@ export default function App() {
       // 2. Fetch active Supabase Auth session with session.user passed to profile resolver
       try {
         const { data, error } = await supabase.auth.getSession();
-        if (!error && data?.session?.user && !isCancelled) {
+        const explicitSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('wecare_session_user_id') : null;
+        const canRestoreSupabase = !explicitSessionId || explicitSessionId === data?.session?.user?.id;
+        if (!error && data?.session?.user && canRestoreSupabase && !isCancelled && !(typeof window !== 'undefined' && (window as any).__wecareSignupInProgress)) {
           try {
             const profile = await fetchCurrentProfile(data.session.user.id, data.session.user);
             if (profile && !profile.is_deleted && !isCancelled) {
+              const profEmail = (profile.email || '').toLowerCase();
               setUserAccounts(prev => {
-                const others = prev.filter(u => u.id !== profile.id);
+                const others = prev.filter(u => u.id !== profile.id && (!profEmail || u.email?.toLowerCase() !== profEmail));
                 return [profile, ...others];
               });
               setCurrentUserId(profile.id);
@@ -682,7 +701,11 @@ export default function App() {
           } catch (profileErr) {
             if (!isCancelled) {
               const fallbackUser = buildUserAccountFromSession(data.session.user);
-              setUserAccounts(prev => [fallbackUser, ...prev.filter(u => u.id !== fallbackUser.id)]);
+              const fbEmail = (fallbackUser.email || '').toLowerCase();
+              setUserAccounts(prev => [
+                fallbackUser,
+                ...prev.filter(u => u.id !== fallbackUser.id && (!fbEmail || u.email?.toLowerCase() !== fbEmail))
+              ]);
               setCurrentUserId(fallbackUser.id);
               setCurrentRole(fallbackUser.role);
             }
@@ -695,12 +718,16 @@ export default function App() {
       // 3. Auth state change listener
       if (!isCancelled) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (typeof window !== 'undefined' && (window as any).__wecareSignupInProgress) return;
           if (session?.user) {
             try {
+              const explicitSessionId = typeof window !== 'undefined' ? sessionStorage.getItem('wecare_session_user_id') : null;
+              if (event === 'INITIAL_SESSION' && explicitSessionId && explicitSessionId !== session.user.id) return;
               const profile = await fetchCurrentProfile(session.user.id, session.user);
               if (profile && !profile.is_deleted) {
+                const profEmail = (profile.email || '').toLowerCase();
                 setUserAccounts(prev => {
-                  const others = prev.filter(u => u.id !== profile.id);
+                  const others = prev.filter(u => u.id !== profile.id && (!profEmail || u.email?.toLowerCase() !== profEmail));
                   return [profile, ...others];
                 });
                 setCurrentUserId(profile.id);
@@ -712,12 +739,17 @@ export default function App() {
               }
             } catch {
               const fallbackUser = buildUserAccountFromSession(session.user);
-              setUserAccounts(prev => [fallbackUser, ...prev.filter(u => u.id !== fallbackUser.id)]);
+              const fbEmail = (fallbackUser.email || '').toLowerCase();
+              setUserAccounts(prev => [
+                fallbackUser,
+                ...prev.filter(u => u.id !== fallbackUser.id && (!fbEmail || u.email?.toLowerCase() !== fbEmail))
+              ]);
               setCurrentUserId(fallbackUser.id);
               setCurrentRole(fallbackUser.role);
             }
           } else if (event === 'SIGNED_OUT') {
             setCurrentUserId(null);
+            setCurrentRole('client');
             try {
               sessionStorage.removeItem('wecare_session_user_id');
               localStorage.removeItem('wecare_current_user_id');
@@ -867,8 +899,16 @@ export default function App() {
   };
 
   const handleBiometricSuccess = (user: UserAccount) => {
+    const userEmail = (user.email || '').toLowerCase();
+    setUserAccounts(prev => [
+      user,
+      ...prev.filter(u => u.id !== user.id && (!userEmail || u.email?.toLowerCase() !== userEmail))
+    ]);
     setCurrentUserId(user.id);
-    localStorage.setItem('wecare_current_user_id', user.id);
+    try {
+      sessionStorage.setItem('wecare_session_user_id', user.id);
+      localStorage.setItem('wecare_current_user_id', user.id);
+    } catch {}
     setCurrentRole(user.role);
     setIsBiometricAuthOpen(false);
     setIsAuthModalOpen(false);
@@ -879,15 +919,20 @@ export default function App() {
     );
   };
 
-  // Sign out user
+  // Sign out user completely and purge active session tokens & draft UI state
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: 'local' });
     } catch {}
+    clearAllSupabaseAuthTokens();
     setCurrentUserId(null);
+    setCurrentRole('client');
+    setCurrentView('portal');
+    setIsAuthModalOpen(false);
     try {
       sessionStorage.removeItem('wecare_session_user_id');
       localStorage.removeItem('wecare_current_user_id');
+      localStorage.removeItem('wecare_booking_form_draft');
       if (typeof window !== 'undefined' && window.history?.pushState) {
         window.history.pushState({}, '', '/');
       }
@@ -959,9 +1004,9 @@ export default function App() {
       };
 
       setUserAccounts(prev => {
-        const exists = prev.some(a => a.id === safeId || (safeEmail && a.email === safeEmail));
-        if (exists) return prev;
-        const updated = [...prev, nurseAccount];
+        const lowerEmail = safeEmail.toLowerCase();
+        const filtered = prev.filter(a => a.id !== safeId && (!lowerEmail || a.email?.toLowerCase() !== lowerEmail));
+        const updated = [nurseAccount, ...filtered];
         try {
           localStorage.setItem('wecare_user_accounts', JSON.stringify(updated));
         } catch {}
@@ -971,6 +1016,7 @@ export default function App() {
       setCurrentUserId(nurseAccount.id);
       setCurrentRole('nurse');
       try {
+        sessionStorage.setItem('wecare_session_user_id', nurseAccount.id);
         localStorage.setItem('wecare_current_user_id', nurseAccount.id);
       } catch {}
 
@@ -1010,10 +1056,11 @@ export default function App() {
 
   // User Auth Handlers
   const handleSelectUser = (user: UserAccount) => {
-    setUserAccounts(prev => {
-      const exists = prev.some(u => u.id === user.id);
-      return exists ? prev.map(u => u.id === user.id ? user : u) : [user, ...prev];
-    });
+    const userEmail = (user.email || '').toLowerCase();
+    setUserAccounts(prev => [
+      user,
+      ...prev.filter(u => u.id !== user.id && (!userEmail || u.email?.toLowerCase() !== userEmail))
+    ]);
     setCurrentUserId(user.id);
     try {
       sessionStorage.setItem('wecare_session_user_id', user.id);
@@ -1063,10 +1110,18 @@ export default function App() {
   };
 
   const handleCreateAccount = (newAccount: UserAccount) => {
-    setUserAccounts(prev => [newAccount, ...prev]);
+    const newEmail = (newAccount.email || '').toLowerCase();
+    setUserAccounts(prev => [
+      newAccount,
+      ...prev.filter(u => u.id !== newAccount.id && (!newEmail || u.email?.toLowerCase() !== newEmail))
+    ]);
     setCurrentUserId(newAccount.id);
-    localStorage.setItem('wecare_current_user_id', newAccount.id);
+    try {
+      sessionStorage.setItem('wecare_session_user_id', newAccount.id);
+      localStorage.setItem('wecare_current_user_id', newAccount.id);
+    } catch {}
     setCurrentRole(newAccount.role);
+    setCurrentView('portal');
     setIsAuthModalOpen(false);
   };
 
@@ -2348,9 +2403,17 @@ export default function App() {
             initialRole={authModalRole}
             onComplete={(acc) => {
               if (acc) {
-                setUserAccounts(prev => [acc, ...prev.filter(u => u.id !== acc.id)]);
+                const accEmail = (acc.email || '').toLowerCase();
+                setUserAccounts(prev => [
+                  acc,
+                  ...prev.filter(u => u.id !== acc.id && (!accEmail || u.email?.toLowerCase() !== accEmail))
+                ]);
                 setCurrentUserId(acc.id);
                 setCurrentRole(acc.role);
+                try {
+                  sessionStorage.setItem('wecare_session_user_id', acc.id);
+                  localStorage.setItem('wecare_current_user_id', acc.id);
+                } catch {}
               }
               handleNavigateView('portal');
             }}
@@ -2650,6 +2713,7 @@ export default function App() {
                 nurses={nurses}
                 bookings={bookings}
                 currentNurseId={currentUser?.nurseProfileId || currentUser?.id || nurses[0]?.id || 'nurse-101'}
+                currentUser={currentUser}
                 payouts={payouts}
                 peerMessages={peerMessages}
                 onSendPeerMessage={handleSendPeerMessage}
@@ -3033,8 +3097,16 @@ export default function App() {
           isOpen={isPatientSignUpOpen}
           onClose={() => setIsPatientSignUpOpen(false)}
           onRegisterPatient={(newAccount) => {
-            setUserAccounts(prev => [newAccount, ...prev]);
+            const patEmail = (newAccount.email || '').toLowerCase();
+            setUserAccounts(prev => [
+              newAccount,
+              ...prev.filter(u => u.id !== newAccount.id && (!patEmail || u.email?.toLowerCase() !== patEmail))
+            ]);
             setCurrentUserId(newAccount.id);
+            try {
+              sessionStorage.setItem('wecare_session_user_id', newAccount.id);
+              localStorage.setItem('wecare_current_user_id', newAccount.id);
+            } catch {}
             setCurrentRole('client');
             supabase.from('profiles').upsert({
               id: newAccount.id,

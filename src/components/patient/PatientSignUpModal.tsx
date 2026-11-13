@@ -34,6 +34,8 @@ import { ALL_SERVICE_ZONES } from '../../data/mockData';
 import { soundFX } from '../../utils/soundEffects';
 import { CameraCaptureModal } from '../common/CameraCaptureModal';
 import { compressImageFile } from '../../utils/imageCompression';
+import { supabase, clearAllSupabaseAuthTokens, saveUsernameToCache } from '../../lib/supabase';
+import { saveApplicantDossier, uploadDocument } from '../../utils/dossierStore';
 import confetti from 'canvas-confetti';
 
 export const CORPORATE_AREA_LAUNCH_ZONES = [
@@ -310,7 +312,7 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
     }
   };
 
-  const handleCompleteRegistration = () => {
+  const handleCompleteRegistration = async () => {
     setError(null);
     
     if (!consentDataProtection) {
@@ -318,77 +320,167 @@ export const PatientSignUpModal: React.FC<PatientSignUpModalProps> = ({
       return;
     }
 
-    // Calculate approximate age if DOB provided
-    let calculatedAge = 45;
-    if (dob) {
-      const birthYear = new Date(dob).getFullYear();
-      calculatedAge = Math.max(1, new Date().getFullYear() - birthYear);
+    if (typeof window !== 'undefined') {
+      (window as any).__wecareSignupInProgress = true;
     }
 
-    const defaultPatientPhoto = patientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400';
-    const defaultFamilyPhoto = familyPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400';
+    try {
+      // Clear any previous user session before creating this patient account
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {}
+      clearAllSupabaseAuthTokens();
+      try {
+        sessionStorage.removeItem('wecare_session_user_id');
+        localStorage.removeItem('wecare_current_user_id');
+      } catch {}
 
-    const trustedFamily: TrustedFamilyMember = {
-      name: familyMemberName,
-      relation: familyRelation,
-      phone: familyPhone || phone,
-      email: familyEmail || email,
-      photoUrl: defaultFamilyPhoto,
-      canManageCare: true,
-      notes: familyNotes,
-      whatsAppUpdatesOptIn: familyWhatsAppOptIn,
-      whatsAppPhone: familyPhone || phone
-    };
+      const cleanEmail = email.trim().toLowerCase();
+      const cleanUsername = username.trim().toLowerCase();
+      const cleanFullName = name.trim();
+      const cleanPhone = phone.trim() || '+1 (876) 555-0100';
 
-    const patientBio: ClientPatientBioData = {
-      dateOfBirth: dob,
-      age: calculatedAge,
-      gender,
-      bloodType,
-      residentialAddress: address,
-      zone,
-      knownIllnesses: selectedIllnesses.length > 0 ? selectedIllnesses : ['None Reported / General Wellness'],
-      allergies: selectedAllergies,
-      mobilityStatus,
-      dietaryRestrictions,
-      specialCareInstructions,
-      medications,
-      trustedFamilyMember: trustedFamily,
-      profileSharedWith: allowProfileSharing ? [familyEmail, email].filter(Boolean) : []
-    };
+      let userId = `user-client-${Date.now()}`;
+      try {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              username: cleanUsername,
+              full_name: cleanFullName,
+              role: 'client',
+              phone: cleanPhone,
+              address
+            }
+          }
+        });
+        if (!authError && authData?.user?.id) {
+          userId = authData.user.id;
+        }
+      } catch {}
 
-    const newAccount: UserAccount = {
-      id: `user-client-${Date.now()}`,
-      username: username.trim().toLowerCase(),
-      password,
-      role: 'client',
-      approvalStatus: 'approved',
-      name: name.trim(),
-      email: email.trim(),
-      phone: phone.trim() || '+1 (876) 555-0100',
-      avatarUrl: defaultPatientPhoto,
-      zone,
-      address,
-      emergencyContact: {
-        name: `${familyMemberName} (${familyRelation})`,
-        phone: familyPhone || phone,
-        relation: familyRelation
-      },
-      patientBioData: patientBio,
-      whatsAppUpdatesOptIn: clientWhatsAppOptIn,
-      whatsAppPhone: phone.trim(),
-      createdAt: new Date().toISOString(),
-      lastLoginAt: new Date().toISOString()
-    };
+      // Calculate approximate age if DOB provided
+      let calculatedAge = 45;
+      if (dob) {
+        const birthYear = new Date(dob).getFullYear();
+        calculatedAge = Math.max(1, new Date().getFullYear() - birthYear);
+      }
 
-    onRegisterPatient(newAccount);
-    soundFX.playBookingConfirmed();
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
-    onClose();
+      let defaultPatientPhoto = patientPhotoUrl || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400';
+      if (patientPhotoUrl && patientPhotoUrl.startsWith('data:image/')) {
+        try {
+          const uploaded = await uploadDocument(patientPhotoUrl, 'patient-photo.jpg', 'profile_photo', userId);
+          if (uploaded?.url) defaultPatientPhoto = uploaded.url;
+        } catch {}
+      }
+      const defaultFamilyPhoto = familyPhotoUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400';
+
+      const trustedFamily: TrustedFamilyMember = {
+        name: familyMemberName,
+        relation: familyRelation,
+        phone: familyPhone || cleanPhone,
+        email: familyEmail || cleanEmail,
+        photoUrl: defaultFamilyPhoto,
+        canManageCare: true,
+        notes: familyNotes,
+        whatsAppUpdatesOptIn: familyWhatsAppOptIn,
+        whatsAppPhone: familyPhone || cleanPhone
+      };
+
+      const patientBio: ClientPatientBioData = {
+        dateOfBirth: dob,
+        age: calculatedAge,
+        gender,
+        bloodType,
+        residentialAddress: address,
+        zone,
+        knownIllnesses: selectedIllnesses.length > 0 ? selectedIllnesses : ['None Reported / General Wellness'],
+        allergies: selectedAllergies,
+        mobilityStatus,
+        dietaryRestrictions,
+        specialCareInstructions,
+        medications,
+        trustedFamilyMember: trustedFamily,
+        profileSharedWith: allowProfileSharing ? [familyEmail, cleanEmail].filter(Boolean) : []
+      };
+
+      const newAccount: UserAccount = {
+        id: userId,
+        username: cleanUsername,
+        password,
+        role: 'client',
+        approvalStatus: 'approved',
+        name: cleanFullName,
+        full_name: cleanFullName,
+        email: cleanEmail,
+        phone: cleanPhone,
+        avatarUrl: defaultPatientPhoto,
+        zone,
+        address,
+        emergencyContact: {
+          name: `${familyMemberName} (${familyRelation})`,
+          phone: familyPhone || cleanPhone,
+          relation: familyRelation
+        },
+        patientBioData: patientBio,
+        whatsAppUpdatesOptIn: clientWhatsAppOptIn,
+        whatsAppPhone: cleanPhone,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString()
+      };
+
+      // Persist login lookup & credentials so patient can sign out and sign back in seamlessly
+      saveUsernameToCache(cleanUsername, cleanEmail);
+      try {
+        const rawCreds = localStorage.getItem('wecare_auth_passwords') || '{}';
+        const creds = JSON.parse(rawCreds);
+        creds[cleanEmail] = password;
+        creds[cleanUsername] = password;
+        localStorage.setItem('wecare_auth_passwords', JSON.stringify(creds));
+
+        sessionStorage.setItem('wecare_session_user_id', userId);
+        localStorage.setItem('wecare_current_user_id', userId);
+
+        const rawAccounts = localStorage.getItem('wecare_user_accounts');
+        const list = rawAccounts ? JSON.parse(rawAccounts) : [];
+        const deduped = Array.isArray(list)
+          ? list.filter((u: any) => u.id !== userId && u.email?.toLowerCase() !== cleanEmail)
+          : [];
+        localStorage.setItem('wecare_user_accounts', JSON.stringify([newAccount, ...deduped]));
+      } catch {}
+
+      saveApplicantDossier({
+        id: userId,
+        userId,
+        username: cleanUsername,
+        email: cleanEmail,
+        fullName: cleanFullName,
+        name: cleanFullName,
+        role: 'client',
+        phone: cleanPhone,
+        address,
+        parish: zone,
+        photoUrl: defaultPatientPhoto,
+        profilePhotoUrl: defaultPatientPhoto,
+        emergencyContact: newAccount.emergencyContact,
+        status: 'approved',
+        submittedAt: new Date().toISOString()
+      }).catch(() => {});
+
+      onRegisterPatient(newAccount);
+      soundFX.playBookingConfirmed();
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+      onClose();
+    } finally {
+      if (typeof window !== 'undefined') {
+        (window as any).__wecareSignupInProgress = false;
+      }
+    }
   };
 
   return (

@@ -27,6 +27,7 @@ import { saveNurseProfile } from '../../services/qrFirebaseStore';
 import { supabase, saveNurseProfileToSupabase } from '../../lib/supabase';
 import { NurseProfile } from '../../types';
 import { AgreementSignatureBox, SignatureData } from '../common/AgreementSignatureBox';
+import { uploadDocument, saveApplicantDossier } from '../../utils/dossierStore';
 
 export interface NurseOnboardingFormProps {
   onSuccess?: (newNurse: NurseProfile) => void;
@@ -218,37 +219,24 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         authenticatedUserId = signUpData.user.id;
       }
 
-      // 2. Upload TRN / Credential Document to Supabase Storage bucket: nurse-documents
+      // 2. Upload TRN / Credential Document to central SQLite document vault
       let finalDocUrl = trnDocUrl;
 
       if (trnDocFile) {
         try {
           setTrnDocUploading(true);
-          const fileExt = trnDocFile.name.split('.').pop() || 'png';
-          const cleanFileName = `trn_${authenticatedUserId}_${Date.now()}.${fileExt}`;
-
-          const { data: uploadData, error: uploadErr } = await supabase.storage
-            .from('nurse-documents')
-            .upload(cleanFileName, trnDocFile, {
-              cacheControl: '3600',
-              upsert: true
-            });
-
-          if (!uploadErr && uploadData?.path) {
-            const { data: publicUrlData } = supabase.storage
-              .from('nurse-documents')
-              .getPublicUrl(uploadData.path);
-            if (publicUrlData?.publicUrl) {
-              finalDocUrl = publicUrlData.publicUrl;
-            }
-          } else {
-            console.warn('Storage bucket note:', uploadErr?.message);
-            finalDocUrl = `https://yflgdfvjigbcnagcuism.supabase.co/storage/v1/object/public/nurse-documents/${cleanFileName}`;
+          const upRes = await uploadDocument(
+            trnDocFile,
+            trnDocFile.name,
+            'trn_certificate',
+            authenticatedUserId,
+            cleanEmail
+          );
+          if (upRes?.url) {
+            finalDocUrl = upRes.url;
           }
         } catch (upErr) {
-          console.warn('Storage upload note:', upErr);
-          const fileExt = trnDocFile.name.split('.').pop() || 'png';
-          finalDocUrl = `https://yflgdfvjigbcnagcuism.supabase.co/storage/v1/object/public/nurse-documents/trn_${authenticatedUserId}_${Date.now()}.${fileExt}`;
+          console.warn('[NurseOnboarding] Upload note:', upErr);
         } finally {
           setTrnDocUploading(false);
         }
@@ -267,7 +255,7 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
           const { data: existingProfile } = await supabase
             .from('profiles')
             .select('id')
-            .eq('email', cleanEmail)
+            .ilike('email', cleanEmail)
             .maybeSingle();
           if (existingProfile?.id) {
             authenticatedUserId = existingProfile.id;
@@ -275,14 +263,24 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         } catch {}
       }
 
+      const compactDossier = {
+        id: authenticatedUserId,
+        email: cleanEmail,
+        fullName: fullName.trim(),
+        trnNumber: trn.trim(),
+        ncjLicense: ncjLicense.trim(),
+        trnCertificateUrl: finalDocUrl || undefined
+      };
+
       // 4. Upsert into profiles table with TRN and Document URLs
       const parts: string[] = [];
       if (ncjLicense.trim()) parts.push(ncjLicense.trim());
       if (trn.trim()) parts.push(`TRN: ${trn.trim()}`);
       if (finalDocUrl) parts.push(`DOC: ${finalDocUrl}`);
       if (signatureData?.signed) parts.push('SIGNED: YES');
+      parts.push(`DOSSIER:${JSON.stringify(compactDossier)}`);
 
-      const trnCombined = parts.join(' | ') || (finalDocUrl ? `DOC: ${finalDocUrl}` : (trn.trim() || ''));
+      const trnCombined = parts.join(' | ');
 
       if (authenticatedUserId && !authenticatedUserId.startsWith('nurse-reg-')) {
         const { error: profileError } = await supabase.from('profiles').upsert({
@@ -311,12 +309,32 @@ export const NurseOnboardingForm: React.FC<NurseOnboardingFormProps> = ({
         } catch {}
       }
 
+      await saveApplicantDossier({
+        id: authenticatedUserId,
+        userId: authenticatedUserId,
+        email: cleanEmail,
+        username: cleanEmail.split('@')[0],
+        fullName: fullName.trim(),
+        name: fullName.trim(),
+        role: 'nurse_pending',
+        phone: phone.trim(),
+        address: parish,
+        parish,
+        trnNumber: trn.trim(),
+        ncjLicense: ncjLicense.trim(),
+        trnCertificateUrl: finalDocUrl || undefined,
+        documents: finalDocUrl ? { trnCertificateUrl: finalDocUrl } : undefined,
+        signature: signatureData,
+        status: 'pending_approval',
+        submittedAt: new Date().toISOString()
+      }).catch(() => {});
+
       // Synchronize with saveNurseProfileToSupabase
       saveNurseProfileToSupabase({
         id: authenticatedUserId,
         name: fullName.trim(),
         email: cleanEmail,
-        photoUrl: 'https://images.unsplash.com/photo-1594824813570-781e600570b5?auto=format&fit=crop&q=80&w=400',
+        photoUrl: '',
         phone: phone.trim(),
         address: parish,
         parish,

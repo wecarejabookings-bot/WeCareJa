@@ -20,6 +20,7 @@ import { supabase } from '../../lib/supabase';
 import { soundFX } from '../../utils/soundEffects';
 import confetti from 'canvas-confetti';
 import { WeCareTrackLogo } from './WeCareTrackLogo';
+import { uploadDocument, saveApplicantDossier, fetchApplicantDossier } from '../../utils/dossierStore';
 
 export interface RejectedDocumentsResubmitProps {
   user: UserAccount;
@@ -162,95 +163,108 @@ export const RejectedDocumentsResubmit: React.FC<RejectedDocumentsResubmitProps>
     const nowIso = new Date().toISOString();
 
     try {
-      // 1. Build document payload for updates
+      // 1. Upload all replacement files directly to central SQLite Document Vault
       const updatedFields: Record<string, string> = {};
-      
+
       for (const key of rejectedKeys) {
         const item = replacementFiles[key];
         if (item) {
           const meta = DOC_METADATA[key];
           const fieldName = meta ? meta.targetField : key;
-          updatedFields[fieldName] = item.previewUrl;
-        }
-      }
+          let storedUrl = item.previewUrl;
 
-      // 2. Upload to Supabase Storage if online & configured
-      try {
-        if (supabase) {
-          const bucketName = user.role === 'admin' ? 'admin-documents' : 'nurse-documents';
-          for (const key of rejectedKeys) {
-            const item = replacementFiles[key];
-            if (item?.file) {
-              const fileExt = item.file.name.split('.').pop() || 'png';
-              const filePath = `${user.id}/${key}_${Date.now()}.${fileExt}`;
-              const { data: uploadData, error: uploadError } = await supabase.storage
-                .from(bucketName)
-                .upload(filePath, item.file, { upsert: true });
-
-              if (!uploadError && uploadData) {
-                const { data: publicUrlData } = supabase.storage
-                  .from(bucketName)
-                  .getPublicUrl(filePath);
-                if (publicUrlData?.publicUrl) {
-                  const meta = DOC_METADATA[key];
-                  if (meta) updatedFields[meta.targetField] = publicUrlData.publicUrl;
-                }
-              }
+          try {
+            const upRes = await uploadDocument(
+              item.file || item.previewUrl,
+              item.file?.name || `${key}_resubmit.jpg`,
+              key,
+              user.id,
+              cleanEmail
+            );
+            if (upRes?.url) {
+              storedUrl = upRes.url;
             }
+          } catch (upErr) {
+            console.warn('[Resubmit] Upload fallback notice:', upErr);
           }
+
+          updatedFields[fieldName] = storedUrl;
         }
-      } catch (storageErr) {
-        console.warn('[Resubmit] Storage upload note (using data URLs):', storageErr);
       }
 
-      // 3. Update public.profiles in Supabase
-      try {
-        if (supabase) {
-          const updatePayload: any = {
-            status: 'pending',
-            rejected_documents: [],
-            // keep rejection_date so Admin Portal shows "RESUBMITTED - 2nd Review"
-          };
-
-          if (updatedFields.driversLicenseFrontUrl) updatePayload.drivers_license_front_url = updatedFields.driversLicenseFrontUrl;
-          if (updatedFields.driversLicenseBackUrl) updatePayload.drivers_license_back_url = updatedFields.driversLicenseBackUrl;
-          if (updatedFields.trnCertificateUrl) updatePayload.trn_certificate_url = updatedFields.trnCertificateUrl;
-          if (updatedFields.licenseDocumentUrl) updatePayload.license_document_url = updatedFields.licenseDocumentUrl;
-          if (updatedFields.photoUrl) updatePayload.avatar_url = updatedFields.photoUrl;
-
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update(updatePayload)
-            .eq('id', user.id);
-
-          if (profileError) {
-            console.warn('[Resubmit] Supabase profiles update note:', profileError.message);
-          }
-        }
-      } catch (dbErr) {
-        console.warn('[Resubmit] Supabase update exception:', dbErr);
-      }
-
-      // 4. Update Local Dossier
+      // 2. Load existing dossier so prior verified documents are preserved alongside replacements
+      const existingRemote = await fetchApplicantDossier({ id: user.id, email: cleanEmail }).catch(() => null);
+      let localDossier: any = existingRemote || {};
       try {
         const dossierKey = `wecare_dossier_${cleanEmail}`;
         const rawDossier = localStorage.getItem(dossierKey) || localStorage.getItem(`wecare_dossier_${user.id}`);
-        let dossier = rawDossier ? JSON.parse(rawDossier) : {};
-        
-        dossier.status = 'pending';
-        dossier.rejected_documents = [];
-        dossier.resubmitted_at = nowIso;
-        if (!dossier.documents) dossier.documents = {};
-
-        for (const [k, url] of Object.entries(updatedFields)) {
-          dossier[k] = url;
-          dossier.documents[k] = url;
+        if (rawDossier) {
+          localDossier = { ...JSON.parse(rawDossier), ...localDossier };
         }
+      } catch {}
 
-        localStorage.setItem(dossierKey, JSON.stringify(dossier));
-        localStorage.setItem(`wecare_dossier_${user.id}`, JSON.stringify(dossier));
-      } catch (locErr) {
-        console.warn('[Resubmit] Local dossier update note:', locErr);
+      const mergedDossier: any = {
+        ...localDossier,
+        id: user.id,
+        userId: user.id,
+        email: cleanEmail || localDossier.email,
+        fullName: user.full_name || user.name || localDossier.fullName || 'Applicant',
+        status: 'pending',
+        rejected_documents: [],
+        resubmitted_at: nowIso,
+        documents: {
+          ...(localDossier.documents || {}),
+          ...updatedFields
+        },
+        ...updatedFields
+      };
+
+      // 3. Persist merged dossier & replacement scans in SQLite central database
+      await saveApplicantDossier(mergedDossier).catch(() => {});
+
+      // 4. Update public.profiles in Supabase (keeping DOSSIER JSON intact inside profiles.trn)
+      try {
+        if (supabase) {
+          const { data: existingProf } = await supabase
+            .from('profiles')
+            .select('id, trn')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          const currentTrn = typeof existingProf?.trn === 'string' ? existingProf.trn : '';
+          const baseTrn = currentTrn.includes('DOSSIER:')
+            ? currentTrn.substring(0, currentTrn.indexOf('DOSSIER:')).replace(/\|\s*$/, '').trim()
+            : currentTrn;
+
+          const compactDossier = {
+            id: user.id,
+            email: cleanEmail,
+            photoUrl: mergedDossier.photoUrl,
+            driversLicenseFrontUrl: mergedDossier.driversLicenseFrontUrl,
+            driversLicenseBackUrl: mergedDossier.driversLicenseBackUrl,
+            trnCertificateUrl: mergedDossier.trnCertificateUrl,
+            licenseDocumentUrl: mergedDossier.licenseDocumentUrl,
+            governmentIdUrl: mergedDossier.governmentIdUrl,
+            policeRecordUrl: mergedDossier.policeRecordUrl,
+            bankLetterUrl: mergedDossier.bankLetterUrl,
+            proofOfAddressUrl: mergedDossier.proofOfAddressUrl
+          };
+
+          const updatedTrn = baseTrn
+            ? `${baseTrn} | DOSSIER:${JSON.stringify(compactDossier)}`
+            : `DOSSIER:${JSON.stringify(compactDossier)}`;
+
+          await supabase
+            .from('profiles')
+            .update({
+              status: 'pending',
+              rejected_documents: [],
+              trn: updatedTrn
+            })
+            .eq('id', user.id);
+        }
+      } catch (dbErr) {
+        console.warn('[Resubmit] Supabase update exception:', dbErr);
       }
 
       // 5. Update local nurses roster if nurse
