@@ -381,7 +381,7 @@ export function fileToDataUrl(file: File | Blob): Promise<string> {
 async function compressImageBlobIfLarge(file: File | Blob): Promise<string> {
   const mime = (file as File).type || '';
   const isImage = mime.startsWith('image/') && !mime.includes('svg') && !mime.includes('gif');
-  if (!isImage || file.size <= 1.2 * 1024 * 1024) {
+  if (!isImage || file.size <= 120 * 1024) {
     return fileToDataUrl(file);
   }
 
@@ -390,7 +390,7 @@ async function compressImageBlobIfLarge(file: File | Blob): Promise<string> {
     return await new Promise<string>((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const maxDim = 1600;
+        const maxDim = 1100;
         let { width, height } = img;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
@@ -410,7 +410,7 @@ async function compressImageBlobIfLarge(file: File | Blob): Promise<string> {
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.86));
+        resolve(canvas.toDataURL('image/jpeg', 0.74));
       };
       img.onerror = () => resolve(rawDataUrl);
       img.src = rawDataUrl;
@@ -431,12 +431,16 @@ function cacheUploadedDocUrl(
   if (!fieldName) return;
 
   try {
-    const keys = new Set<string>(['wecare_uploaded_docs_latest']);
+    const keys = new Set<string>();
     if (email && email.trim()) {
       keys.add(`wecare_uploaded_docs_${email.trim().toLowerCase()}`);
     }
     if (userId && userId.trim()) {
       keys.add(`wecare_uploaded_docs_${userId.trim()}`);
+    }
+    // Only maintain generic latest cache if URL is compact (avoid bloating 5MB quota with base64 duplicates)
+    if (keys.size === 0 || (!url.startsWith('data:') && url.length < 1024)) {
+      keys.add('wecare_uploaded_docs_latest');
     }
 
     for (const k of keys) {

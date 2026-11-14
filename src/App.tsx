@@ -348,7 +348,9 @@ export default function App() {
           const validParsed = parsed.filter((u: any) => u && typeof u === 'object');
           const hasMaster = validParsed.some((u: any) => u.username === 'sydney' || u.id === masterAdmin.id);
           const combined = hasMaster ? validParsed : [masterAdmin, ...validParsed];
-          localStorage.setItem('wecare_user_accounts', JSON.stringify(combined));
+          try {
+            localStorage.setItem('wecare_user_accounts', JSON.stringify(combined));
+          } catch {}
           return combined;
         }
       }
@@ -554,17 +556,23 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // Sync state to localStorage
+  // Sync state to localStorage safely
   useEffect(() => {
-    localStorage.setItem('wecare_services', JSON.stringify(services));
+    try {
+      localStorage.setItem('wecare_services', JSON.stringify(services));
+    } catch {}
   }, [services]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_nurses', JSON.stringify(nurses));
+    try {
+      localStorage.setItem('wecare_nurses', JSON.stringify(nurses));
+    } catch {}
   }, [nurses]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_bookings', JSON.stringify(bookings));
+    try {
+      localStorage.setItem('wecare_bookings', JSON.stringify(bookings));
+    } catch {}
   }, [bookings]);
 
   useEffect(() => {
@@ -583,15 +591,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('wecare_payouts', JSON.stringify(payouts));
+    try {
+      localStorage.setItem('wecare_payouts', JSON.stringify(payouts));
+    } catch {}
   }, [payouts]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_user_accounts', JSON.stringify(userAccounts));
+    try {
+      localStorage.setItem('wecare_user_accounts', JSON.stringify(userAccounts));
+    } catch {}
   }, [userAccounts]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_notifications', JSON.stringify(notifications));
+    try {
+      localStorage.setItem('wecare_notifications', JSON.stringify(notifications));
+    } catch {}
   }, [notifications]);
 
   useEffect(() => {
@@ -607,15 +621,21 @@ export default function App() {
   }, [currentUserId]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_peer_messages', JSON.stringify(peerMessages));
+    try {
+      localStorage.setItem('wecare_peer_messages', JSON.stringify(peerMessages));
+    } catch {}
   }, [peerMessages]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_nursing_schools', JSON.stringify(nursingSchools));
+    try {
+      localStorage.setItem('wecare_nursing_schools', JSON.stringify(nursingSchools));
+    } catch {}
   }, [nursingSchools]);
 
   useEffect(() => {
-    localStorage.setItem('wecare_video_meetings', JSON.stringify(videoMeetings));
+    try {
+      localStorage.setItem('wecare_video_meetings', JSON.stringify(videoMeetings));
+    } catch {}
   }, [videoMeetings]);
 
   // Connect Auth & Real Data from Supabase with resilient RLS fallbacks
@@ -2311,7 +2331,9 @@ export default function App() {
 
     setActiveEmergencySOS(emergencyData);
     setIsFullScreenSOSOpen(true);
-    localStorage.setItem('wecare_active_emergency_sos', JSON.stringify(emergencyData));
+    try {
+      localStorage.setItem('wecare_active_emergency_sos', JSON.stringify(emergencyData));
+    } catch {}
     soundFX.playQuickSOSTone();
 
     // Query live GPS coordinates immediately from browser device sensor

@@ -1,7 +1,10 @@
 import { Component, ErrorInfo, ReactNode, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { clearBloatedStorageCaches, installSafeStorageGuard } from './utils/safeStorage';
 import App from './App.tsx';
 import './index.css';
+
+installSafeStorageGuard();
 
 console.log("App loaded");
 
@@ -59,6 +62,7 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
                   try {
                     localStorage.removeItem('wecare_current_user_id');
                     sessionStorage.removeItem('wecare_session_user_id');
+                    clearBloatedStorageCaches();
                   } catch {}
                   window.location.reload();
                 }}

@@ -88,7 +88,9 @@ export function saveNurseProfile(uid: string, profile: Omit<NurseRegistrationRec
 
   const current = getNurseProfiles();
   const updated = [record, ...current.filter(n => n.uid !== uid)];
-  localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(updated));
+  try {
+    localStorage.setItem(STORAGE_KEYS.NURSES, JSON.stringify(updated));
+  } catch {}
 
   notifySync('NURSE_REGISTERED', record);
   return record;
@@ -138,7 +140,9 @@ export function saveBookingCheckin(record: BookingCheckinRecord) {
   if (typeof window === 'undefined') return;
   const all = getAllBookingCheckins();
   all[record.bookingId] = record;
-  localStorage.setItem(STORAGE_KEYS.CHECKINS, JSON.stringify(all));
+  try {
+    localStorage.setItem(STORAGE_KEYS.CHECKINS, JSON.stringify(all));
+  } catch {}
   notifySync('CHECKIN_SAVED', record);
 }
 
@@ -234,7 +238,9 @@ export function logSecurityEvent(entry: Omit<SecurityLogRecord, 'id' | 'timestam
 
   const current = getSecurityLogs();
   const updated = [record, ...current].slice(0, 100); // keep last 100 logs
-  localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(updated));
+  try {
+    localStorage.setItem(STORAGE_KEYS.LOGS, JSON.stringify(updated));
+  } catch {}
 
   notifySync('SECURITY_LOG', record);
   return record;
